@@ -10,6 +10,7 @@ import {
   IconPlusOutlineMedium,
   IconCloseOutlineMedium,
   IconEllipsisOutlineMedium,
+  IconSparkleMedium,
   IconRefreshOutlineMedium
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
@@ -26,6 +27,7 @@ import { ResourceList } from './ResourceList.js'
 import type { RenderExtensionDetail } from './details.js'
 import { useExtensionWindow, type ExtensionWindowObserver } from './use-window.js'
 import { presetCoverage, resourceSelected, toggleResource, uniquePresetName } from './resource.js'
+import { AiPresetModal } from './AiPresetModal.js'
 import css from './presets.module.css'
 import { AgentExtensionIcon } from '../../ui/AgentExtensionIcon.js'
 import sourceCss from '../../ui/source-strip.module.css'
@@ -66,6 +68,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
     [newName, setNewName] = useState('')
   const [deletingId, setDeletingId] = useState<string>()
   const [detail, setDetail] = useState<ExtensionResource>()
+  const [suggesting, setSuggesting] = useState(false)
   // One reading mode for the whole manager: the switch lives in the list's
   // toolbar, so the cards and the detail dialog behind them flip together.
   const [showOriginal, setShowOriginal] = useState(false)
@@ -458,6 +461,9 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
                   )}
                 </div>
               </div>
+              <button type="button" className={rc.iconBtn} aria-label={t('epSuggestTitle')} title={t('epSuggestTitle')} disabled={writes > 0} onClick={() => setSuggesting(true)}>
+                <IconSparkleMedium size={14} />
+              </button>
               <button type="button" className={rc.iconBtn} aria-label={t('epSaveAs')} title={t('epSaveAs')} disabled={writes > 0 || savedDirty} onClick={() => beginName('save')}>
                 <IconPlusOutlineMedium />
               </button>
@@ -652,6 +658,20 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
           </Button>
         }
       />
+      {suggesting
+        ? h(AiPresetModal, {
+            t,
+            // The rows a preset can carry: everything the manager lists that the runtime has.
+            candidates: (data?.resources ?? []).filter(row => row.configuration === undefined && row.available).map(row => ({ id: row.id, label: row.name })),
+            onApply: async suggestion => {
+              const next = await mutate('create', { name: suggestion.name, enabledIds: suggestion.enabledIds })
+              const created = next.library.presets.find(preset => preset.name === suggestion.name)
+              if (created !== undefined) loadEditor(next.library, created.id)
+              setSuggesting(false)
+            },
+            onClose: () => setSuggesting(false)
+          })
+        : null}
       {detail
         ? renderDetail({
             resource: detail,

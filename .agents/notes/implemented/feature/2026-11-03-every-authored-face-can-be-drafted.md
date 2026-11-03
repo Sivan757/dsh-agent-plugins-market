@@ -15,6 +15,8 @@ Five surfaces hold an authored document — a skill, a command, a role, an outpu
 - **A limit is a limit.** A provider that answers 429 or a usage-limit message crosses as `ai-provider-limited`, and the field says in the reader's language that the quota ran out and the editor was untouched. A missing model answers 409 with its own sentence.
 - **Service configuration is out of scope.** Drafting an MCP or language-server declaration from an intent produces configuration, not prose, and reviewing it is a different task.
 
+- **A preset is suggested, then approved.** `POST ai-preset` takes the intent and the rows the manager is showing, and the model answers a name, a reason and a selection. Every id is checked against the rows on offer, duplicates collapse, and the answer is capped; the manager shows all three before creating anything, then creates through its own path. An answer that names nothing it was offered is refused as unprocessable rather than turned into an empty preset.
+
 ## Alternatives considered
 
 - **A per-face prompt and call in each panel.** Rejected: five places to drift, and the format knowledge already lives in one place per face.
@@ -29,6 +31,8 @@ Five surfaces hold an authored document — a skill, a command, a role, an outpu
 - The feature needs a configured default model; without one it states that instead of failing obscurely.
 
 ## Verification
+
+- `ai-draft-routes.test.ts` also covers the suggestion route (5 more tests): ids outside the offered rows are dropped, a fenced answer parses, an answer selecting nothing is refused, an empty intent or empty row list never reaches the model, and a provider limit keeps its code.
 
 - `packages/market-bundle/test/integration/ai-draft-routes.test.ts` (6 tests): a draft names its route, every face gets its own format rules, unknown face/empty intent/over-long intent are refused before the model is called, a missing model is 409, a provider failure is 502, a limit is `ai-provider-limited`, and GET or a cross-origin write is refused.
 - `packages/market-ui/test/ai-draft-field.test.ts` (3 tests): the intent is what is sent, the answer reaches the editor with the model named, the button stays disabled with nothing to ask, and a failure appears in the alert row.

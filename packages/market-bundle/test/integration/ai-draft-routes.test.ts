@@ -9,6 +9,7 @@
 import { describe, expect, it } from 'vitest'
 import { AI_DRAFT_LIMITS, AI_DRAFT_ROUTES } from '../../../../packages/market-contracts/src/contracts/ai-draft.js'
 import { createAiDraftService, type AiDraftPort } from '../../../../packages/market-bundle/src/application/ai-draft.js'
+import { createAiPresetService, parsePresetSuggestion } from '../../../../packages/market-bundle/src/application/ai-preset.js'
 import { mountAiDraftRoutes } from '../../../../packages/market-bundle/src/routes-ai.js'
 
 type Handler = (req: unknown, res: unknown) => void | Promise<void>
@@ -81,7 +82,7 @@ describe('ai draft route', () => {
   it('drafts one artifact and names the route that produced it', async () => {
     const { ctx, routes } = host()
     const fake = port()
-    mountAiDraftRoutes(ctx, { service: createAiDraftService(fake.port), logger })
+    mountAiDraftRoutes(ctx, { service: createAiDraftService(fake.port), presets: createAiPresetService(fake.port), logger })
     const answer = await post(routes, { face: 'skills', intent: '审查我的 TypeScript 改动', locale: 'zh' })
 
     expect(answer.status).toBe(200)
@@ -96,7 +97,7 @@ describe('ai draft route', () => {
   it('rejects an unknown face, an empty intent and an over-long intent', async () => {
     const { ctx, routes } = host()
     const fake = port()
-    mountAiDraftRoutes(ctx, { service: createAiDraftService(fake.port), logger })
+    mountAiDraftRoutes(ctx, { service: createAiDraftService(fake.port), presets: createAiPresetService(fake.port), logger })
 
     expect((await post(routes, { face: 'mcp', intent: 'x' })).status).toBe(400)
     expect((await post(routes, { face: 'skills', intent: '   ' })).status).toBe(400)
@@ -108,7 +109,7 @@ describe('ai draft route', () => {
 
   it('answers 409 when the deployment has no model, and 502 when the call fails', async () => {
     const { ctx, routes } = host()
-    mountAiDraftRoutes(ctx, { service: createAiDraftService(undefined), logger })
+    mountAiDraftRoutes(ctx, { service: createAiDraftService(undefined), presets: createAiPresetService(undefined), logger })
     const unconfigured = await post(routes, { face: 'skills', intent: 'anything' })
     expect(unconfigured.status).toBe(409)
     expect(String(unconfigured.body['error'])).toContain('no model')
@@ -119,7 +120,7 @@ describe('ai draft route', () => {
       }
     }
     const second = host()
-    mountAiDraftRoutes(second.ctx, { service: createAiDraftService(failing), logger })
+    mountAiDraftRoutes(second.ctx, { service: createAiDraftService(failing), presets: createAiPresetService(failing), logger })
     const failed = await post(second.routes, { face: 'outputStyles', intent: 'answer briefly' })
     expect(failed.status).toBe(502)
     expect(String(failed.body['error'])).toContain('provider exploded')
@@ -134,7 +135,7 @@ describe('ai draft route', () => {
       }
     }
     const { ctx, routes } = host()
-    mountAiDraftRoutes(ctx, { service: createAiDraftService(limited), logger })
+    mountAiDraftRoutes(ctx, { service: createAiDraftService(limited), presets: createAiPresetService(limited), logger })
     const answer = await post(routes, { face: 'skills', intent: 'anything' })
     expect(answer.status).toBe(502)
     expect(answer.body['code']).toBe('ai-provider-limited')
@@ -142,7 +143,7 @@ describe('ai draft route', () => {
 
   it('refuses a read method and a cross-origin write', async () => {
     const { ctx, routes } = host()
-    mountAiDraftRoutes(ctx, { service: createAiDraftService(port().port), logger })
+    mountAiDraftRoutes(ctx, { service: createAiDraftService(port().port), presets: createAiPresetService(port().port), logger })
     expect((await post(routes, {}, 'GET')).status).toBe(405)
     expect((await post(routes, { face: 'skills', intent: 'x' }, 'POST', 'https://evil.example')).status).toBe(403)
   })
@@ -151,11 +152,93 @@ describe('ai draft route', () => {
     for (const face of ['skills', 'commands', 'agents', 'outputStyles', 'instructions'] as const) {
       const { ctx, routes } = host()
       const fake = port('draft')
-      mountAiDraftRoutes(ctx, { service: createAiDraftService(fake.port), logger })
+      mountAiDraftRoutes(ctx, { service: createAiDraftService(fake.port), presets: createAiPresetService(fake.port), logger })
       const answer = await post(routes, { face, intent: 'do the thing', locale: 'en' })
       expect(answer.status).toBe(200)
       expect(fake.calls[0]!.system.length).toBeGreaterThan(80)
       if (face === 'instructions') expect(fake.calls[0]!.system).toContain('no frontmatter')
     }
+  })
+})
+
+describe('ai preset suggestion', () => {
+  const candidates = [
+    { id: 'market:src/frontend', label: 'frontend-suite' },
+    { id: 'market:src/testing', label: 'testing-suite' },
+    { id: 'skills:src/frontend/review', label: 'review' }
+  ]
+
+  /** A port that answers with whatever JSON the model would have produced. */
+  const answering = (text: string): AiDraftPort => ({ complete: async () => ({ text, provider: 'deepseek', model: 'fixture' }) })
+
+  async function suggest(routes: Map<string, Handler>, body: unknown): Promise<Answer> {
+    const { response, read } = recorded()
+    await routes.get(AI_DRAFT_ROUTES.suggestPreset)?.(request(body), response)
+    return read()
+  }
+
+  it('keeps only ids the manager offered, and names the preset', async () => {
+    const { ctx, routes } = host()
+    const port = answering(
+      '{"name":"前端开发","reason":"覆盖前端常用的东西","picks":["market:src/frontend","market:src/frontend","market:src/ghost","skills:src/frontend/review"]}'
+    )
+    mountAiDraftRoutes(ctx, { service: createAiDraftService(port), presets: createAiPresetService(port), logger })
+    const answer = await suggest(routes, { intent: '前端开发用', candidates, locale: 'zh' })
+    expect(answer.status).toBe(200)
+    expect(answer.body).toMatchObject({ name: '前端开发', reason: '覆盖前端常用的东西' })
+    // The duplicate collapses and the row that was never offered is dropped.
+    expect(answer.body['enabledIds']).toEqual(['market:src/frontend', 'skills:src/frontend/review'])
+  })
+
+  it('reads a fenced answer, and refuses one that selects nothing it was offered', () => {
+    expect(parsePresetSuggestion('```json\n{"name":"x","picks":["market:src/testing"]}\n```', candidates).enabledIds).toEqual(['market:src/testing'])
+    expect(() => parsePresetSuggestion('{"name":"x","picks":["market:src/ghost"]}', candidates)).toThrow(/selected nothing/)
+    expect(() => parsePresetSuggestion('no json here', candidates)).toThrow(/JSON/)
+    expect(() => parsePresetSuggestion('{"picks":["market:src/testing"]}', candidates)).toThrow(/no name/)
+  })
+
+  it('refuses an empty intent and an empty world before calling the model', async () => {
+    const { ctx, routes } = host()
+    let called = 0
+    const port: AiDraftPort = {
+      complete: async () => {
+        called++
+        return { text: '{"name":"x"}', provider: 'p', model: 'm' }
+      }
+    }
+    mountAiDraftRoutes(ctx, { service: createAiDraftService(port), presets: createAiPresetService(port), logger })
+    expect((await suggest(routes, { intent: '  ', candidates })).status).toBe(400)
+    expect((await suggest(routes, { intent: '前端', candidates: [] })).status).toBe(400)
+    expect(called).toBe(0)
+  })
+
+  it('names a provider limit on the preset route too', async () => {
+    const { ctx, routes } = host()
+    const port = answering('{"message":"usage limit has been reached (429)"}')
+    mountAiDraftRoutes(ctx, { service: createAiDraftService(port), presets: createAiPresetService(port), logger })
+    const answer = await suggest(routes, { intent: '前端开发', candidates })
+    // The model answered prose where JSON was required: that is an unusable answer, not a
+    // limit, because the text carries no limit signal from the provider.
+    expect(answer.status).toBe(422)
+
+    const limited: AiDraftPort = {
+      complete: async () => {
+        throw new Error('provider error (429): usage limit reached')
+      }
+    }
+    const second = host()
+    mountAiDraftRoutes(second.ctx, { service: createAiDraftService(limited), presets: createAiPresetService(limited), logger })
+    const refusal = await suggest(second.routes, { intent: '前端开发', candidates })
+    expect(refusal.status).toBe(502)
+    expect(refusal.body['code']).toBe('ai-provider-limited')
+  })
+
+  it('reports an unusable answer as unprocessable, not as a provider failure', async () => {
+    const { ctx, routes } = host()
+    const port = answering('I would pick the frontend suite.')
+    mountAiDraftRoutes(ctx, { service: createAiDraftService(port), presets: createAiPresetService(port), logger })
+    const answer = await suggest(routes, { intent: '前端开发', candidates })
+    expect(answer.status).toBe(422)
+    expect(answer.body['code']).toBe('ai-invalid-suggestion')
   })
 })

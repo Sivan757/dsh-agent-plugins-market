@@ -12,10 +12,12 @@
  */
 import { MARKET_API_PREFIX } from './market.js'
 
-/** The route this contract owns. */
+/** The routes this contract owns. */
 export const AI_DRAFT_ROUTES = {
   /** Draft one artifact from an intent. POST. */
-  draft: `${MARKET_API_PREFIX}ai-draft`
+  draft: `${MARKET_API_PREFIX}ai-draft`,
+  /** Suggest a preset selection from an intent and the rows the manager shows. POST. */
+  suggestPreset: `${MARKET_API_PREFIX}ai-preset`
 } as const
 
 /**
@@ -61,3 +63,44 @@ export interface AiDraftResult {
   /** The model that produced it. */
   model: string
 }
+
+/**
+ * One row the preset manager can put in a preset: an id the runtime accepts and the label a
+ * person reads.
+ */
+export interface AiPresetCandidate {
+  id: string
+  label: string
+}
+
+/** One preset-suggestion request. */
+export interface AiPresetRequest {
+  /** What the preset should be for, in the person's own words. */
+  intent: string
+  /** The rows the manager is showing, so the answer can only name rows that exist. */
+  candidates: readonly AiPresetCandidate[]
+  /** The language the preset's name and reason should be written in. */
+  locale?: 'zh' | 'en'
+}
+
+/** One preset suggestion: what to call it, why, and which rows it selects. */
+export interface AiPresetSuggestion {
+  name: string
+  reason: string
+  /** Ids from the request's candidates, in the order the model chose them. */
+  enabledIds: string[]
+}
+
+/** Bounds every preset suggestion is measured against. */
+export const AI_PRESET_LIMITS = {
+  /** Characters of intent one request may carry. */
+  intentChars: 500,
+  /** Rows one request may offer the model. */
+  candidates: 300,
+  /** Rows one suggestion may select. */
+  picks: 60,
+  /** Output tokens one suggestion may spend. */
+  maxTokens: 900,
+  /** Milliseconds one suggestion may take. */
+  timeoutMs: 60_000
+} as const

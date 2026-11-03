@@ -27,7 +27,7 @@ import type { McpStatusPayload } from '../../market-contracts/src/contracts/mcp-
 import type { LspStatusPayload } from '../../market-contracts/src/contracts/lsp-status.js'
 import type { SurfaceToggleKey, SurfaceToggles } from '../../market-contracts/src/contracts/surface-toggles.js'
 import { OUTPUT_STYLE_ROUTES } from '../../market-contracts/src/contracts/output-styles.js'
-import { AI_DRAFT_ROUTES, type AiDraftFace, type AiDraftResult } from '../../market-contracts/src/contracts/ai-draft.js'
+import { AI_DRAFT_ROUTES, type AiDraftFace, type AiDraftResult, type AiPresetCandidate, type AiPresetSuggestion } from '../../market-contracts/src/contracts/ai-draft.js'
 import type { OutputStyleCaptureResult, OutputStylesPayload, OutputStyleSaveRequest } from '../../market-contracts/src/contracts/output-styles.js'
 import { resolveHiddenTabs, resolveTabOrder, type TabLayoutWire } from '../../market-contracts/src/contracts/tab-layout.js'
 import { INSTRUCTION_ROUTES } from '../../market-contracts/src/contracts/instructions.js'
@@ -771,6 +771,28 @@ export async function requestAiDraft(input: { face: AiDraftFace; intent: string;
       `${AI_DRAFT_ROUTES.draft}`,
       { face: input.face, intent: input.intent, locale: input.locale, ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }) },
       'draft failed'
+    )
+  )
+}
+
+/**
+ * Ask the deployment's model to suggest a preset selection from the rows the manager shows.
+ *
+ * The manager sends its own rows because the suggestion may only name rows that exist: the
+ * server checks every id it answers against this list, so a hallucinated id cannot become a
+ * preset entry.
+ *
+ * @param input.intent - what the preset should be for, in the person's own words.
+ * @param input.candidates - the rows the manager can put in a preset.
+ * @param input.locale - the language the name and the reason should be written in.
+ * @returns the suggestion, already filtered to the rows on offer.
+ */
+export async function requestAiPreset(input: { intent: string; candidates: readonly AiPresetCandidate[]; locale: 'zh' | 'en' }): Promise<AiPresetSuggestion> {
+  return withBusyOperation(() =>
+    postOkJson<AiPresetSuggestion>(
+      `${AI_DRAFT_ROUTES.suggestPreset}`,
+      { intent: input.intent, candidates: [...input.candidates], locale: input.locale },
+      'preset suggestion failed'
     )
   )
 }

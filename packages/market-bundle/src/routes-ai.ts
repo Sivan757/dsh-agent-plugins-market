@@ -12,8 +12,18 @@
  * @module routes-ai
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
-import { AI_DRAFT_FACES, AI_DRAFT_LIMITS, AI_DRAFT_ROUTES, type AiDraftFace, type AiDraftRequest } from '../../market-contracts/src/contracts/ai-draft.js'
+import {
+  AI_DRAFT_FACES,
+  AI_DRAFT_LIMITS,
+  AI_DRAFT_ROUTES,
+  AI_PRESET_LIMITS,
+  type AiDraftFace,
+  type AiDraftRequest,
+  type AiPresetCandidate,
+  type AiPresetRequest
+} from '../../market-contracts/src/contracts/ai-draft.js'
 import type { AiDraftService } from './application/ai-draft.js'
+import type { AiPresetService } from './application/ai-preset.js'
 import { isTrustedMutation } from './request-trust.js'
 import { routeFailurePayload, type RouteLogger } from './route-errors.js'
 import { readJsonBody, sendJson } from './route-http.js'
@@ -22,9 +32,11 @@ interface WebServerService {
   register(route: { kind: 'exact' | 'prefix'; path: string; handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void> }): () => void
 }
 
-/** What the draft route needs from the composition root. */
+/** What the AI routes need from the composition root. */
 export interface AiDraftRouteDeps {
   service: AiDraftService
+  /** The preset suggester; the manager's own rows are the world it chooses from. */
+  presets: AiPresetService
   logger: RouteLogger
 }
 
@@ -53,7 +65,7 @@ const isFace = (value: unknown): value is AiDraftFace => typeof value === 'strin
 export function mountAiDraftRoutes(ctx: { get(name: string): unknown }, deps: AiDraftRouteDeps): () => void {
   const server = ctx.get('webServer') as WebServerService | undefined
   if (server === undefined) return () => undefined
-  return server.register({
+  const disposeDraft = server.register({
     kind: 'exact',
     path: AI_DRAFT_ROUTES.draft,
     handler: async (request: IncomingMessage, response: ServerResponse) => {
@@ -100,4 +112,79 @@ export function mountAiDraftRoutes(ctx: { get(name: string): unknown }, deps: Ai
       }
     }
   })
+  const disposePreset = server.register({
+    kind: 'exact',
+    path: AI_DRAFT_ROUTES.suggestPreset,
+    handler: async (request: IncomingMessage, response: ServerResponse) => {
+      if (request.method !== 'POST') {
+        sendJson(response, 405, { error: 'method not allowed' })
+        return
+      }
+      if (!isTrustedMutation(request)) {
+        sendJson(response, 403, { error: 'untrusted request' })
+        return
+      }
+      const body = (await readJsonBody(request)) as Partial<AiPresetRequest>
+      if (typeof body.intent !== 'string' || body.intent.trim().length === 0) {
+        sendJson(response, 400, { error: 'say what the preset should be for' })
+        return
+      }
+      if (body.intent.length > AI_PRESET_LIMITS.intentChars) {
+        sendJson(response, 400, { error: 'the request is too long to build a preset from' })
+        return
+      }
+      const candidates = readCandidates(body.candidates)
+      if (candidates.length === 0) {
+        sendJson(response, 400, { error: 'there is nothing to build a preset from' })
+        return
+      }
+      try {
+        const suggestion = await deps.presets.suggest({ intent: body.intent, candidates, locale: body.locale === 'en' ? 'en' : 'zh' })
+        sendJson(response, 200, suggestion)
+      } catch (error) {
+        const code = (error as { code?: string }).code
+        // The same three families as a draft: a configuration, an unusable answer, and a
+        // provider that refused the call. The limit keeps its own code so the client can say it
+        // in the reader's language instead of echoing the provider's JSON.
+        const payload = looksLikeALimit(error)
+          ? { ok: false as const, code: 'ai-provider-limited', error: 'the model refused the call: ' + String((error as Error).message) }
+          : routeFailurePayload(error, 'ai preset', deps.logger)
+        sendJson(
+          response,
+          code === 'ai-model-unconfigured' || code === 'ai-unavailable' ? 409 : code === 'ai-invalid-suggestion' || code === 'ai-empty-selection' ? 422 : 502,
+          payload
+        )
+      }
+    }
+  })
+  return () => {
+    disposeDraft()
+    disposePreset()
+  }
+}
+
+/**
+ * Read the rows a suggestion may choose from.
+ *
+ * The client sends its own view of the inventory, so the list is bounded and shaped here: an
+ * id and a label, at most the contract's cap, with duplicates dropped. The service then checks
+ * every answer against exactly this list.
+ * @param value - the request's candidates field.
+ * @returns the rows on offer, in request order.
+ */
+function readCandidates(value: unknown): AiPresetCandidate[] {
+  if (!Array.isArray(value)) return []
+  const seen = new Set<string>()
+  const rows: AiPresetCandidate[] = []
+  for (const entry of value) {
+    if (typeof entry !== 'object' || entry === null) continue
+    const id = (entry as { id?: unknown }).id
+    const label = (entry as { label?: unknown }).label
+    if (typeof id !== 'string' || id === '' || typeof label !== 'string') continue
+    if (seen.has(id)) continue
+    seen.add(id)
+    rows.push({ id, label })
+    if (rows.length >= AI_PRESET_LIMITS.candidates) break
+  }
+  return rows
 }

@@ -470,3 +470,13 @@
   color: var(--dsw-alias-state-error-primary);
   font-size: 12px;
 }
+
+/* The suggestion preview: a short list, because the point is to read what would be created. */
+.aiList {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  max-height: 180px;
+  overflow: auto;
+}

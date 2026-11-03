@@ -53,6 +53,7 @@ import { INSTRUCTION_LIMITS } from './application/instructions.js'
 import { mountOutputStyleRoutes } from './routes-output-styles.js'
 import { mountAiDraftRoutes } from './routes-ai.js'
 import { createAiDraftService } from './application/ai-draft.js'
+import { createAiPresetService } from './application/ai-preset.js'
 import { createLlmDraftPort } from './platform/llm-draft.js'
 import { createOutputStyleSuitePort } from './application/output-styles-suites.js'
 import { OutputStyleService, mountOutputStyleSection } from '../../market-runtime/src/index.js'
@@ -528,7 +529,12 @@ export async function apply(
       })
       // The AI draft: one route, one deployment model. The port reads the model at call
       // time, so a deployment that configures one later starts drafting without a restart.
-      const disposeAiDraft = mountAiDraftRoutes(hostCtx, { service: createAiDraftService(createLlmDraftPort(hostCtx)), logger: ctx.logger })
+      const draftPort = createLlmDraftPort(hostCtx)
+      const disposeAiDraft = mountAiDraftRoutes(hostCtx, {
+        service: createAiDraftService(draftPort),
+        presets: createAiPresetService(draftPort),
+        logger: ctx.logger
+      })
       const disposeResources = mountResourceRoutes(hostCtx, {
         catalog,
         panels: resources,
