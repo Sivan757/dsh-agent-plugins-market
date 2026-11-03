@@ -97,7 +97,9 @@ export function mountAiDraftRoutes(ctx: { get(name: string): unknown }, deps: Ai
           intent: draft.intent,
           locale: draft.locale === 'en' ? 'en' : 'zh'
         })
-        sendJson(response, 200, result)
+        // The repo's write envelope: every successful mutation answers ok:true, and the
+        // client's shared request helper refuses a body without it.
+        sendJson(response, 200, { ok: true, ...result })
       } catch (error) {
         // A provider that refused the call for a limit is not a broken deployment: the reader
         // is out of quota or is being rate-limited, and that is a different sentence.
@@ -140,7 +142,7 @@ export function mountAiDraftRoutes(ctx: { get(name: string): unknown }, deps: Ai
       }
       try {
         const suggestion = await deps.presets.suggest({ intent: body.intent, candidates, locale: body.locale === 'en' ? 'en' : 'zh' })
-        sendJson(response, 200, suggestion)
+        sendJson(response, 200, { ok: true, ...suggestion })
       } catch (error) {
         const code = (error as { code?: string }).code
         // The same three families as a draft: a configuration, an unusable answer, and a

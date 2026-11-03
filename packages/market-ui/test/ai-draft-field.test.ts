@@ -34,15 +34,40 @@ afterEach(async () => {
   vi.clearAllMocks()
 })
 
-async function mount(props: { onDrafted?: (text: string) => void } = {}): Promise<HTMLDivElement> {
+async function mount(props: { onDrafted?: (text: string) => void; documentText?: string; onRestore?: () => void } = {}): Promise<HTMLDivElement> {
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
   const onDrafted = props.onDrafted ?? ((): void => {})
   await act(async () => {
-    root!.render(h(AiDraftField, { t, face: 'skills', onDrafted }))
+    root!.render(
+      h(AiDraftField, {
+        t,
+        face: 'skills',
+        onDrafted,
+        ...(props.documentText === undefined ? {} : { documentText: props.documentText }),
+        ...(props.onRestore === undefined ? {} : { onRestore: props.onRestore })
+      })
+    )
   })
   return host
+}
+
+const type = async (el: HTMLDivElement, text: string): Promise<void> => {
+  await act(async () => {
+    // eslint-disable-next-line @typescript-eslint/unbound-method -- a property descriptor's accessor is invoked with the element as its receiver.
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+    setter?.call(input(el), text)
+    input(el).dispatchEvent(new Event('input', { bubbles: true }))
+  })
+}
+
+const press = async (el: HTMLDivElement, label: string): Promise<void> => {
+  await act(async () => {
+    const target = [...el.querySelectorAll('button')].find(button => (button.textContent ?? '').trim() === label)
+    target!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    await new Promise(resolve => setTimeout(resolve, 0))
+  })
 }
 
 const input = (el: HTMLDivElement): HTMLInputElement => el.querySelector('input')!
@@ -82,6 +107,34 @@ describe('AI draft field', () => {
       input(el).dispatchEvent(new Event('input', { bubbles: true }))
     })
     expect(button(el).disabled).toBe(true)
+  })
+
+  it('shows what the call cost, and undoes the draft it replaced', async () => {
+    const drafted: string[] = []
+    const el = await mount({ onDrafted: text => drafted.push(text), documentText: '原来的正文' })
+    api.requestAiDraft.mockResolvedValue({ text: '新的正文', provider: 'deepseek', model: 'flash', usage: { inputTokens: 120, outputTokens: 340 } })
+
+    await type(el, '写点什么')
+    await press(el, 'aiDraftAction')
+
+    // The reader is told which model answered and what it spent, in the same line.
+    expect(el.textContent).toContain('flash')
+    expect(el.textContent).toContain('120')
+    expect(el.textContent).toContain('340')
+
+    await press(el, 'aiDraftUndo')
+    // Undo hands the editor back exactly what the draft replaced.
+    expect(drafted).toEqual(['新的正文', '原来的正文'])
+  })
+
+  it('leaves a face that unpacks its draft to restore its own fields', async () => {
+    const restored: number[] = []
+    const el = await mount({ onRestore: () => restored.push(1) })
+    api.requestAiDraft.mockResolvedValue({ text: '新的正文', provider: 'deepseek', model: 'flash' })
+    await type(el, '写点什么')
+    await press(el, 'aiDraftAction')
+    await press(el, 'aiDraftUndo')
+    expect(restored).toHaveLength(1)
   })
 
   it('reports a failure instead of leaving the row silent', async () => {

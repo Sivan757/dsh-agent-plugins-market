@@ -112,7 +112,8 @@ export function createAiPresetService(port: AiDraftPort | undefined): AiPresetSe
       if (input.candidates.length === 0) throw Object.assign(new Error('there is nothing to build a preset from'), { code: 'ai-empty-selection' })
       const prompt = buildPresetPrompt(input.intent.trim(), input.candidates, input.locale)
       const answer = await port.complete(prompt, input.signal)
-      return parsePresetSuggestion(answer.text, input.candidates)
+      const suggestion = parsePresetSuggestion(answer.text, input.candidates)
+      return answer.usage === undefined ? suggestion : { ...suggestion, usage: answer.usage }
     }
   }
 }

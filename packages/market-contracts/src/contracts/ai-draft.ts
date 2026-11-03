@@ -54,6 +54,12 @@ export interface AiDraftRequest {
   locale?: 'zh' | 'en'
 }
 
+/** What one model call cost, as the provider reported it. */
+export interface AiUsage {
+  inputTokens: number
+  outputTokens: number
+}
+
 /** One draft response. */
 export interface AiDraftResult {
   /** The artifact's text, ready to be reviewed in the editor. */
@@ -62,6 +68,8 @@ export interface AiDraftResult {
   provider: string
   /** The model that produced it. */
   model: string
+  /** What the call cost, when the provider reported it. */
+  usage?: AiUsage
 }
 
 /**
@@ -89,6 +97,8 @@ export interface AiPresetSuggestion {
   reason: string
   /** Ids from the request's candidates, in the order the model chose them. */
   enabledIds: string[]
+  /** What the call cost, when the provider reported it. */
+  usage?: AiUsage
 }
 
 /** Bounds every preset suggestion is measured against. */

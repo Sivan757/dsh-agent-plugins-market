@@ -337,6 +337,7 @@ function InstructionEditor(props: {
     h(AiDraftField, {
       t,
       face: 'instructions',
+      documentText: draft.text,
       disabled: busy,
       onDrafted: (text: string) => onChange({ ...draft, text })
     }),

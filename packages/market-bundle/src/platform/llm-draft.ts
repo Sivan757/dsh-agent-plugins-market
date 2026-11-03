@@ -56,7 +56,15 @@ export function createLlmDraftPort(host: AuxiliaryCallHost): AiDraftPort {
           .filter((block): block is Extract<(typeof blocks)[number], { type: 'text' }> => block.type === 'text')
           .map(block => block.text)
           .join('')
-        return { text, provider: route.provider, model: route.model }
+        // The provider's own accounting, when it sent one: a reader can then see what a draft
+        // cost instead of guessing, and the field shows it beside the answer.
+        const usage = assembler.usage
+        return {
+          text,
+          provider: route.provider,
+          model: route.model,
+          ...(usage === undefined ? {} : { usage: { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens } })
+        }
       } finally {
         clearTimeout(timeout)
         outerSignal?.removeEventListener('abort', forward)

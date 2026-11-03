@@ -236,6 +236,8 @@ function StyleEditor(props: {
 }): ReactNode {
   const { t, draft, error, onChange, onClose, onSave } = props
   const [busy, setBusy] = useState(false)
+  // What the editor held when the current draft arrived, so undo can put it back.
+  const [beforeDraft, setBeforeDraft] = useState(draft)
   const nameValid = /^[a-z0-9][a-z0-9._-]*$/.test(draft.name.trim())
   return h(
     DetailModal,
@@ -297,7 +299,13 @@ function StyleEditor(props: {
         t,
         face: 'outputStyles',
         disabled: busy,
+        // The draft is unpacked into two fields, so the undo step is the pair it replaced
+        // rather than a document this editor does not hold.
+        onRestore: () => {
+          onChange(beforeDraft)
+        },
         onDrafted: (text: string) => {
+          setBeforeDraft(draft)
           try {
             const parsed = frontmatter(text)
             const fields = (parsed.document.toJS() ?? {}) as Record<string, unknown>

@@ -377,10 +377,11 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
       renderFields: kind === 'agents' ? (text, onChange) => h(RoleMetadataFields, { text, onChange, t, disabled: busy }) : undefined,
       // The same drafting row on all three authored panels, because the question and the
       // review step are identical; only the format the model is asked for differs.
-      renderAiSlot: (_text, onChange) =>
+      renderAiSlot: (text, onChange) =>
         h(AiDraftField, {
           t,
           face: kind === 'commands' ? 'commands' : kind === 'agents' ? 'agents' : 'skills',
+          documentText: text,
           onDrafted: onChange,
           disabled: busy
         }),

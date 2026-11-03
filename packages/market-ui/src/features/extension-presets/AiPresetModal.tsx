@@ -100,7 +100,12 @@ export function AiPresetModal(props: AiPresetModalProps): ReactNode {
       : h(
           'div',
           { className: css.field },
-          h('span', null, t('epSuggestPreview', { name: suggestion.name, count: String(suggestion.enabledIds.length) })),
+          h(
+            'span',
+            null,
+            t('epSuggestPreview', { name: suggestion.name, count: String(suggestion.enabledIds.length) }) +
+              (suggestion.usage === undefined ? '' : ' · ' + t('aiDraftCost', { input: String(suggestion.usage.inputTokens), output: String(suggestion.usage.outputTokens) }))
+          ),
           suggestion.reason === '' ? null : h('p', { className: css.aiNote }, suggestion.reason),
           h(
             'ul',

@@ -86,6 +86,9 @@ describe('ai draft route', () => {
     const answer = await post(routes, { face: 'skills', intent: '审查我的 TypeScript 改动', locale: 'zh' })
 
     expect(answer.status).toBe(200)
+    // The shared client helper refuses a body without ok:true, so a success that omits it
+    // reaches the reader as "draft failed: 200".
+    expect(answer.body['ok']).toBe(true)
     expect(String(answer.body['text'])).toContain('description:')
     expect(answer.body).toMatchObject({ provider: 'deepseek', model: 'fixture' })
     // The prompt says what shape the artifact takes and that the answer is the artifact only.
@@ -185,6 +188,7 @@ describe('ai preset suggestion', () => {
     mountAiDraftRoutes(ctx, { service: createAiDraftService(port), presets: createAiPresetService(port), logger })
     const answer = await suggest(routes, { intent: '前端开发用', candidates, locale: 'zh' })
     expect(answer.status).toBe(200)
+    expect(answer.body['ok']).toBe(true)
     expect(answer.body).toMatchObject({ name: '前端开发', reason: '覆盖前端常用的东西' })
     // The duplicate collapses and the row that was never offered is dropped.
     expect(answer.body['enabledIds']).toEqual(['market:src/frontend', 'skills:src/frontend/review'])

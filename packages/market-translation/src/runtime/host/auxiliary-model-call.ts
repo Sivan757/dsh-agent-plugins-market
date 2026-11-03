@@ -73,26 +73,39 @@ export function auxiliaryLlmOf(host: AuxiliaryCallHost): AuxiliaryLlm | undefine
 }
 
 /**
- * Ask for the cheapest effort the route accepts.
+ * The efforts an auxiliary call tries, cheapest first.
  *
- * Both translation and drafting are mechanical work, and the adapter default is high: leaving
- * the effort unset spends reasoning tokens on calls that do not need them. The deployment's
- * own explicit choice still wins.
+ * Both translation and drafting are mechanical: reword a sentence, produce a document in a
+ * fixed shape. Reasoning there buys little and costs seconds per call, so the ladder asks for
+ * the least thinking the route will accept and only then lets the deployment's own selection
+ * stand. The order matters: an accepted cheaper effort is the answer, not a preference to
+ * negotiate.
+ */
+const EFFORT_LADDER = ['off', 'minimal', 'low'] as const
+
+/**
+ * Pick the cheapest reasoning effort the route accepts.
+ *
+ * Each candidate is offered to the live LLM runtime, which validates it against the exact
+ * model: an effort the model cannot do rejects rather than reaching the provider. If every
+ * candidate is refused, the deployment's own selection (or the adapter default) is used, so a
+ * model that requires reasoning still gets a working call.
  * @param llm - live LLM runtime owning effort validation, when it exposes it.
  * @param route - the resolved provider/model route.
- * @param signal - cancellation for the capability lookup.
+ * @param signal - cancellation for the capability lookups.
  * @returns the effort to send, or undefined to accept the adapter default.
  */
 export async function chooseOffEffort(llm: AuxiliaryLlm, route: AuxiliaryRoute, signal: AbortSignal): Promise<string | undefined> {
-  if (route.reasoningEffort !== undefined) return route.reasoningEffort
-  if (llm.resolveCallConfig === undefined) return undefined
-  try {
-    await llm.resolveCallConfig({ provider: route.provider, model: route.model, reasoningEffort: 'off' }, signal)
-    return 'off'
-  } catch {
-    // The route does not accept off; fall back to its own default.
-    return undefined
+  if (llm.resolveCallConfig === undefined) return route.reasoningEffort
+  for (const effort of EFFORT_LADDER) {
+    try {
+      await llm.resolveCallConfig({ provider: route.provider, model: route.model, reasoningEffort: effort }, signal)
+      return effort
+    } catch {
+      // The route refused this rung; try the next one.
+    }
   }
+  return route.reasoningEffort
 }
 
 /**

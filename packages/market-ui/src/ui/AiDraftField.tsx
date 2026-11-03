@@ -3,8 +3,12 @@
  *
  * It is one row, because a draft is not a workflow: the person says what they want, the model
  * answers with the artifact, and the artifact lands in the editor they are already looking
- * at. Nothing saves. The line under the row says which model produced it, so the reader can
- * judge the answer the way they would judge any other suggestion.
+ * at. Nothing saves.
+ *
+ * Two facts follow the answer. The line under the row names the model and what the call cost,
+ * so nobody pays for a draft without knowing it. And the draft is reversible: a button gives
+ * back the text that was there before it, because a suggestion you cannot undo is a change you
+ * did not ask for.
  *
  * The field is shared by every surface that has an authored text — a skill, a command, a
  * role, an output style, a block for the system prompt — because the question and the review
@@ -15,7 +19,7 @@
 import { createElement as h, useState, type ReactNode } from 'react'
 import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
 import { requestAiDraft } from '../api.js'
-import type { AiDraftFace } from '../../../market-contracts/src/contracts/ai-draft.js'
+import type { AiDraftFace, AiUsage } from '../../../market-contracts/src/contracts/ai-draft.js'
 import { clientErrorMessage } from './error-message.js'
 import type { Translate } from '../i18n.js'
 import css from './form.module.css'
@@ -25,8 +29,17 @@ export interface AiDraftFieldProps {
   face: AiDraftFace
   /** The session whose default model and language apply. */
   sessionId?: string
+  /**
+   * The whole document as it stands, when the face edits one text.
+   *
+   * Undo restores this. A face that edits fields apart from the raw text supplies
+   * `onRestore` instead, because only it knows how its draft was unpacked.
+   */
+  documentText?: string
   /** Called with the draft; the editor replaces its document with it. */
   onDrafted: (text: string) => void
+  /** Restores what the editor held before the draft, for a face that unpacks it. */
+  onRestore?: () => void
   /** Disabled while the editor is saving. */
   disabled?: boolean
 }
@@ -36,21 +49,41 @@ function draftLocale(t: Translate): 'zh' | 'en' {
   return String(t('localeProbeLang')).toLowerCase().startsWith('en') ? 'en' : 'zh'
 }
 
+/** The cost line: the model that answered, and what it spent when the provider said so. */
+function costLine(t: Translate, model: string, usage: AiUsage | undefined): string {
+  if (usage === undefined) return t('aiDraftDone', { model })
+  return t('aiDraftDoneUsage', { model, input: String(usage.inputTokens), output: String(usage.outputTokens) })
+}
+
 export function AiDraftField(props: AiDraftFieldProps): ReactNode {
-  const { t, face, sessionId, onDrafted, disabled } = props
+  const { t, face, sessionId, documentText, onDrafted, onRestore, disabled } = props
   const [intent, setIntent] = useState('')
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
+  // The restore step for the answer on screen, if it has one.
+  const [undo, setUndo] = useState<(() => void) | undefined>(undefined)
   const draft = (): void => {
     if (intent.trim() === '' || busy) return
+    const before = documentText
     setBusy(true)
     setError(undefined)
     setNote(undefined)
+    setUndo(undefined)
     requestAiDraft({ face, intent, locale: draftLocale(t), ...(sessionId === undefined ? {} : { sessionId }) })
       .then(result => {
         onDrafted(result.text)
-        setNote(t('aiDraftDone', { model: result.model }))
+        setNote(costLine(t, result.model, result.usage))
+        // A second press on the same intent is a redraft: it replaces the answer above rather
+        // than leaving two drafts' worth of text in the editor.
+        if (onRestore !== undefined || before !== undefined) {
+          setUndo(() => () => {
+            if (onRestore !== undefined) onRestore()
+            else if (before !== undefined) onDrafted(before)
+            setNote(undefined)
+            setUndo(undefined)
+          })
+        }
       })
       .catch(caught => {
         // A limit is not a defect: say so in the reader's language instead of echoing the
@@ -78,6 +111,21 @@ export function AiDraftField(props: AiDraftFieldProps): ReactNode {
       }
     }),
     h(Button, { variant: 'outline', size: 'sm', disabled: disabled === true || busy || intent.trim() === '', onClick: draft }, busy ? t('aiDraftBusy') : t('aiDraftAction')),
+    undo === undefined
+      ? null
+      : h(
+          Button,
+          {
+            variant: 'ghost',
+            size: 'sm',
+            disabled: disabled === true || busy,
+            title: t('aiDraftUndoHint'),
+            onClick: () => {
+              undo()
+            }
+          },
+          t('aiDraftUndo')
+        ),
     (error ?? note) === undefined ? null : h('span', { className: error === undefined ? css.aiNote : css.aiError, role: error === undefined ? 'status' : 'alert' }, error ?? note)
   )
 }
