@@ -11,6 +11,7 @@ import { cachedUserPanel, loadUserPanel } from './user-panel-resource.js'
 import { commandCallName } from '../../../market-contracts/src/model/command-names.js'
 import type { Translate } from '../i18n.js'
 import { ResourceSurface } from './ResourceSurface.js'
+import { buildFaceEntry } from './face-entry.js'
 import { surfaceProviderCuts } from './surface-facets.js'
 import { displayText } from './translated-text.js'
 import { BilingualToggle } from './BilingualToggle.js'
@@ -257,23 +258,30 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
     // Plugin documents are the suite's, except an agent persona's model
     // routing: the server accepts exactly that frontmatter diff.
     const editable = entry.origin === 'user' || (entry.origin === 'plugin' && kind === 'agents')
+    // The shared builder paints the rail and writes the switch's verb; this panel keeps what is
+    // its own — who wrote the document, where it lives, and whether it can be edited.
     return {
-      id: entry.id ?? entry.name,
-      name: title,
-      hint: entry.name === title ? undefined : entry.name,
-      mono: kind === 'commands',
-      tag: entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin'),
-      surface: kind === 'agents' ? ('personas' as const) : kind,
-      description: description === '' ? undefined : description,
-      source: entry.origin === 'plugin' && entry.suiteName !== undefined ? entry.suiteName : entry.path,
-      // Text the card does not render, so search still finds it.
-      keywords: [entry.name, entry.description, entry.suiteName ?? '', entry.path].join(' '),
-      state: entry.disabled ? ('disabled' as const) : ('active' as const),
-      // The rail is colour only; this is what a screen reader hears.
-      stateLabel: entry.disabled ? t('disabledLabel') : t('enabledLabel'),
+      ...buildFaceEntry(
+        t,
+        {
+          surface: kind === 'agents' ? 'personas' : kind,
+          provider: entry.origin === 'user' ? 'user' : 'suite',
+          id: entry.id ?? entry.name,
+          name: title,
+          ...(entry.name === title ? {} : { hint: entry.name }),
+          ...(kind === 'commands' ? { mono: true } : {}),
+          tag: entry.origin === 'user' ? t('panelSourceUser') : t('panelSourcePlugin'),
+          ...(description === '' ? {} : { description }),
+          source: entry.origin === 'plugin' && entry.suiteName !== undefined ? entry.suiteName : entry.path,
+          // Text the card does not render, so search still finds it.
+          keywords: [entry.name, entry.description, entry.suiteName ?? '', entry.path].join(' '),
+          showSwitch: true,
+          on: entry.disabled !== true
+        },
+        'settings'
+      ),
       canEdit: editable,
-      editDisabled: busy,
-      toggleLabel: entry.disabled ? t('enable') : t('disable')
+      editDisabled: busy
     }
   })
 

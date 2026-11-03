@@ -21,6 +21,7 @@ import { captureOutputStyle, deleteUserOutputStyle, fetchOutputStyles, saveUserO
 import type { Translate } from '../../i18n.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { CodeEditor } from '../../ui/CodeEditor.js'
+import { buildFaceEntry } from '../../ui/face-entry.js'
 import { AiDraftField } from '../../ui/AiDraftField.js'
 import { frontmatter } from '../../ui/frontmatter.js'
 import { DetailModal } from '../../ui/DetailModal.js'
@@ -165,29 +166,39 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
         if (row !== undefined) select(row)
       },
       isOn: (id: string) => id === payload?.selected,
+      // The shared builder paints the rail and writes the switch's verb; this face supplies
+      // its own words for the three states a style can be in, because "in force", "chosen but
+      // not in force" and "never captured" are this face's vocabulary.
       entries: styles.map(row => ({
-        id: row.id,
-        name: row.label,
-        tag: row.source === 'user' ? t('outputStylesGroupUser') : t('outputStylesGroupSuite'),
+        ...buildFaceEntry(
+          t,
+          {
+            surface: 'commands',
+            provider: row.source === 'user' ? 'user' : 'suite',
+            id: row.id,
+            name: row.label,
+            tag: row.source === 'user' ? t('outputStylesGroupUser') : t('outputStylesGroupSuite'),
+            // A suite row carries a typed hint, not a sentence: the words live in the client's
+            // dictionaries because the server that built the row cannot know the reader's
+            // language.
+            ...(row.hint === undefined && row.description === undefined ? {} : { description: row.hint === undefined ? row.description : t('outputStylesSuiteCaptureHint') }),
+            meta: row.source === 'suite' ? (suiteKeyOf(row)?.split('/')[0] ?? '') : `output-styles/${userNameOf(row) ?? ''}.md`,
+            // Choosing a style is the one thing this face is for. The switch selects, and the
+            // state word says whether it already is; a row without a current capture cannot be
+            // selected, so its word names the step that is missing instead.
+            showSwitch: true,
+            on: row.id === payload?.selected,
+            liveWord: row.id === payload?.selected ? t('outputStylesStateSelected') : isSelectable(row) ? t('outputStylesStateNotSelected') : t('outputStylesStateUncaptured')
+          },
+          'settings'
+        ),
         tagId: row.source,
-        // A suite row carries a typed hint, not a sentence: the words live in the client's
-        // dictionaries because the server that built the row cannot know the reader's
-        // language.
-        description: row.hint === undefined ? row.description : t('outputStylesSuiteCaptureHint'),
-        meta: row.source === 'suite' ? (suiteKeyOf(row)?.split('/')[0] ?? '') : `output-styles/${userNameOf(row) ?? ''}.md`,
-        // Choosing a style is the one thing this face is for, and it used to live only
-        // inside the row's dialog: the card said 套件 and nothing else, so an installed
-        // style looked inert. The switch selects it, and the state word says whether it
-        // already is. A row without a current capture cannot be selected, so its state
-        // names the step that is missing instead.
-        stateLabel: row.id === payload?.selected ? t('outputStylesStateSelected') : isSelectable(row) ? t('outputStylesStateNotSelected') : t('outputStylesStateUncaptured'),
-        // The switch is a choice, not an on/off: the verb says so, and the title says only
-        // one style is in force at a time. Without a verb a screen reader hears the style's
-        // own name twice — once for the row, once for the control.
+        // The switch is a choice, not an on/off: the verb says so. Without a verb a screen
+        // reader hears the style's own name twice, once for the row and once for the control.
         toggleLabel: t('outputStylesSelect'),
         // The step the state word names, offered where the word is: a row that cannot be
-        // selected because its text was never captured says so and gives the action that
-        // fixes it, instead of sending the reader into the dialog to find out.
+        // selected because its text was never captured says so and gives the action that fixes
+        // it, instead of sending the reader into the dialog to find out.
         ...(row.hint === undefined || isSelectable(row) ? {} : { primary: { label: t('outputStylesCapture'), onSelect: () => capture(row) } }),
         disabled: !isSelectable(row)
       })),

@@ -49,11 +49,15 @@ export interface FaceRowFacts {
   /** Draw the body line in a monospace face, for endpoints and commands. */
   monoBody?: boolean
   /** The chip naming the row's family or owner, already in this face's words. */
-  tag: string
+  tag?: string
   /** One sentence under the title. */
   description?: string
   /** The quiet line at the bottom. */
   meta?: string
+  /** The provenance token that leads the source row, when the face shows one. */
+  source?: string
+  /** A quiet marker beside the title, such as a monospace flag for identifiers. */
+  chip?: boolean
   /** Extra search text the eye cannot read off the card. */
   keywords?: string
   /** Whether this surface offers a switch for the row at all. */
@@ -74,6 +78,12 @@ export interface FaceRowFacts {
   }
   /** The settings face's own word for the live state, from that face's dictionary. */
   liveWord?: string
+  /**
+   * Set when the row is listed but not here yet, such as a catalogue suite that is not
+   * installed: the rail goes quiet and this word says why, instead of borrowing a runtime state
+   * the row does not have.
+   */
+  absentWord?: string
   /** A preset's word for a row it cannot switch, when its own rules have one. */
   unswitchableWord?: string
   /** A sentence the row earns besides its live failure, such as why it cannot be switched. */
@@ -125,6 +135,7 @@ export function liveFailureSentence(t: Translate, live: FaceRowFacts['live']): s
  * @returns the state class.
  */
 function entryState(facts: FaceRowFacts, mode: FaceEntryMode): ResourceState {
+  if (facts.absentWord !== undefined) return 'absent'
   if (mode === 'settings') return facts.live === undefined ? (facts.on ? 'active' : 'disabled') : LIVE_STATE[facts.live.state]
   // A preset paints what it can actually switch: a host-managed row is simply off, and a row
   // with nothing behind it warns instead of pretending to be a choice.
@@ -141,6 +152,7 @@ function entryState(facts: FaceRowFacts, mode: FaceEntryMode): ResourceState {
  * @returns the state word.
  */
 function entryStateLabel(t: Translate, facts: FaceRowFacts, mode: FaceEntryMode): string {
+  if (facts.absentWord !== undefined) return facts.absentWord
   if (mode === 'settings') return facts.liveWord ?? t(facts.on ? 'enabledLabel' : 'disabledLabel')
   if (facts.unswitchableWord !== undefined) return facts.unswitchableWord
   if (facts.switchability === 'unavailable') return t('stateUnavailable')
@@ -165,9 +177,11 @@ export function buildFaceEntry(t: Translate, facts: FaceRowFacts, mode: FaceEntr
     ...(facts.hint === undefined ? {} : { hint: facts.hint }),
     ...(facts.mono === true ? { mono: true } : {}),
     ...(facts.monoBody === true ? { monoBody: true } : {}),
-    tag: facts.tag,
+    ...(facts.tag === undefined ? {} : { tag: facts.tag }),
     ...(facts.description === undefined ? {} : { description: facts.description }),
     ...(facts.meta === undefined ? {} : { meta: facts.meta }),
+    ...(facts.source === undefined ? {} : { source: facts.source }),
+    ...(facts.chip === true ? { chip: true } : {}),
     ...(facts.keywords === undefined ? {} : { keywords: facts.keywords }),
     ...(facts.counts === undefined ? {} : { counts: facts.counts }),
     surface: facts.surface,

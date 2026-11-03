@@ -29,4 +29,6 @@ A row appears twice: on its own settings face, where it belongs to the workspace
 
 - Live, the same rows on both surfaces: `cloudflare` reads `套件 · https://mcp.cloudflare.com/mcp · 工具 4 · streamable-http` in settings and `套件 · https://mcp.cloudflare.com/mcp · 工具 4 · streamable-http` in the manager; `kuboard` (failed) reads `连接超时 · 10.0s` on both, from one composition. Only the state word differs, by design.
 - `face-entry.test.ts` (5 tests) pins the parity: one failure sentence, identical facts, the two deliberate differences, no switch where a surface has none, and no invented failure for a row that is merely switched off.
+- `market`, `hooks`, the authored panels and the output styles were migrated onto the same builder with every existing card assertion passing unchanged, which is what proves the copy and the actions survived the move.
+
 - Full suite: 2,556 tests pass; gate clean.

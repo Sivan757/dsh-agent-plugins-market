@@ -10,6 +10,7 @@ import { fetchHooksOverview } from '../../api.js'
 import type { ExtensionDetail, ExtensionResource } from '../../../../market-contracts/src/contracts/extension-presets.js'
 import { PanelHeader, PanelActions, ReadFailed } from '../../ui/panel.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
+import { buildFaceEntry } from '../../ui/face-entry.js'
 import { HookDetailModal } from '../../ui/HookDetailModal.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import css from '../mcp/mcp-status.module.css'
@@ -89,28 +90,40 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
     // The shared renderer draws the list; this panel only supplies entries and the detail.
     h(ResourceSurface, {
       t,
-      entries: rows.map(row => ({
-        id: row.id,
-        // The script the row runs is what a reader recognizes; the command that invokes it
-        // is the body. `name` on the payload is the command, so the title is derived here.
-        name: row.detail.kind === 'hook' && row.detail.command !== undefined ? scriptNameOf(row.detail.command) : row.name,
-        hint: row.detail.kind === 'hook' && row.detail.command !== undefined ? row.name : undefined,
-        // The tag names the stage; the support verdict is the warning below it.
-        tag: row.description,
-        // The authored command is what this row is; the stage is the tag. A hook command
-        // that points at a script is mostly an absolute path, so the card shows only the
-        // command and the file it runs: the whole line lives in the detail's declaration row,
-        // and a card body is one line to scan, not a mount point to read.
-        description: row.detail.kind === 'hook' && row.detail.command !== undefined ? commandForCard(row.detail.command) : row.description,
-        warning: limited(row) ? t(row.unavailableReason === 'hook-event-partial' ? 'hooksEventPartial' : 'hooksEventUnsupported') : undefined,
-        meta: row.source,
-        state: limited(row) ? ('warning' as const) : ('active' as const),
-        // The rail is colour only; this is what a screen reader hears, and the
-        // warning line on a limited row says why.
-        stateLabel: limited(row) ? t('hookStateLimited') : t('hooksFilterSupported'),
-        // This surface cannot switch a hook: the declaration belongs to its suite.
-        hideToggle: true
-      })),
+      entries: rows.map(row =>
+        buildFaceEntry(
+          t,
+          {
+            surface: 'hooks',
+            provider: 'suite',
+            id: row.id,
+            // The script the row runs is what a reader recognizes; the command that invokes it
+            // is the body. `name` on the payload is the command, so the title is derived here.
+            name: row.detail.kind === 'hook' && row.detail.command !== undefined ? scriptNameOf(row.detail.command) : row.name,
+            ...(row.detail.kind === 'hook' && row.detail.command !== undefined ? { hint: row.name } : {}),
+            // The tag names the stage; the support verdict is the state word and the warning.
+            tag: row.description,
+            // The authored command is what this row is; the stage is the tag. A hook command
+            // that points at a script is mostly an absolute path, so the card shows only the
+            // command and the file it runs: the whole line lives in the detail's declaration
+            // row, and a card body is one line to scan, not a mount point to read.
+            description: row.detail.kind === 'hook' && row.detail.command !== undefined ? commandForCard(row.detail.command) : row.description,
+            meta: row.source,
+            keywords: [row.name, row.source, row.description].join(' '),
+            // This surface cannot switch a hook: the declaration belongs to its suite.
+            showSwitch: false,
+            on: true,
+            liveWord: limited(row) ? t('hookStateLimited') : t('hooksFilterSupported'),
+            ...(limited(row)
+              ? {
+                  live: { state: 'degraded' as const },
+                  note: t(row.unavailableReason === 'hook-event-partial' ? 'hooksEventPartial' : 'hooksEventUnsupported')
+                }
+              : {})
+          },
+          'settings'
+        )
+      ),
       searchLabel: t('hooksPanelSearch'),
       searchPlaceholder: t('hooksPanelSearch'),
       // No tabs: "supported" equals "all" whenever nothing is limited, and the

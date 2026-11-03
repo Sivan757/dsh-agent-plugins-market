@@ -17,6 +17,7 @@ import type { Translate } from '../../i18n.js'
 import { ErrorBoundary } from '../../ErrorBoundary.js'
 import { SuiteDetailModal } from './SuiteDetail.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
+import { buildFaceEntry, type FaceRowFacts } from '../../ui/face-entry.js'
 import { AiSelectionModal } from '../../ui/AiSelectionModal.js'
 import { IconCloseOutlineMedium, IconSparkleMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import cardCss from '../../ui/resource-card.module.css'
@@ -232,7 +233,15 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
     suite => (category === 'all' || suite.sourceId === category) && (recommended === undefined || recommended.has(`${suite.sourceId}/${suite.suiteId}`))
   )
   const suiteById = new Map(scoped.map(suite => [`${suite.sourceId}/${suite.suiteId}`, suite]))
-  const entries = scoped.map(suite => {
+  /**
+   * The market's rows, adapted onto the facts both surfaces read.
+   *
+   * A catalogue suite that is not installed is `absent` — listed and reachable, but not here
+   * yet — and that is a different thing from a suite that is installed and switched off. The
+   * shared builder paints those three states, so this page still owns only the data and the
+   * actions: install, add source, refresh.
+   */
+  const factsOf = (suite: SuiteCardData): FaceRowFacts => {
     const isRemote = suite.remoteUrl !== undefined
     const provenance = isRemote ? t('remoteRef') : suite.dimension === 'user' ? t('panelSourceUser') : t('panelSourcePlugin')
     const description = displayText(suite.translatedDescription, suite.description, t, {
@@ -253,25 +262,31 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
     const mcpErrorCount = suite.mcpErrors?.length ?? 0
     const surfaceError = suite.errors.length > 0 ? `${t('errors')} ${suite.errors.length}` : mcpErrorCount > 0 ? `${t('mcpSection')} ${mcpErrorCount}` : undefined
     return {
+      surface: 'market',
+      provider: 'suite',
       id: `${suite.sourceId}/${suite.suiteId}`,
       name: suite.name,
       ...(suite.version === null || suite.version === undefined ? {} : { version: suite.version }),
       tag: provenance,
-      surface: 'market' as const,
       description: description === '' ? undefined : description,
       source: suite.sourceId,
-      counts,
-      ...(surfaceError === undefined ? {} : { warning: `⚠ ${surfaceError}` }),
+      ...(counts.length === 0 ? {} : { counts }),
       // Text the card does not render, so search still finds it.
       keywords: [suite.name, suite.description ?? '', ...suite.keywords].join(' '),
-      // Three facts, three edges: running, installed but switched off, and not
-      // installed at all. The last one used to paint the "off" grey, which made a
-      // market of 971 uninstalled suites read as a wall of disabled ones.
-      state: !suite.installed ? ('absent' as const) : suite.enabled ? ('active' as const) : ('disabled' as const),
-      // The rail is colour only; this is what a screen reader hears.
-      stateLabel: !suite.installed ? t('notInstalledLabel') : suite.enabled ? t('enabledLabel') : t('disabledLabel'),
-      hideToggle: !suite.installed,
-      toggleLabel: suite.enabled ? t('disable') : t('enable'),
+      // Three facts, three edges: running, installed but switched off, and not installed at
+      // all. The absent rail is what keeps a market of uninstalled suites from reading as a
+      // wall of disabled ones.
+      ...(suite.installed ? {} : { absentWord: t('notInstalledLabel') }),
+      showSwitch: suite.installed,
+      switchability: suite.installed ? 'ready' : 'unavailable',
+      on: suite.enabled,
+      ...(surfaceError === undefined ? {} : { note: '⚠ ' + surfaceError })
+    }
+  }
+  const entries = scoped.map(suite => {
+    const isRemote = suite.remoteUrl !== undefined
+    return {
+      ...buildFaceEntry(t, factsOf(suite), 'settings'),
       ...(suite.installed
         ? {
             actions: [
@@ -307,7 +322,6 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
           })
     }
   })
-
   return h(ErrorBoundary, {
     fallback: error => h('div', { className: panelCss.empty }, `${t('actionFail')}: ${error.message}`),
     children: h(
