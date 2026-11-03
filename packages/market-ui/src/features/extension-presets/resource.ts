@@ -104,6 +104,8 @@ export interface PresetCoverage {
   suites: number
   /** The output style the preset carries, when one is selected and known. */
   style: string | undefined
+  /** Whether that style can inject anything: an uncaptured suite style cannot. */
+  styleInEffect: boolean
   /** Instruction files the chain lists, and how many of them the host does not inject. */
   files: number
   missingFiles: number
@@ -129,6 +131,9 @@ export function presetCoverage(rows: readonly ExtensionResource[], ids: readonly
   return {
     suites: rows.filter(row => row.face === 'market' && selected.has(row.id)).length,
     style: styleId === undefined ? undefined : rows.find(row => row.id === styleId)?.name,
+    // A preset can carry a style whose text was never captured; the summary must not claim
+    // it applies. The row already knows: available is false for a missing capture.
+    styleInEffect: styleId === undefined ? false : rows.find(row => row.id === styleId)?.available === true,
     files: files.length,
     missingFiles: files.filter(row => !row.available).length
   }

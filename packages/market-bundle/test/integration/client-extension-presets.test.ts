@@ -11,6 +11,7 @@ import { bindAgentPresetsEnabled } from '../../../../packages/market-ui/src/ui/a
 import { ExtensionPresetEntry } from '../../../../packages/market-ui/src/features/extension-presets/ExtensionPresetEntry.js'
 import { useExtensionWindow } from '../../../../packages/market-ui/src/features/extension-presets/use-window.js'
 import { extensionPresetsEn, extensionPresetsZh } from '../../../../packages/market-ui/src/locales-extension-presets.js'
+import { en as englishCopy } from '../../../../packages/market-ui/src/locales.js'
 import type { ExtensionResource, ExtensionWindowPayload } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
 const renderDetail = vi.fn(() => null)
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -46,9 +47,10 @@ let root: Root | undefined
 let host: HTMLDivElement | undefined
 let state: ExtensionWindowPayload
 const posts: Array<{ url: string; body: Record<string, unknown> }> = []
-async function mount(started = false, busy = false, library?: ExtensionWindowPayload['library']) {
+async function mount(started = false, busy = false, library?: ExtensionWindowPayload['library'], resources?: ExtensionWindowPayload['resources']) {
   state = payload(started, busy)
   if (library) state = { ...state, library }
+  if (resources) state = { ...state, resources }
   localStorage.setItem('dsh-extension-guide:/workspace', 'seen')
   posts.length = 0
   vi.stubGlobal(
@@ -222,6 +224,32 @@ describe('extension preset state', () => {
     expect(Object.keys(extensionPresetsEn).sort()).toEqual(Object.keys(extensionPresetsZh).sort())
   })
 })
+describe('output style ownership', () => {
+  it('tags a suite style as a suite, because a style never has a suite child row', async () => {
+    // The owner tag fell through to the child-row test and labelled every suite style 用户:
+    // a style carries its own source, not a suiteResourceId.
+    const styleRow = (id: string, source: string, name: string) => ({
+      id,
+      face: 'outputStyles' as const,
+      name,
+      source,
+      available: source !== 'src',
+      globalEnabled: false,
+      detail: { kind: 'outputStyle' as const, entryId: id.replace('outputStyles:', '') }
+    })
+    await mount(false, false, undefined, [styleRow('outputStyles:suite:src/teaching', 'src', 'teaching-style'), styleRow('outputStyles:user:brief', 'user', 'brief')])
+    await click('Research')
+    await click('Manage presets')
+    await click('Output styles')
+    const tagOf = (needle: string): string => {
+      const card = [...document.querySelectorAll<HTMLElement>('article')].find(node => (node.textContent ?? '').includes(needle))
+      return card?.querySelector('[data-tone]')?.textContent?.trim() ?? ''
+    }
+    expect(tagOf('teaching-style')).toBe(englishCopy.panelSourcePlugin)
+    expect(tagOf('brief')).toBe(englishCopy.panelSourceUser)
+  })
+})
+
 describe('extension preset rendering', () => {
   it('labels customized selection and confirms before replacement', async () => {
     await mount()

@@ -110,6 +110,10 @@ export function ResourceList({
     if (row.face === 'instructions')
       return row.id.startsWith('instructions:project/') ? t(labelOf('instructions')) + ' · ' + t('epScopeProject') : t(labelOf('instructions')) + ' · ' + t('epScopeGlobal')
     if (row.face === 'market') return t('panelSourceUser')
+    // A style has no suite child row: its own source says whether a person wrote it or a
+    // suite brought it. Falling through to the child-row test labelled every suite style
+    // 用户, because a style never carries suiteResourceId.
+    if (row.face === 'outputStyles') return row.source === 'user' ? t('panelSourceUser') : t('panelSourcePlugin')
     if (row.face === 'mcp') return row.suiteResourceId === undefined ? t('mcpDirect') : t('mcpPlugin')
     if (row.face === 'lsp') return row.suiteResourceId === undefined ? t('lspDirect') : t('lspPlugin')
     return row.suiteResourceId === undefined ? t('panelSourceUser') : t('panelSourcePlugin')
@@ -123,7 +127,9 @@ export function ResourceList({
           : t('epGlobalManaged')
       : row.unavailableReason === 'instructions-no-switch'
         ? t('epInstructionsNoSwitch')
-        : (row.unavailableReason ?? t(row.configuration ? 'epConfigurationUnavailable' : 'epUnavailable'))
+        : row.unavailableReason === 'style-uncaptured'
+          ? t('epStyleUncaptured')
+          : (row.unavailableReason ?? t(row.configuration ? 'epConfigurationUnavailable' : 'epUnavailable'))
   // One entry per row; the renderer owns the toolbar, the collection and the card.
   const rowById = new Map(rows.map(row => [row.id, row]))
   const selectedById = (rowId: string): boolean => {

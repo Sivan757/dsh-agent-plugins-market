@@ -463,6 +463,10 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
         source: style.source === 'user' ? 'user' : ((style.suiteKey ?? '').split('/')[0] ?? ''),
         ...(style.description === undefined ? {} : { description: style.description }),
         available: style.source === 'user' || style.capture !== 'missing',
+        // A suite style's text only exists once someone ran its hook. The row still lists,
+        // because a preset may carry it, but it says why it injects nothing yet instead of
+        // looking like a style that is simply off.
+        ...(style.source === 'suite' && style.capture === 'missing' ? { unavailableReason: 'style-uncaptured' } : {}),
         globalEnabled: styles.selected === style.id,
         detail: { kind: 'outputStyle', entryId: style.id }
       })

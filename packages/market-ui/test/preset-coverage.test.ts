@@ -22,10 +22,14 @@ describe('preset coverage', () => {
     expect(presetCoverage(rows, ['market:src/one', 'skills:src/one/a']).suites).toBe(1)
   })
 
-  it('names the style the preset carries', () => {
-    const rows = [row({ id: 'outputStyles:brief', face: 'outputStyles', name: 'Brief' })]
-    expect(presetCoverage(rows, ['outputStyles:brief']).style).toBe('Brief')
-    expect(presetCoverage(rows, []).style).toBeUndefined()
+  it('names the style the preset carries, and whether it can take effect', () => {
+    const ready = [row({ id: 'outputStyles:brief', face: 'outputStyles', name: 'Brief' })]
+    expect(presetCoverage(ready, ['outputStyles:brief'])).toMatchObject({ style: 'Brief', styleInEffect: true })
+    expect(presetCoverage(ready, []).style).toBeUndefined()
+    // A suite style whose text was never captured is listed but injects nothing: the
+    // summary must not claim it applies.
+    const pending = [row({ id: 'outputStyles:suite/src/a', face: 'outputStyles', name: 'teaching-style', available: false })]
+    expect(presetCoverage(pending, ['outputStyles:suite/src/a'])).toMatchObject({ style: 'teaching-style', styleInEffect: false })
   })
 
   it('reports instruction files the host will not inject', () => {

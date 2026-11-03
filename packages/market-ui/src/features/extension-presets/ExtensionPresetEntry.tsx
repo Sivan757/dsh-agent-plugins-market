@@ -126,7 +126,11 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
         : t('epSummaryFilesPartial', { count: String(coverage.files), missing: String(coverage.missingFiles) })
     return [
       t('epSummaryCapabilities', { count: String(coverage.suites) }),
-      coverage.style === undefined ? t('epSummaryNoStyle') : t('epSummaryStyle', { style: coverage.style }),
+      coverage.style === undefined
+        ? t('epSummaryNoStyle')
+        : coverage.styleInEffect
+          ? t('epSummaryStyle', { style: coverage.style })
+          : t('epSummaryStylePending', { style: coverage.style }),
       files
     ].join(' · ')
   }
