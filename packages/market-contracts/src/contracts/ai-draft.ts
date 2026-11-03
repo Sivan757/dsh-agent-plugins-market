@@ -87,8 +87,21 @@ export interface AiPresetCandidate {
 export interface AiPresetRequest {
   /** What the preset should be for, in the person's own words. */
   intent: string
-  /** The rows the manager is showing, so the answer can only name rows that exist. */
-  candidates: readonly AiPresetCandidate[]
+  /**
+   * The rows the manager is showing, so the answer can only name rows that exist.
+   *
+   * Omit it with `purpose: 'install'`: the server then builds the world from its own catalogue,
+   * because a thousand ids do not belong in a browser request.
+   */
+  candidates?: readonly AiPresetCandidate[]
+  /**
+   * What the selection is for.
+   *
+   * `preset` selects rows to switch on for an existing setup; `install` selects catalogue
+   * suites to add to this workspace. The rows are validated identically either way; only the
+   * question and the sentence around the answer differ.
+   */
+  purpose?: 'preset' | 'install'
   /** The language the preset's name and reason should be written in. */
   locale?: 'zh' | 'en'
 }
@@ -107,8 +120,10 @@ export interface AiPresetSuggestion {
 export const AI_PRESET_LIMITS = {
   /** Characters of intent one request may carry. */
   intentChars: 500,
-  /** Rows one request may offer the model. */
+  /** Rows one browser request may offer the model. */
   candidates: 300,
+  /** Catalogue rows the server itself may offer; the scan can hold a thousand. */
+  catalogueCandidates: 1_000,
   /** Rows one suggestion may select. */
   picks: 60,
   /** Output tokens one suggestion may spend. */

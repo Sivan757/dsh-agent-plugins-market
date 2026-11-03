@@ -27,7 +27,7 @@ import { ResourceList } from './ResourceList.js'
 import type { RenderExtensionDetail } from './details.js'
 import { useExtensionWindow, type ExtensionWindowObserver } from './use-window.js'
 import { presetCoverage, resourceSelected, toggleResource, uniquePresetName } from './resource.js'
-import { AiPresetModal } from './AiPresetModal.js'
+import { AiSelectionModal } from '../../ui/AiSelectionModal.js'
 import css from './presets.module.css'
 import { AgentExtensionIcon } from '../../ui/AgentExtensionIcon.js'
 import sourceCss from '../../ui/source-strip.module.css'
@@ -461,7 +461,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
                   )}
                 </div>
               </div>
-              <button type="button" className={rc.iconBtn} aria-label={t('epSuggestTitle')} title={t('epSuggestTitle')} disabled={writes > 0} onClick={() => setSuggesting(true)}>
+              <button type="button" className={rc.iconBtn} aria-label={t('aiSelectTitle')} title={t('aiSelectTitle')} disabled={writes > 0} onClick={() => setSuggesting(true)}>
                 <IconSparkleMedium size={14} />
               </button>
               <button type="button" className={rc.iconBtn} aria-label={t('epSaveAs')} title={t('epSaveAs')} disabled={writes > 0 || savedDirty} onClick={() => beginName('save')}>
@@ -659,7 +659,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
         }
       />
       {suggesting
-        ? h(AiPresetModal, {
+        ? h(AiSelectionModal, {
             t,
             // The rows a preset can carry: everything the manager lists that the runtime has.
             candidates: (data?.resources ?? []).filter(row => row.configuration === undefined && row.available).map(row => ({ id: row.id, label: row.name })),

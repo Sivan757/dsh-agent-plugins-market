@@ -796,12 +796,24 @@ export async function requestAiDraft(input: { face: AiDraftFace; intent: string;
  * @param input.locale - the language the name and the reason should be written in.
  * @returns the suggestion, already filtered to the rows on offer.
  */
-export async function requestAiPreset(input: { intent: string; candidates: readonly AiPresetCandidate[]; locale: 'zh' | 'en' }): Promise<AiPresetSuggestion> {
+export async function requestAiPreset(input: {
+  intent: string
+  /** Absent with `purpose: 'install'`: the server reads its own catalogue instead. */
+  candidates?: readonly AiPresetCandidate[]
+  locale: 'zh' | 'en'
+  /** `install` asks which catalogue suites to add; absent asks what to switch on. */
+  purpose?: 'preset' | 'install'
+}): Promise<AiPresetSuggestion> {
   return withBusyOperation(() =>
     postOkJson<AiPresetSuggestion>(
       `${AI_DRAFT_ROUTES.suggestPreset}`,
-      { intent: input.intent, candidates: [...input.candidates], locale: input.locale },
-      'preset suggestion failed'
+      {
+        intent: input.intent,
+        locale: input.locale,
+        ...(input.candidates === undefined ? {} : { candidates: [...input.candidates] }),
+        ...(input.purpose === undefined ? {} : { purpose: input.purpose })
+      },
+      'suggestion failed'
     )
   )
 }

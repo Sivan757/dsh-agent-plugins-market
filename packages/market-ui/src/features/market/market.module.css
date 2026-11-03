@@ -354,3 +354,19 @@
 
 /* A disclosure row's one-line summary: a long frontmatter description wraps the
    whole row into a paragraph without this clamp. */
+
+/* The recommendation banner: one line saying the list is narrowed, and the control that
+   drops the narrowing. It sits above the results, where a filtered list already says why it is
+   short. */
+.suggestionBanner {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-2);
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}

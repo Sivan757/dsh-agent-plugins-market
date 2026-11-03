@@ -20,6 +20,8 @@ The draft is a suggestion, not a write. Nothing is saved until you save it, and 
 | Output styles | A style: description plus the text that shapes how the model answers      |
 | System prompt | A Markdown block for an `AGENTS.md` file                                  |
 
+The marketplace has one too: **Recommend suites to install** in its header. Say what the workspace is for, and the model picks from the catalogue this deployment already scanned — it never sees the browser's copy of the list, and every id it answers is checked against the catalogue. Applying the answer narrows the list to those suites; installing stays the per-suite confirmation each card already has.
+
 A connector or a language server that failed has its own action inside its detail dialog: **Explain this failure**. It sends the facts the row already shows — the state, the code, the reason, the attributed causes — and answers with the likeliest cause and one to three steps to try. It cannot retry, restart or edit anything; the answer is text, and the row keeps the state it had.
 
 The preset manager has its own suggestion: say what a setup is for, and the model proposes a name, a reason, and a selection drawn from the rows the manager is showing. You see all three before anything exists, and creating it is your press — the same create path the manager already uses.

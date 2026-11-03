@@ -44,6 +44,13 @@ export interface AiDraftRouteDeps {
   presets: AiPresetService
   /** The failure explainer, which reads the facts the panel already shows. */
   diagnose: AiDiagnoseService
+  /**
+   * The catalogue, read only when a request asks which suites to install.
+   *
+   * The alternative was a browser posting a thousand ids: that crosses the host's request body
+   * limit, and it made the page the owner of a world the server already has.
+   */
+  catalogue: { overview(): Promise<{ suites: Array<{ sourceId: string; suiteId: string; name: string; enabled?: boolean }> }> }
   logger: RouteLogger
 }
 
@@ -142,13 +149,20 @@ export function mountAiDraftRoutes(ctx: { get(name: string): unknown }, deps: Ai
         sendJson(response, 400, { error: 'the request is too long to build a preset from' })
         return
       }
-      const candidates = readCandidates(body.candidates)
+      // The world comes from whoever owns it: a preset suggestion is a browser's own rows, an
+      // install recommendation is the catalogue the server just scanned.
+      const candidates = body.purpose === 'install' ? await catalogueCandidates(deps.catalogue) : readCandidates(body.candidates)
       if (candidates.length === 0) {
         sendJson(response, 400, { error: 'there is nothing to build a preset from' })
         return
       }
       try {
-        const suggestion = await deps.presets.suggest({ intent: body.intent, candidates, locale: body.locale === 'en' ? 'en' : 'zh' })
+        const suggestion = await deps.presets.suggest({
+          intent: body.intent,
+          candidates,
+          ...(body.purpose === 'install' ? { purpose: 'install' as const } : {}),
+          locale: body.locale === 'en' ? 'en' : 'zh'
+        })
         sendJson(response, 200, { ok: true, ...suggestion })
       } catch (error) {
         const code = (error as { code?: string }).code
@@ -241,6 +255,25 @@ function readFailure(value: unknown): AiDiagnoseFailure | undefined {
     ...(causes.length === 0 ? {} : { causes }),
     ...(mountMs === undefined ? {} : { mountMs })
   }
+}
+
+/**
+ * Build the rows an install recommendation chooses from, out of the server's own catalogue.
+ *
+ * Only suites that are not switched on are offered: already-enabled rows are not candidates for
+ * "what should this workspace add". A read failure is a 500-class failure rather than an empty
+ * world, because an empty world would blame the reader's sources for a scan that broke.
+ * @param catalogue - the catalog service.
+ * @returns the rows on offer, capped at the contract's catalogue bound.
+ */
+async function catalogueCandidates(catalogue: {
+  overview(): Promise<{ suites: Array<{ sourceId: string; suiteId: string; name: string; enabled?: boolean }> }>
+}): Promise<AiPresetCandidate[]> {
+  const overview = await catalogue.overview()
+  return overview.suites
+    .filter(suite => suite.enabled !== true)
+    .slice(0, AI_PRESET_LIMITS.catalogueCandidates)
+    .map(suite => ({ id: suite.sourceId + '/' + suite.suiteId, label: suite.name }))
 }
 
 /**

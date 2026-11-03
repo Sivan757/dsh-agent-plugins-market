@@ -17,6 +17,9 @@ import type { Translate } from '../../i18n.js'
 import { ErrorBoundary } from '../../ErrorBoundary.js'
 import { SuiteDetailModal } from './SuiteDetail.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
+import { AiSelectionModal } from '../../ui/AiSelectionModal.js'
+import { IconCloseOutlineMedium, IconSparkleMedium } from '@deepseek-ai/dsh-client-ui-primitives'
+import cardCss from '../../ui/resource-card.module.css'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { useTranslationEnabled, useTranslationRefresh } from '../../ui/translation-enabled.js'
 import { BusyIndicator } from '../../ui/panel.js'
@@ -73,6 +76,9 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   const [toast, setToast] = useState<ToastState | undefined>(undefined)
   const [confirm, setConfirm] = useState<ConfirmState | undefined>(undefined)
   const [installConfirm, setInstallConfirm] = useState<InstallConfirmState | undefined>(undefined)
+  // The suites a recommendation named, and whether the ask dialog is open.
+  const [pickedIds, setPickedIds] = useState<string[] | undefined>(undefined)
+  const [suggesting, setSuggesting] = useState(false)
   const [editor, setEditor] = useState<EditorState>(undefined)
   // The whole card record, so the detail dialog can offer the same install and
   // uninstall actions the card does.
@@ -219,7 +225,12 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   // entry contract. The install or add-source button is the card's primary
   // action, the switch says whether an installed suite is enabled, and the
   // destructive uninstall stays in the detail dialog.
-  const scoped = overview.suites.filter(suite => category === 'all' || suite.sourceId === category)
+  // A recommendation narrows the list to the suites it named, so the reader installs through the
+  // confirmation each card already has. Nothing here installs anything.
+  const recommended = pickedIds === undefined ? undefined : new Set(pickedIds)
+  const scoped = overview.suites.filter(
+    suite => (category === 'all' || suite.sourceId === category) && (recommended === undefined || recommended.has(`${suite.sourceId}/${suite.suiteId}`))
+  )
   const suiteById = new Map(scoped.map(suite => [`${suite.sourceId}/${suite.suiteId}`, suite]))
   const entries = scoped.map(suite => {
     const isRemote = suite.remoteUrl !== undefined
@@ -316,6 +327,11 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
             onRefresh: () => {
               void action('s:refresh:all', 'sources/refresh', {})
             },
+            extra: h(
+              'button',
+              { type: 'button', className: cardCss.iconBtn, title: t('marketSuggest'), 'aria-label': t('marketSuggest'), onClick: () => setSuggesting(true) },
+              h(IconSparkleMedium, { size: 14 })
+            ),
             busy: busy !== undefined
           })
         }),
@@ -399,6 +415,33 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
         isToggleDisabled: () => busy !== undefined
       }),
       toast === undefined ? null : h(Toast, { key: toast.key, text: toast.message, onDone: () => setToast(undefined) }),
+      // The ask: what is this workspace for? The answer narrows the list, and installation stays
+      // the per-suite confirmation it already was.
+      suggesting
+        ? h(AiSelectionModal, {
+            t,
+            mode: 'install',
+            candidates: overview.suites.filter(suite => !suite.enabled).map(suite => ({ id: `${suite.sourceId}/${suite.suiteId}`, label: suite.name })),
+            onApply: async suggestion => {
+              setPickedIds(suggestion.enabledIds)
+              setCategory('all')
+              setSuggesting(false)
+            },
+            onClose: () => setSuggesting(false)
+          })
+        : null,
+      pickedIds === undefined
+        ? null
+        : h(
+            'div',
+            { className: css.suggestionBanner, role: 'status' },
+            h('span', null, t('marketSuggestApplied', { count: String(pickedIds.length) })),
+            h(
+              'button',
+              { type: 'button', className: cardCss.iconBtn, title: t('marketSuggestClear'), 'aria-label': t('marketSuggestClear'), onClick: () => setPickedIds(undefined) },
+              h(IconCloseOutlineMedium)
+            )
+          ),
       installConfirm === undefined
         ? null
         : h(InstallConfirmModal, {

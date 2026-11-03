@@ -535,6 +535,9 @@ export async function apply(
         service: createAiDraftService(draftPort),
         presets: createAiPresetService(draftPort),
         diagnose: createAiDiagnoseService(draftPort),
+        // The catalogue is already the server's; a recommendation reads it instead of asking the
+        // browser to post a thousand ids.
+        catalogue: { overview: () => catalog.overview() },
         logger: ctx.logger
       })
       const disposeResources = mountResourceRoutes(hostCtx, {

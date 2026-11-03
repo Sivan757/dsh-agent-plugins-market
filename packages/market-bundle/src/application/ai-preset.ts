@@ -15,6 +15,8 @@ import type { AiDraftPort } from './ai-draft.js'
 export interface AiPresetInput {
   intent: string
   candidates: readonly AiPresetCandidate[]
+  /** What the selection is for; see `AiPresetRequest.purpose`. */
+  purpose?: 'preset' | 'install'
   locale: 'zh' | 'en'
   signal?: AbortSignal
 }
@@ -43,10 +45,19 @@ export interface AiPresetService {
  * @param locale - the language for the name and the reason.
  * @returns the system and user messages.
  */
-export function buildPresetPrompt(intent: string, candidates: readonly AiPresetCandidate[], locale: 'zh' | 'en'): { system: string; user: string } {
+export function buildPresetPrompt(
+  intent: string,
+  candidates: readonly AiPresetCandidate[],
+  locale: 'zh' | 'en',
+  purpose: 'preset' | 'install' = 'preset'
+): { system: string; user: string } {
   const listing = candidates.map(candidate => candidate.id + ' — ' + candidate.label).join('\n')
+  const subject =
+    purpose === 'install'
+      ? 'You choose which catalogue suites a coding-agent workspace should install for a stated purpose.'
+      : 'You build one extension preset for a coding agent: a named selection of capabilities.'
   const system = [
-    'You build one extension preset for a coding agent: a named selection of capabilities.',
+    subject,
     'Answer with a single JSON object and nothing else — no prose, no code fences:',
     '{"name": "...", "reason": "...", "picks": ["<id>", "..."]}',
     '"name" is short and human (max 40 characters). "reason" is one sentence saying what the',
@@ -110,7 +121,7 @@ export function createAiPresetService(port: AiDraftPort | undefined): AiPresetSe
     async suggest(input: AiPresetInput): Promise<AiPresetSuggestion> {
       if (port === undefined) throw Object.assign(new Error('no model is available for drafting'), { code: 'ai-unavailable' })
       if (input.candidates.length === 0) throw Object.assign(new Error('there is nothing to build a preset from'), { code: 'ai-empty-selection' })
-      const prompt = buildPresetPrompt(input.intent.trim(), input.candidates, input.locale)
+      const prompt = buildPresetPrompt(input.intent.trim(), input.candidates, input.locale, input.purpose ?? 'preset')
       const answer = await port.complete(prompt, input.signal)
       const suggestion = parsePresetSuggestion(answer.text, input.candidates)
       return answer.usage === undefined ? suggestion : { ...suggestion, usage: answer.usage }

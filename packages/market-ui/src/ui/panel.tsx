@@ -21,7 +21,20 @@ import type { Translate } from '../i18n.js'
 import { clientErrorMessage } from './error-message.js'
 
 /** The trailing header commands have one position and one visual treatment. */
-export function PanelActions(props: { addLabel?: string; onAdd?: () => void; refreshLabel?: string; onRefresh?: () => void; busy?: boolean }): ReactNode {
+export function PanelActions(props: {
+  addLabel?: string
+  onAdd?: () => void
+  refreshLabel?: string
+  onRefresh?: () => void
+  /**
+   * One extra action, already shaped as a 24px icon button by the caller.
+   *
+   * It holds the surface's own AI action, which is a row-level idea rather than a shared one,
+   * so the shared component carries the slot and the caller carries the behaviour.
+   */
+  extra?: ReactNode
+  busy?: boolean
+}): ReactNode {
   // Flat 24px icon buttons, the same geometry as the actions inside a card: the
   // header holds two icons instead of a text button, so its width no longer
   // changes with the language. The labels move to `title` and `aria-label`.
@@ -41,7 +54,8 @@ export function PanelActions(props: { addLabel?: string; onAdd?: () => void; ref
           'button',
           { type: 'button', className: cardCss.iconBtn, disabled: props.busy, title: props.refreshLabel, 'aria-label': props.refreshLabel, onClick: props.onRefresh },
           h(IconRefreshOutlineMedium)
-        )
+        ),
+    props.extra
   )
 }
 
