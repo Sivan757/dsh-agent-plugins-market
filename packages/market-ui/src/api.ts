@@ -27,7 +27,16 @@ import type { McpStatusPayload } from '../../market-contracts/src/contracts/mcp-
 import type { LspStatusPayload } from '../../market-contracts/src/contracts/lsp-status.js'
 import type { SurfaceToggleKey, SurfaceToggles } from '../../market-contracts/src/contracts/surface-toggles.js'
 import { OUTPUT_STYLE_ROUTES } from '../../market-contracts/src/contracts/output-styles.js'
-import { AI_DRAFT_ROUTES, type AiDraftFace, type AiDraftResult, type AiPresetCandidate, type AiPresetSuggestion } from '../../market-contracts/src/contracts/ai-draft.js'
+import {
+  AI_DRAFT_ROUTES,
+  type AiDiagnoseFace,
+  type AiDiagnoseFailure,
+  type AiDiagnosis,
+  type AiDraftFace,
+  type AiDraftResult,
+  type AiPresetCandidate,
+  type AiPresetSuggestion
+} from '../../market-contracts/src/contracts/ai-draft.js'
 import type { OutputStyleCaptureResult, OutputStylesPayload, OutputStyleSaveRequest } from '../../market-contracts/src/contracts/output-styles.js'
 import { resolveHiddenTabs, resolveTabOrder, type TabLayoutWire } from '../../market-contracts/src/contracts/tab-layout.js'
 import { INSTRUCTION_ROUTES } from '../../market-contracts/src/contracts/instructions.js'
@@ -795,4 +804,20 @@ export async function requestAiPreset(input: { intent: string; candidates: reado
       'preset suggestion failed'
     )
   )
+}
+
+/**
+ * Ask the deployment's model to explain one service failure and name the next step.
+ *
+ * Only the facts the panel already shows the reader cross the wire: the state word, the code,
+ * the reason and the attributed causes. Endpoints and commands stay here, because an endpoint
+ * can carry a credential and an explanation is not worth leaking one.
+ *
+ * @param input.face - the service family that failed.
+ * @param input.failure - the facts to explain.
+ * @param input.locale - the language the explanation should be written in.
+ * @returns the explanation and the route that produced it.
+ */
+export async function requestAiDiagnosis(input: { face: AiDiagnoseFace; failure: AiDiagnoseFailure; locale: 'zh' | 'en' }): Promise<AiDiagnosis> {
+  return withBusyOperation(() => postOkJson<AiDiagnosis>(AI_DRAFT_ROUTES.diagnose, { face: input.face, failure: { ...input.failure }, locale: input.locale }, 'explanation failed'))
 }

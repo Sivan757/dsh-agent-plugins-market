@@ -32,6 +32,7 @@ import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { surfaceProviderCuts } from '../../ui/surface-facets.js'
 import { StatusBand, bandTone } from '../../ui/StatusBand.js'
 import { FAILURE_GUIDANCE_LABEL, failureCause, failureGuidanceKey } from '../../ui/failure-guidance.js'
+import { DiagnoseBlock } from '../../ui/DiagnoseBlock.js'
 import { type ResourceState } from '../../ui/ResourceCard.js'
 import { DetailRow, DetailRows, KvGrid, kvCell } from '../../ui/DetailRows.js'
 import css from '../mcp/mcp-status.module.css'
@@ -442,6 +443,26 @@ export function LspDetailModal({
         ...(entry.causes === undefined ? {} : { causes: entry.causes }),
         mono: [entry.command, ...entry.args].join(' ')
       }),
+      // An explanation is offered where the failure is stated, and only for a row that
+      // actually failed: a mounted server has nothing to explain.
+      entry.state === 'failed' || entry.state === 'disabled'
+        ? h(
+            'div',
+            { className: panelCss.block },
+            h(DiagnoseBlock, {
+              t,
+              face: 'lsp',
+              failure: {
+                state: entry.state,
+                ...(entry.code === undefined ? {} : { code: entry.code }),
+                ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+                ...(entry.causes === undefined ? {} : { causes: entry.causes }),
+                ...(entry.mountMs === undefined ? {} : { mountMs: entry.mountMs })
+              },
+              disabled: pending
+            })
+          )
+        : null,
       // The last call the host routed to this provider: the only evidence that
       // a mounted server is not answering.
       entry.observation === undefined

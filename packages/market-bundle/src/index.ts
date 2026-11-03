@@ -54,6 +54,7 @@ import { mountOutputStyleRoutes } from './routes-output-styles.js'
 import { mountAiDraftRoutes } from './routes-ai.js'
 import { createAiDraftService } from './application/ai-draft.js'
 import { createAiPresetService } from './application/ai-preset.js'
+import { createAiDiagnoseService } from './application/ai-diagnose.js'
 import { createLlmDraftPort } from './platform/llm-draft.js'
 import { createOutputStyleSuitePort } from './application/output-styles-suites.js'
 import { OutputStyleService, mountOutputStyleSection } from '../../market-runtime/src/index.js'
@@ -533,6 +534,7 @@ export async function apply(
       const disposeAiDraft = mountAiDraftRoutes(hostCtx, {
         service: createAiDraftService(draftPort),
         presets: createAiPresetService(draftPort),
+        diagnose: createAiDiagnoseService(draftPort),
         logger: ctx.logger
       })
       const disposeResources = mountResourceRoutes(hostCtx, {

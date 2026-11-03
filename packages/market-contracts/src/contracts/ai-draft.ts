@@ -17,7 +17,9 @@ export const AI_DRAFT_ROUTES = {
   /** Draft one artifact from an intent. POST. */
   draft: `${MARKET_API_PREFIX}ai-draft`,
   /** Suggest a preset selection from an intent and the rows the manager shows. POST. */
-  suggestPreset: `${MARKET_API_PREFIX}ai-preset`
+  suggestPreset: `${MARKET_API_PREFIX}ai-preset`,
+  /** Explain one service failure and name the next step. POST. */
+  diagnose: `${MARKET_API_PREFIX}ai-diagnose`
 } as const
 
 /**
@@ -113,4 +115,64 @@ export const AI_PRESET_LIMITS = {
   maxTokens: 900,
   /** Milliseconds one suggestion may take. */
   timeoutMs: 60_000
+} as const
+
+/** The services whose failures a reader can ask about. */
+export const AI_DIAGNOSE_FACES = ['mcp', 'lsp'] as const
+
+/** One service family: a connector mount or a language server. */
+export type AiDiagnoseFace = (typeof AI_DIAGNOSE_FACES)[number]
+
+/**
+ * The facts about one failure.
+ *
+ * These are the fields the panel already shows the reader: the state word, the code a builder
+ * assigned, the reason, and the causes it supplied. Endpoints and commands are deliberately
+ * absent: an endpoint can carry a credential in its query string, and a diagnosis is worth
+ * less than the leak.
+ */
+export interface AiDiagnoseFailure {
+  /** The state the row reports, in the contract's own vocabulary. */
+  state: string
+  /** A stable code naming the failure class, when the builder assigned one. */
+  code?: string
+  /** What the panel tells the reader, in the reader's language or the builder's words. */
+  reason?: string
+  /** Causes the builder attributed, most specific first. */
+  causes?: readonly string[]
+  /** The transport the service declares, when it declares one. */
+  transport?: string
+  /** How long the mount took before it gave up, in milliseconds. */
+  mountMs?: number
+}
+
+/** One explanation request. */
+export interface AiDiagnoseRequest {
+  face: AiDiagnoseFace
+  failure: AiDiagnoseFailure
+  /** The language the explanation should be written in. */
+  locale?: 'zh' | 'en'
+}
+
+/** One explanation: what likely went wrong, and what to try next. */
+export interface AiDiagnosis {
+  text: string
+  provider: string
+  model: string
+  /** What the call cost, when the provider reported it. */
+  usage?: AiUsage
+}
+
+/** Bounds one explanation is measured against. */
+export const AI_DIAGNOSE_LIMITS = {
+  /** Characters of reason one request may carry. */
+  reasonChars: 600,
+  /** Causes one request may carry. */
+  causes: 6,
+  /** Characters of one cause. */
+  causeChars: 300,
+  /** Output tokens one explanation may spend. */
+  maxTokens: 800,
+  /** Milliseconds one explanation may take. */
+  timeoutMs: 45_000
 } as const

@@ -3,6 +3,7 @@ import { createElement as h } from 'react'
 import { Button, IconRefreshOutlineMedium, IconSearchOutlineMedium, Input, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { StatusBand, bandTone } from '../../ui/StatusBand.js'
+import { DiagnoseBlock } from '../../ui/DiagnoseBlock.js'
 import { FAILURE_GUIDANCE_LABEL, failureGuidanceKey } from '../../ui/failure-guidance.js'
 import type { Translate } from '../../i18n.js'
 import type { McpStatusEntry } from '../../api.js'
@@ -234,6 +235,27 @@ export function McpDetailModal({
         ...(entry.causes === undefined ? {} : { causes: entry.causes }),
         mono: entry.endpoint ?? t('mcpObservedEndpoint')
       }),
+      // A failed or degraded connection has something to explain; a mounted one does not, and
+      // a read-only surface keeps the explanation available because reading is all it does.
+      entry.state === 'failed' || entry.state === 'degraded'
+        ? h(
+            'div',
+            { className: panelCss.block },
+            h(DiagnoseBlock, {
+              t,
+              face: 'mcp',
+              failure: {
+                state: entry.state,
+                ...(entry.code === undefined ? {} : { code: entry.code }),
+                ...((connectionNote ?? entry.reason) === undefined ? {} : { reason: connectionNote ?? entry.reason }),
+                ...(entry.causes === undefined ? {} : { causes: entry.causes }),
+                transport: entry.transport,
+                ...(entry.mountMs === undefined ? {} : { mountMs: entry.mountMs })
+              },
+              disabled: pending
+            })
+          )
+        : null,
       // The one destructive confirmation sits directly under the band it
       // belongs to, and keeps its in-line shape rather than becoming a panel
       // or the host's risk dialog.

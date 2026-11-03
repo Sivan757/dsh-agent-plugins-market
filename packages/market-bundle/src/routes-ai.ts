@@ -13,15 +13,20 @@
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
+  AI_DIAGNOSE_FACES,
+  AI_DIAGNOSE_LIMITS,
   AI_DRAFT_FACES,
   AI_DRAFT_LIMITS,
   AI_DRAFT_ROUTES,
   AI_PRESET_LIMITS,
+  type AiDiagnoseFailure,
+  type AiDiagnoseRequest,
   type AiDraftFace,
   type AiDraftRequest,
   type AiPresetCandidate,
   type AiPresetRequest
 } from '../../market-contracts/src/contracts/ai-draft.js'
+import type { AiDiagnoseService } from './application/ai-diagnose.js'
 import type { AiDraftService } from './application/ai-draft.js'
 import type { AiPresetService } from './application/ai-preset.js'
 import { isTrustedMutation } from './request-trust.js'
@@ -37,6 +42,8 @@ export interface AiDraftRouteDeps {
   service: AiDraftService
   /** The preset suggester; the manager's own rows are the world it chooses from. */
   presets: AiPresetService
+  /** The failure explainer, which reads the facts the panel already shows. */
+  diagnose: AiDiagnoseService
   logger: RouteLogger
 }
 
@@ -159,9 +166,80 @@ export function mountAiDraftRoutes(ctx: { get(name: string): unknown }, deps: Ai
       }
     }
   })
+  const disposeDiagnose = server.register({
+    kind: 'exact',
+    path: AI_DRAFT_ROUTES.diagnose,
+    handler: async (request: IncomingMessage, response: ServerResponse) => {
+      if (request.method !== 'POST') {
+        sendJson(response, 405, { error: 'method not allowed' })
+        return
+      }
+      if (!isTrustedMutation(request)) {
+        sendJson(response, 403, { error: 'untrusted request' })
+        return
+      }
+      const body = (await readJsonBody(request)) as Partial<AiDiagnoseRequest>
+      if (typeof body.face !== 'string' || !(AI_DIAGNOSE_FACES as readonly string[]).includes(body.face)) {
+        sendJson(response, 400, { error: 'unknown service family' })
+        return
+      }
+      const failure = readFailure(body.failure)
+      if (failure === undefined) {
+        sendJson(response, 400, { error: 'there is no failure to explain' })
+        return
+      }
+      try {
+        const diagnosis = await deps.diagnose.diagnose({ face: body.face, failure, locale: body.locale === 'en' ? 'en' : 'zh' })
+        sendJson(response, 200, { ok: true, ...diagnosis })
+      } catch (error) {
+        const code = (error as { code?: string }).code
+        const payload = looksLikeALimit(error)
+          ? { ok: false as const, code: 'ai-provider-limited', error: 'the model refused the call: ' + String((error as Error).message) }
+          : routeFailurePayload(error, 'ai diagnose', deps.logger)
+        sendJson(response, code === 'ai-model-unconfigured' || code === 'ai-unavailable' ? 409 : 502, payload)
+      }
+    }
+  })
   return () => {
     disposeDraft()
     disposePreset()
+    disposeDiagnose()
+  }
+}
+
+/**
+ * Read the facts one explanation may carry.
+ *
+ * The shape is rebuilt here rather than trusted: strings are trimmed and truncated to the
+ * contract's bounds, and anything else is dropped. A caller therefore cannot make the model
+ * read an arbitrarily long or arbitrarily shaped payload.
+ * @param value - the request's failure field.
+ * @returns the bounded facts, or undefined when nothing identified the failure.
+ */
+function readFailure(value: unknown): AiDiagnoseFailure | undefined {
+  if (typeof value !== 'object' || value === null) return undefined
+  const raw = value as Record<string, unknown>
+  if (typeof raw['state'] !== 'string' || raw['state'].trim() === '') return undefined
+  const text = (key: string, limit: number): string | undefined => {
+    const field = raw[key]
+    if (typeof field !== 'string') return undefined
+    const trimmed = field.trim()
+    return trimmed === '' ? undefined : trimmed.slice(0, limit)
+  }
+  const causes = Array.isArray(raw['causes'])
+    ? raw['causes']
+        .filter((cause): cause is string => typeof cause === 'string' && cause.trim() !== '')
+        .slice(0, AI_DIAGNOSE_LIMITS.causes)
+        .map(cause => cause.trim().slice(0, AI_DIAGNOSE_LIMITS.causeChars))
+    : []
+  const mountMs = typeof raw['mountMs'] === 'number' && Number.isFinite(raw['mountMs']) ? raw['mountMs'] : undefined
+  return {
+    state: raw['state'].trim().slice(0, 60),
+    ...(text('code', 80) === undefined ? {} : { code: text('code', 80) }),
+    ...(text('reason', AI_DIAGNOSE_LIMITS.reasonChars) === undefined ? {} : { reason: text('reason', AI_DIAGNOSE_LIMITS.reasonChars) }),
+    ...(text('transport', 40) === undefined ? {} : { transport: text('transport', 40) }),
+    ...(causes.length === 0 ? {} : { causes }),
+    ...(mountMs === undefined ? {} : { mountMs })
   }
 }
 

@@ -480,3 +480,20 @@
   max-height: 180px;
   overflow: auto;
 }
+
+/* The explanation block: a press, then prose. It sits inside a dialog's body beside the facts
+   it explains, so it reads as a continuation of the row rather than a separate tool. */
+.diagnoseBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.diagnoseAnswer {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
