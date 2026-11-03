@@ -46,7 +46,8 @@ const PAYLOAD: OutputStylesPayload = {
     {
       id: 'suite:src/teaching',
       label: 'teaching-style',
-      description: 'A suite style',
+      description: '',
+      hint: 'suiteSessionStartCapture',
       body: '',
       source: 'suite',
       suiteKey: 'src/teaching',
@@ -92,6 +93,44 @@ const cardOf = (name: string): HTMLElement => cards().find(card => (card.textCon
 const dialog = (): HTMLElement | null => document.querySelector<HTMLElement>('[role="dialog"]')
 const button = (label: string, scope: HTMLElement | null = document.body): HTMLButtonElement | null =>
   [...(scope?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find(node => node.textContent === label) ?? null
+
+describe('output style card actions', () => {
+  it('names the missing capture on the card and offers the action beside it', async () => {
+    // The row says where it stands and what moves it on: an installed suite style looked
+    // inert when the only capture control lived inside the row's dialog.
+    await mount()
+    const suite = cardOf('teaching-style')
+    expect(suite.textContent).toContain('outputStylesStateUncaptured')
+    const capture = button('outputStylesCapture', suite)
+    expect(capture).not.toBeNull()
+    await act(async () => {
+      capture!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(api.captureOutputStyle).toHaveBeenCalledWith('src/teaching', undefined)
+  })
+
+  it('selects a captured style from its switch and says the row is not selected yet', async () => {
+    await mount({
+      ...PAYLOAD,
+      styles: [PAYLOAD.styles[0]!, { ...PAYLOAD.styles[1]!, body: 'Teach as you go.', capture: 'current' }]
+    })
+    const suite = cardOf('teaching-style')
+    expect(suite.textContent).toContain('outputStylesStateNotSelected')
+    const toggle = suite.querySelector<HTMLElement>('[role="switch"]')
+    expect(toggle).not.toBeNull()
+    await act(async () => {
+      toggle!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(api.selectOutputStyle).toHaveBeenCalledWith('suite:src/teaching', undefined)
+    await act(async () => {
+      toggle!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(api.selectOutputStyle).toHaveBeenCalledWith('suite:src/teaching', undefined)
+  })
+})
 
 describe('output styles panel', () => {
   it('draws its toolbar and list box before the first read lands', async () => {

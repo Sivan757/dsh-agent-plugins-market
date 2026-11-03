@@ -155,8 +155,15 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
       ],
       beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(value => !value) }),
       // One selection, chosen from the list: the switch is the choice, not an on/off
-      // switch that can be turned off — picking another style is how you change it.
+      // switch that can be turned off — picking another style is how you change it. The
+      // handler belongs to the surface, not to an entry: the renderer reads the surface's
+      // handler, so an entry-level one drew no switch at all.
       capabilities: { toggle: true },
+      onToggle: (id: string) => {
+        const row = styles.find(item => item.id === id)
+        if (row !== undefined) select(row)
+      },
+      isOn: (id: string) => id === payload?.selected,
       entries: styles.map(row => ({
         id: row.id,
         name: row.label,
@@ -177,7 +184,6 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
         // selected because its text was never captured says so and gives the action that
         // fixes it, instead of sending the reader into the dialog to find out.
         ...(row.hint === undefined || isSelectable(row) ? {} : { primary: { label: t('outputStylesCapture'), onSelect: () => capture(row) } }),
-        onToggle: () => select(row),
         disabled: !isSelectable(row)
       })),
       emptyText: error !== undefined ? t('statusUnreadable') : loading ? t('loading') : t('outputStylesEmpty'),
