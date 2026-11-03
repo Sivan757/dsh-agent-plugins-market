@@ -14,6 +14,7 @@ import { useTabLayout, type TabLayoutMessages } from '../../workspace/tab-layout
 import { visibleTabs, type WorkspaceTabKey } from '../../../../market-contracts/src/contracts/tab-layout.js'
 import { PRESET_FACES, WORKSPACE_TAB_META, workspaceKeyOfFace } from '../../workspace/tab-meta.js'
 import { surfaceProviderCuts, type SurfaceProvider } from '../../ui/surface-facets.js'
+import { FAILURE_GUIDANCE_LABEL, failureCause, failureGuidanceKey } from '../../ui/failure-guidance.js'
 import type { LocaleKey } from '../../locales.js'
 // The faces, their labels and the noun each collection is counted in all come from
 // the workspace's own metadata: this surface names one collection differently
@@ -35,6 +36,29 @@ const countOf = (face: (typeof faces)[number]): LocaleKey | undefined => WORKSPA
  * @param row - the row, or undefined when the id is unknown.
  * @returns the provider, or undefined when the row is unknown.
  */
+/**
+ * The warning a service row's live state earns, in the panel's own words.
+ *
+ * The panels classify a failure with `failureGuidanceKey` and keep the cause before the
+ * colon plus the time the attempt took; the manager says the same sentence rather than a
+ * second wording of its own.
+ *
+ * @param row - the resource row.
+ * @param t - the translator.
+ * @returns the sentence, or undefined when the row is in a state its panel accepts.
+ */
+function runtimeWarning(row: ExtensionResource, t: ExtensionTranslate): string | undefined {
+  const runtime = row.runtime
+  if (runtime === undefined || runtime.state === 'connected') return undefined
+  // The same classifier the panel runs, with the same inputs: a code when the runtime
+  // recorded one, the summary line, and the messages under it.
+  const guidance = failureGuidanceKey({ code: runtime.code, reason: runtime.reason, causes: runtime.causes })
+  const sentence = guidance === undefined ? runtime.reason : t(FAILURE_GUIDANCE_LABEL[guidance])
+  if (sentence === undefined || sentence === '') return undefined
+  const seconds = runtime.mountMs === undefined || runtime.mountMs < 1000 ? undefined : (runtime.mountMs / 1000).toFixed(1) + 's'
+  return seconds === undefined ? failureCause(sentence) : failureCause(sentence) + ' · ' + seconds
+}
+
 function providerOf(row: ExtensionResource | undefined): SurfaceProvider | undefined {
   if (row === undefined) return undefined
   if (row.face === 'market' || row.face === 'hooks') return 'suite'
@@ -162,20 +186,28 @@ export function ResourceList({
     mono: row.face === 'commands',
     tag: ownerLabel(row),
     description: displayDescription(row),
+    // The panel's own facts, in the panel's own slots: a service row's transport is meta, its
+    // tool count is a count, and its failure is a warning line in the panel's own words. The
+    // rail and the state word keep this surface's meaning (in the preset or not).
+    monoBody: row.runtime !== undefined && row.face === 'mcp',
     // A row with no switch still shows whether the host has it on.
-    meta: row.control === 'global-only' ? row.source + ' · ' + t(selected(row) ? 'epOn' : 'epOff') : row.source,
+    meta: row.control === 'global-only' ? row.source + ' · ' + t(selected(row) ? 'epOn' : 'epOff') : (row.transport ?? row.source),
     counts:
-      row.face === 'market'
-        ? faces
-            // A face without a count noun is the market itself: the row is the market,
-            // so it does not count itself.
-            .flatMap(value => {
-              const label = countOf(value)
-              return label === undefined ? [] : [{ label: t(label), count: resources.filter(child => child.suiteResourceId === row.id && child.face === value).length }]
-            })
-            .filter(item => item.count > 0)
-        : undefined,
-    warning: !row.available || row.control === 'global-only' ? hints(row) : undefined,
+      row.toolCount === undefined
+        ? row.face === 'market'
+          ? faces
+              // A face without a count noun is the market itself: the row is the market,
+              // so it does not count itself.
+              .flatMap(value => {
+                const label = countOf(value)
+                return label === undefined ? [] : [{ label: t(label), count: resources.filter(child => child.suiteResourceId === row.id && child.face === value).length }]
+              })
+              .filter(item => item.count > 0)
+          : undefined
+        : [{ label: t(row.toolCount === 1 ? 'mcpTool' : 'mcpTools'), count: row.toolCount }],
+    // A service in a state its panel would flag says so here too, in the same words; a row
+    // this surface cannot switch adds its own explanation.
+    warning: runtimeWarning(row, t) ?? (!row.available || row.control === 'global-only' ? hints(row) : undefined),
     // A row the host manages globally has no switch of its own, and an instruction file
     // has none at all: the card says why instead.
     hideToggle: row.control === 'global-only' || row.unavailableReason === 'instructions-no-switch',

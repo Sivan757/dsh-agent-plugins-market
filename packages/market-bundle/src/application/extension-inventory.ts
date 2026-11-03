@@ -338,9 +338,21 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
     const row: ExtensionResource = {
       id: 'mcp:' + entry.id,
       face: 'mcp',
-      name: entry.name,
+      // The name the panel shows, not the mount key: a suite server mounts as
+      // `<suite>__<key>`, and the manager has to read like the panel beside it.
+      name: entry.serverKey === undefined ? entry.name : (entry.serverKey ?? entry.name),
       source: entry.source ?? 'direct',
-      description: entry.transport,
+      // The endpoint is what the body line carries on the panel; the transport is meta.
+      description: entry.endpoint ?? entry.transport,
+      transport: entry.transport,
+      toolCount: entry.tools.length,
+      runtime: {
+        state: entry.state,
+        ...(entry.code === undefined ? {} : { code: entry.code }),
+        ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+        ...(entry.causes === undefined ? {} : { causes: entry.causes }),
+        ...(entry.mountMs === undefined ? {} : { mountMs: entry.mountMs })
+      },
       ...((entry.kind === 'direct' && entry.managed !== true) || options.mcpSessionControl === false
         ? { control: 'global-only' as const, unavailableReason: entry.kind === 'direct' && entry.managed !== true ? 'direct-mcp-uncontrolled' : 'host-mcp-uncontrolled' }
         : {}),
@@ -360,6 +372,15 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
       name: entry.serverKey,
       source: entry.kind === 'direct' ? 'direct' : entry.suiteName,
       description: entry.command,
+      // The same live facts the language-engine panel draws: the state word, the reason, and
+      // how long the last start took.
+      runtime: {
+        state: entry.state === 'mounted' ? 'connected' : entry.state === 'starting' ? 'starting' : entry.state === 'disabled' ? 'disabled' : 'failed',
+        ...(entry.code === undefined ? {} : { code: entry.code }),
+        ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+        ...(entry.causes === undefined ? {} : { causes: entry.causes }),
+        ...(entry.mountMs === undefined ? {} : { mountMs: entry.mountMs })
+      },
       ...(owner === undefined ? {} : { suiteResourceId: owner }),
       // Only candidate mode can say a disabled direct server is still nameable, because
       // only then does the caller supply the disabled-id switch. Legacy mode has no such

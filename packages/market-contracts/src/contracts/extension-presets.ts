@@ -219,6 +219,25 @@ export type ExtensionPresetFace = 'market' | 'skills' | 'commands' | 'agents' | 
 /** Whether a face is one a preset can switch on and off. */
 export const TOGGLEABLE_FACES: readonly ExtensionPresetFace[] = ['market', 'skills', 'commands', 'agents', 'mcp', 'lsp', 'hooks', 'outputStyles']
 
+/**
+ * The live state a service row is in, in the vocabulary its own panel uses.
+ *
+ * The preset manager renders the same rows the settings panel does, so it needs the same
+ * facts: which state the row is in, why, and how long the last attempt took. The words are
+ * the client's; this record carries only the state and the raw reason.
+ */
+export interface ExtensionRuntime {
+  state: 'connected' | 'starting' | 'failed' | 'degraded' | 'disabled' | 'foreign' | 'orphaned' | 'needs-credentials' | 'unknown'
+  /** The code the runtime recorded for the state, when it recorded one. */
+  code?: string
+  /** The reason the service reported, when it is not connected. */
+  reason?: string
+  /** The messages under the reason, so the same classifier can read them. */
+  causes?: readonly string[]
+  /** How long the last mount attempt took, in milliseconds. */
+  mountMs?: number
+}
+
 export interface ExtensionResource {
   id: string
   face: ExtensionPresetFace
@@ -247,6 +266,12 @@ export interface ExtensionResource {
   followsSuite?: boolean
   /** A surface that cannot be controlled safely must explain why, not pretend to toggle. */
   unavailableReason?: string
+  /** The transport a service row declares, as its panel shows it on the meta line. */
+  transport?: string
+  /** How many tools the service exposes, when the panel counts them. */
+  toolCount?: number
+  /** Live runtime facts for a service row; absent for a resource with no process behind it. */
+  runtime?: ExtensionRuntime
   detail: ExtensionDetail
 }
 
