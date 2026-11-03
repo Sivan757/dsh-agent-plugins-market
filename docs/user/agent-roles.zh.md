@@ -1,6 +1,6 @@
 # 代理角色与存储
 
-**Guide:** [安装](install.md) · [来源](sources.md) · [自建资源](resources.md) · [服务](services.md) · [翻译](translation.md) · [设置](settings.md) · [工作区](workspace.md) · [代理角色](agent-roles.md) · [布局审计](layout-coverage.md)
+**Guide:** [安装](install.md) · [来源](sources.md) · [自建资源](resources.md) · [用 AI 起草](ai-assist.zh.md) · [服务](services.zh.md) · [翻译](translation.md) · [设置](settings.md) · [工作区](workspace.md) · [代理角色](agent-roles.md) · [布局审计](layout-coverage.md)
 
 技能、命令和代理角色 Tab 同时展示已安装 suite 与用户条目。来源筛选区分二者，同名条目仍有独立身份。托管 suite 条目只读——内容修改会被拒绝，文件归 suite 所有，上游刷新可随意替换。代理角色是唯一例外：卡片上的编辑只打开路由表单（供应商、模型、思考强度），服务端只接受这部分 frontmatter 差异；技能与命令卡片仅提供启用开关。外部本地 source 文件同样只读展示，需要定制时新建用户条目。
 

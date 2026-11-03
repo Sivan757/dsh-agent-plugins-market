@@ -1,6 +1,6 @@
 # Agent roles and storage
 
-**Guide:** [Install](install.md) · [Sources](sources.md) · [Resources](resources.md) · [Services](services.md) · [Translation](translation.md) · [Settings](settings.md) · [Workspace](workspace.md) · [Agent roles](agent-roles.md) · [Layout audit](layout-coverage.md)
+**Guide:** [Install](install.md) · [Sources](sources.md) · [Resources](resources.md) · [Drafting with AI](ai-assist.md) · [Services](services.md) · [Translation](translation.md) · [Settings](settings.md) · [Workspace](workspace.md) · [Agent roles](agent-roles.md) · [Layout audit](layout-coverage.md)
 
 Installed suites and user entries appear together in the Skills, Commands and Agent personas tabs. Source filters distinguish them; entries retain unique identities even when names match. A managed suite entry is read-only — content edits are refused because the suite owns the file, so an upstream refresh can replace it freely. An agent persona is the one exception: its pencil opens the routing form alone (provider, model, reasoning effort) and the server accepts exactly that frontmatter diff; skills and commands offer only the enable switch. External local source files are displayed but remain read-only; create a user entry to customize one.
 

@@ -30,6 +30,8 @@ export default defineConfig({
     'guide/sources.zh.md': 'docs/zh/sources.md',
     'guide/resources.md': 'docs/resources.md',
     'guide/resources.zh.md': 'docs/zh/resources.md',
+    'guide/ai-assist.md': 'docs/ai-assist.md',
+    'guide/ai-assist.zh.md': 'docs/zh/ai-assist.md',
     'guide/instructions.md': 'docs/instructions.md',
     'guide/instructions.zh.md': 'docs/zh/instructions.md',
     'guide/output-styles.md': 'docs/output-styles.md',
@@ -68,6 +70,7 @@ export default defineConfig({
           items: [
             { text: 'Marketplace sources', link: '/docs/sources' },
             { text: 'Your own resources', link: '/docs/resources' },
+            { text: 'Drafting with AI', link: '/docs/ai-assist' },
             { text: 'Workspace instructions', link: '/docs/instructions' },
             { text: 'Output styles', link: '/docs/output-styles' }
           ]

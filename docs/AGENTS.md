@@ -6,7 +6,7 @@ Markdown under `docs/` is organized by the reader it serves. A page states its o
 
 | Directory | Holds | Examples |
 | --- | --- | --- |
-| `user/` | Product-facing guides for someone using the plugin, one page per task | [install.md](user/install.md), [sources.md](user/sources.md), [resources.md](user/resources.md), [instructions.md](user/instructions.md), [output-styles.md](user/output-styles.md), [services.md](user/services.md), [translation.md](user/translation.md), [settings.md](user/settings.md), [workspace.md](user/workspace.md), [agent-roles.md](user/agent-roles.md), [layout-coverage.md](user/layout-coverage.md) |
+| `user/` | Product-facing guides for someone using the plugin, one page per task | [install.md](user/install.md), [sources.md](user/sources.md), [resources.md](user/resources.md), [ai-assist.md](user/ai-assist.md), [instructions.md](user/instructions.md), [output-styles.md](user/output-styles.md), [services.md](user/services.md), [translation.md](user/translation.md), [settings.md](user/settings.md), [workspace.md](user/workspace.md), [agent-roles.md](user/agent-roles.md), [layout-coverage.md](user/layout-coverage.md) |
 | `reference/` | Stable material a page or PR cites: contracts, audits, generated reports | [dsh-plugin-development-standard.md](reference/dsh-plugin-development-standard.md), [host-foundation-map.md](reference/host-foundation-map.md), [compat-report.md](reference/compat-report.md) |
 | `developer/decisions/` | Accepted decisions, one page per decision | [0002-versioning-and-release-policy.md](developer/decisions/0002-versioning-and-release-policy.md) |
 | `developer/design/` | Design and staged plans for maintainers | [engineering-refactor-plan.md](developer/design/engineering-refactor-plan.md) |

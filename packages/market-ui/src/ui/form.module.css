@@ -441,3 +441,32 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* The AI draft row: one line above the document it fills. The row stays quiet until it has
+   something to say, so it does not compete with the fields a person came to edit. */
+.aiField {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.aiLabel {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.aiNote {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.aiError {
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+}

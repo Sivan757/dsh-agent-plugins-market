@@ -2,7 +2,7 @@
 
 English | [简体中文](output-styles.zh.md) | [README](../../README.md)
 
-**Guide:** [Install](install.md) · [Sources](sources.md) · [Resources](resources.md) · [Services](services.md) · [Translation](translation.md) · [Settings](settings.md) · [Workspace](workspace.md) · [Instructions](instructions.md) · [Output styles](output-styles.md)
+**Guide:** [Install](install.md) · [Sources](sources.md) · [Resources](resources.md) · [Drafting with AI](ai-assist.md) · [Services](services.md) · [Translation](translation.md) · [Settings](settings.md) · [Workspace](workspace.md) · [Instructions](instructions.md) · [Output styles](output-styles.md)
 
 ## What an output style is
 

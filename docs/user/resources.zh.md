@@ -2,7 +2,7 @@
 
 [English](resources.md) | 简体中文 | [README](../../README.zh.md)
 
-**Guide:** [安装](install.md) · [来源](sources.md) · [自建资源](resources.md) · [服务](services.md) · [翻译](translation.md) · [设置](settings.md) · [工作区](workspace.md)
+**Guide:** [安装](install.md) · [来源](sources.md) · [自建资源](resources.md) · [用 AI 起草](ai-assist.zh.md) · [服务](services.zh.md) · [翻译](translation.md) · [设置](settings.md) · [工作区](workspace.md)
 
 ## 存储与发现
 

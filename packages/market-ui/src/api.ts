@@ -27,6 +27,7 @@ import type { McpStatusPayload } from '../../market-contracts/src/contracts/mcp-
 import type { LspStatusPayload } from '../../market-contracts/src/contracts/lsp-status.js'
 import type { SurfaceToggleKey, SurfaceToggles } from '../../market-contracts/src/contracts/surface-toggles.js'
 import { OUTPUT_STYLE_ROUTES } from '../../market-contracts/src/contracts/output-styles.js'
+import { AI_DRAFT_ROUTES, type AiDraftFace, type AiDraftResult } from '../../market-contracts/src/contracts/ai-draft.js'
 import type { OutputStyleCaptureResult, OutputStylesPayload, OutputStyleSaveRequest } from '../../market-contracts/src/contracts/output-styles.js'
 import { resolveHiddenTabs, resolveTabOrder, type TabLayoutWire } from '../../market-contracts/src/contracts/tab-layout.js'
 import { INSTRUCTION_ROUTES } from '../../market-contracts/src/contracts/instructions.js'
@@ -160,9 +161,11 @@ async function postOkJson<T>(url: string, body: Record<string, unknown>, label: 
     },
     timeoutMs,
     async response => {
-      const payload = (await response.json()) as T & { ok?: boolean; error?: string; fields?: MarketFieldError[] }
+      const payload = (await response.json()) as T & { ok?: boolean; error?: string; fields?: MarketFieldError[]; code?: string }
       if (!response.ok || payload.ok !== true) {
-        throw Object.assign(new Error(payload.error ?? `${label}: ${response.status}`), { fields: payload.fields })
+        // The code crosses so a caller can say the same fact in the reader's own words; the
+        // message stays the fallback for a failure nobody classified.
+        throw Object.assign(new Error(payload.error ?? `${label}: ${response.status}`), { fields: payload.fields, code: payload.code })
       }
       return payload
     }
@@ -745,4 +748,29 @@ export async function deleteUserOutputStyle(name: string, sessionId?: string): P
     const payload = await postOkJson<OutputStylesPayload>(sessionRoute(OUTPUT_STYLE_ROUTES.deleteUser, sessionId), { name }, 'delete failed')
     return payload
   })
+}
+
+/* ---- AI drafting ------------------------------------------------------- */
+
+/**
+ * Ask the deployment's own model to draft one artifact.
+ *
+ * The client sends what the person wants, never how to ask for it: the prompt, the model
+ * and the bounds belong to the server, so this call cannot be used to run an arbitrary
+ * prompt on the deployment's model.
+ *
+ * @param input.face - which artifact is being drafted.
+ * @param input.intent - what the person wants, in their own words.
+ * @param input.locale - the language the artifact should be authored in.
+ * @param input.sessionId - the session whose default model applies, when there is one.
+ * @returns the draft text and the route that produced it.
+ */
+export async function requestAiDraft(input: { face: AiDraftFace; intent: string; locale: 'zh' | 'en'; sessionId?: string }): Promise<AiDraftResult> {
+  return withBusyOperation(() =>
+    postOkJson<AiDraftResult>(
+      `${AI_DRAFT_ROUTES.draft}`,
+      { face: input.face, intent: input.intent, locale: input.locale, ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }) },
+      'draft failed'
+    )
+  )
 }
