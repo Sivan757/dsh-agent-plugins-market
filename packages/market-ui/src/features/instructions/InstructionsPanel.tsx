@@ -18,6 +18,7 @@ import type { Translate } from '../../i18n.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { CodeEditor } from '../../ui/CodeEditor.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
+import { surfaceProviderCuts } from '../../ui/surface-facets.js'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, ReadFailed, type PanelConfirmState } from '../../ui/panel.js'
 import { InstructionDetail } from './InstructionDetail.js'
@@ -198,10 +199,9 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
       // the page to find. Which half a file belongs to is the question this page answers
       // second-most often ("where do I change this?"), and it used to be readable only off
       // each card's meta line.
-      filters: [
-        { id: 'user', label: t('instructionsGroupGlobal'), match: item => item.keywords === 'user' },
-        { id: 'project', label: t('instructionsGroupProject'), match: item => item.keywords === 'project' }
-      ],
+      // The shared provider facet, in this page's own words: a file in the checkout or one
+      // in the person's directory. The keywords carry the same fact for search.
+      filters: surfaceProviderCuts('instructions', t, id => (id.startsWith('project:') ? 'suite' : 'user')),
       // No text toggle either: this surface shows paths, sizes and status words, and all
       // three are already in the reader's language — a switch between original and
       // translation had nothing to switch.

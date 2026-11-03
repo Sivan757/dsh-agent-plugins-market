@@ -13,6 +13,7 @@ import workspace from '../../workspace/workspace.module.css'
 import { useTabLayout, type TabLayoutMessages } from '../../workspace/tab-layout-store.js'
 import { visibleTabs, type WorkspaceTabKey } from '../../../../market-contracts/src/contracts/tab-layout.js'
 import { PRESET_FACES, WORKSPACE_TAB_META, workspaceKeyOfFace } from '../../workspace/tab-meta.js'
+import { surfaceProviderCuts, type SurfaceProvider } from '../../ui/surface-facets.js'
 import type { LocaleKey } from '../../locales.js'
 // The faces, their labels and the noun each collection is counted in all come from
 // the workspace's own metadata: this surface names one collection differently
@@ -24,6 +25,24 @@ const TAB_KEY = Object.fromEntries(faces.map(face => [face, workspaceKeyOfFace(f
 /** The face's tab label, or the noun one collection of it is counted in. */
 const labelOf = (face: (typeof faces)[number]): LocaleKey => WORKSPACE_TAB_META[TAB_KEY[face]].label
 const countOf = (face: (typeof faces)[number]): LocaleKey | undefined => WORKSPACE_TAB_META[TAB_KEY[face]].surface
+/**
+ * Which provider a preset row came from, in the same terms the workspace tab uses.
+ *
+ * The inventory carries the answer per face: a suite-owned row names its suite, a direct
+ * service or a person's own entry does not, and the two prompt-layer faces encode it in
+ * their ids because a style or a file has no owning suite row.
+ *
+ * @param row - the row, or undefined when the id is unknown.
+ * @returns the provider, or undefined when the row is unknown.
+ */
+function providerOf(row: ExtensionResource | undefined): SurfaceProvider | undefined {
+  if (row === undefined) return undefined
+  if (row.face === 'market' || row.face === 'hooks') return 'suite'
+  if (row.face === 'instructions') return row.id.startsWith('instructions:project/') ? 'suite' : 'user'
+  if (row.face === 'outputStyles') return row.id.startsWith('outputStyles:user') ? 'user' : 'suite'
+  return row.suiteResourceId !== undefined ? 'suite' : 'user'
+}
+
 /**
  * One tab key back to this surface's face, when the surface has that tab.
  *
@@ -203,10 +222,10 @@ export function ResourceList({
           capabilities={{ toggle: true, counts: true }}
           searchLabel={t('epSearch')}
           searchPlaceholder={t('epSearchPlaceholder')}
-          filters={[
-            { id: 'on', label: t('epOn'), match: entry => selectedById(entry.id) },
-            { id: 'off', label: t('epOff'), match: entry => !selectedById(entry.id) }
-          ]}
+          // The same facet the workspace tab offers, from the same table: whether a card is
+          // switched on is what its rail and its state word already say, and this surface
+          // and the settings page must not disagree about what a filter is.
+          filters={surfaceProviderCuts(TAB_KEY[face], t, id => providerOf(rowById.get(id)))}
           beforeView={h(BilingualToggle, { t, showOriginal, onToggle: onToggleShowOriginal })}
           emptyText={t('epEmpty')}
           // A card opens the entry; the switch beside it toggles. The view action that used

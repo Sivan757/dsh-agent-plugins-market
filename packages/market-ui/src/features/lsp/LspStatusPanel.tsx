@@ -29,6 +29,7 @@ import {
   type LspStatusState
 } from '../../api.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
+import { surfaceProviderCuts } from '../../ui/surface-facets.js'
 import { StatusBand, bandTone } from '../../ui/StatusBand.js'
 import { FAILURE_GUIDANCE_LABEL, failureCause, failureGuidanceKey } from '../../ui/failure-guidance.js'
 import { type ResourceState } from '../../ui/ResourceCard.js'
@@ -200,18 +201,8 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
       // row: the declaring suite is a chip the row already prints. Matching the
       // card's own state also drops the old comparison against translated copy.
       // A failed read has no counts to offer, so it has no tabs either.
-      filters:
-        payload.entries.length === 0 && error !== undefined
-          ? []
-          : [
-              {
-                id: 'attention',
-                label: t('lspFilterAttention'),
-                hint: t('lspFilterAttentionHint'),
-                match: entry => entry.state === 'warning' || entry.state === 'error'
-              },
-              { id: 'disabled', label: t('panelFilterDisabled'), hint: t('lspFilterDisabledHint'), match: entry => entry.state === 'disabled' }
-            ],
+      // The shared provider facet, exactly as the connectors panel has it.
+      filters: surfaceProviderCuts('lsp', t, (id: string) => (payload.entries.find(entry => entry.id === id)?.kind === 'plugin' ? 'suite' : 'user')),
       // Nothing read is not nothing mounted: the alert says the read failed.
       emptyText: payload.entries.length === 0 && error !== undefined ? t('statusUnreadable') : loading && payload.entries.length === 0 ? t('loading') : t('lspEmpty'),
       onOpen: entryId => {

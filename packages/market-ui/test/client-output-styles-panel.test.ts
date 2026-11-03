@@ -227,11 +227,12 @@ describe('output styles panel', () => {
     expect(cards()).toHaveLength(1)
     expect(cards()[0]!.textContent).toContain('teaching-style')
 
-    const user = [...host!.querySelectorAll<HTMLButtonElement>('[data-panel-toolbar] button')].find(node => (node.textContent ?? '').includes('outputStylesGroupUser'))!
+    // The provider facet every list now shares: the words come from the workspace table.
+    const user = [...host!.querySelectorAll<HTMLButtonElement>('[data-panel-toolbar] button')].find(node => (node.textContent ?? '').includes('panelSourceUser'))!
     await act(async () => user.click())
     expect(cards()).toHaveLength(0)
 
-    const suite = [...host!.querySelectorAll<HTMLButtonElement>('[data-panel-toolbar] button')].find(node => (node.textContent ?? '').includes('outputStylesGroupSuite'))!
+    const suite = [...host!.querySelectorAll<HTMLButtonElement>('[data-panel-toolbar] button')].find(node => (node.textContent ?? '').includes('panelSourcePlugin'))!
     await act(async () => suite.click())
     expect(cards()).toHaveLength(1)
 

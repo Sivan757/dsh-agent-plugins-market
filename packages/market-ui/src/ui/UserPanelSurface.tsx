@@ -11,6 +11,7 @@ import { cachedUserPanel, loadUserPanel } from './user-panel-resource.js'
 import { commandCallName } from '../../../market-contracts/src/model/command-names.js'
 import type { Translate } from '../i18n.js'
 import { ResourceSurface } from './ResourceSurface.js'
+import { surfaceProviderCuts } from './surface-facets.js'
 import { displayText } from './translated-text.js'
 import { BilingualToggle } from './BilingualToggle.js'
 import { useTranslationEnabled, useTranslationRefresh } from './translation-enabled.js'
@@ -302,11 +303,9 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
       capabilities: { toggle: true },
       searchLabel: t('panelSearchLabel'),
       searchPlaceholder: t('panelSearchLabel'),
-      filters: [
-        { id: 'user', label: t('panelSourceUser'), match: (entry: { id: string }) => byId.get(entry.id)?.origin === 'user' },
-        { id: 'plugin', label: t('panelSourcePlugin'), match: (entry: { id: string }) => byId.get(entry.id)?.origin === 'plugin' },
-        { id: 'disabled', label: t('panelFilterDisabled'), match: (entry: { id: string }) => byId.get(entry.id)?.disabled === true }
-      ],
+      // Who provides the row is the one question the cards cannot answer; whether it is
+      // switched on is what the rail and the switch already say.
+      filters: surfaceProviderCuts(kind === 'skills' ? 'skills' : kind === 'commands' ? 'commands' : 'personas', t, id => (byId.get(id)?.origin === 'user' ? 'user' : 'suite')),
       beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(current => !current) }),
       toListLabel: t('switchToList'),
       toGridLabel: t('switchToGrid'),

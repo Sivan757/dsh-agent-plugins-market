@@ -7,7 +7,8 @@ import { fetchMcpStatus, reauthorizeMcpServer, removeMcpServer, retryMcpMounts, 
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import panelCss from '../../ui/panel.module.css'
 import { pollUntilTranslated } from '../../ui/translation-settle.js'
-import { matchesMcpFilter, MCP_FILTERS, nextConnectionRead, type McpStatusFilter } from './mcp-status-view-model.js'
+import { nextConnectionRead } from './mcp-status-view-model.js'
+import { surfaceProviderCuts } from '../../ui/surface-facets.js'
 import { mcpCardState, mcpConnectionNote, mcpDisplayName, mcpStateLabel } from './state-helpers.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
@@ -23,8 +24,6 @@ interface McpStatusPanelProps {
   t: Translate
   credentials?: CredentialApi
 }
-
-type Filter = McpStatusFilter
 
 const EMPTY_STATUS: McpStatusPayload = {
   entries: [],
@@ -274,15 +273,9 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       searchPlaceholder: t('mcpSearch'),
       // A failed read has no counts to offer: three tabs reading 0 would state
       // the same false fact the empty text did.
-      filters: (payload.entries.length === 0 && error !== undefined ? [] : MCP_FILTERS).map(kind => ({
-        id: kind,
-        label: filterLabel(t, kind),
-        hint: mcpFilterHint(t, kind),
-        match: (entry: { id: string }) => {
-          const row = byId.get(entry.id)
-          return row !== undefined && matchesMcpFilter(row, kind)
-        }
-      })),
+      // The shared provider facet: a failed connector is found by its rail and its state
+      // word, so the panel no longer hides rows behind a "needs attention" cut.
+      filters: surfaceProviderCuts('mcp', t, id => (byId.get(id)?.kind === 'plugin' ? 'suite' : 'user')),
       beforeView: h(BilingualToggle, { t, showOriginal, onToggle: flipOriginal }),
       toListLabel: t('switchToList'),
       toGridLabel: t('switchToGrid'),
@@ -374,15 +367,3 @@ function deletable(entry: McpStatusEntry): boolean {
  * echo. The state pill is dropped entirely — the dot and the reason box carry
  * that information without a second red stamp.
  */
-function filterLabel(t: Translate, kind: Filter): string {
-  if (kind === 'attention') return t('mcpFilterAttention')
-  if (kind === 'disabled') return t('panelFilterDisabled')
-  return t('filterAll')
-}
-
-/** Hover/aria explanation for each MCP filter tab. */
-function mcpFilterHint(t: Translate, kind: Filter): string {
-  if (kind === 'attention') return t('mcpFilterAttentionHint')
-  if (kind === 'disabled') return t('mcpFilterDisabledHint')
-  return t('filterAll')
-}

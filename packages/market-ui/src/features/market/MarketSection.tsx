@@ -371,10 +371,9 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
         capabilities: { toggle: true, counts: true },
         searchLabel: t('searchPh'),
         searchPlaceholder: t('searchPh'),
-        filters: [
-          { id: 'installed', label: t('tabInstalled'), match: (entry: { id: string }) => suiteById.get(entry.id)?.installed === true },
-          { id: 'uninstalled', label: t('tabUninstalled'), match: (entry: { id: string }) => suiteById.get(entry.id)?.installed !== true }
-        ],
+        // No facet: every row here is a suite, and installed state is what the card's rail
+        // and its install action already say. A 已安装/未安装 cut asked the reader to hide
+        // rows to find out what they had.
         beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(current => !current) }),
         toListLabel: t('switchToList'),
         toGridLabel: t('switchToGrid'),

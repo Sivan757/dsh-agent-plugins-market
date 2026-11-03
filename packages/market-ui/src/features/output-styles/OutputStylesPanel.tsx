@@ -24,6 +24,7 @@ import { CodeEditor } from '../../ui/CodeEditor.js'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, ReadFailed, type PanelConfirmState } from '../../ui/panel.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
+import { surfaceProviderCuts } from '../../ui/surface-facets.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { captureAction, isSelectable, suiteKeyOf, userNameOf } from './output-styles-view-model.js'
 import css from './output-styles.module.css'
@@ -149,10 +150,8 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
       searchLabel: t('cardSearch'),
       searchPlaceholder: t('outputStylesSearchPh'),
       // Source is the only axis these entries differ on, so it is the filter.
-      filters: [
-        { id: 'user', label: t('outputStylesGroupUser'), match: item => item.tagId === 'user' },
-        { id: 'suite', label: t('outputStylesGroupSuite'), match: item => item.tagId === 'suite' }
-      ],
+      // The shared provider facet: who wrote the style, not where its text came from.
+      filters: surfaceProviderCuts('outputStyles', t, id => (id.startsWith('user:') ? 'user' : 'suite')),
       beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(value => !value) }),
       // One selection, chosen from the list: the switch is the choice, not an on/off
       // switch that can be turned off — picking another style is how you change it. The

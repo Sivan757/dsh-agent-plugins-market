@@ -291,7 +291,8 @@ describe('instructions panel', () => {
     // stays reachable while browsing. The cuts answer "which half is this file in", not
     // "which files loaded".
     const cuts = [...host!.querySelectorAll('[data-panel-toolbar] [role="tab"]')].map(node => (node.textContent ?? '').trim())
-    expect(cuts).toEqual(['filterAll 4', 'instructionsGroupGlobal 2', 'instructionsGroupProject 2'])
+    // The shared facet's order: the checkout's half first, then the person's.
+    expect(cuts).toEqual(['filterAll 4', 'instructionsGroupProject 2', 'instructionsGroupGlobal 2'])
 
     // The view switch re-lays the same collection out as a list.
     const toList = host!.querySelector<HTMLButtonElement>('[data-panel-toolbar] button[aria-label="list"]')!

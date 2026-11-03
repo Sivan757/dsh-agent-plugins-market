@@ -196,15 +196,13 @@ it('coalesces same-id project cards and toggles the unnamed draft', async () => 
   await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards().map(card => card.getAttribute('data-resource-state'))).toEqual(['disabled'])
   expect(posts).toHaveLength(0)
-  // Nothing is enabled, so the Enabled cut is not drawn at all: a chip that can only
-  // land on an empty list is chrome, not a query.
-  expect([...document.querySelectorAll('button')].some(button => (button.textContent ?? '').trim() === 'Enabled 0')).toBe(false)
-  await click('All 1')
+  // The manager's filter strip is the workspace's provider facet, and this face has one
+  // provider, so there is no strip at all: the switched-on cut the manager used to draw is
+  // gone, and so is the "nothing is enabled" chip it produced.
+  expect([...document.querySelectorAll<HTMLElement>('[data-panel-toolbar] [role="tab"]')]).toHaveLength(0)
   expect(cards()).toHaveLength(1)
   await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards().map(card => card.getAttribute('data-resource-state'))).toEqual(['active'])
-  expect([...document.querySelectorAll('button')].some(button => (button.textContent ?? '').trim() === 'Disabled 0')).toBe(false)
-  await click('All 1')
   await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards().map(card => card.getAttribute('data-resource-state'))).toEqual(['disabled'])
 })
