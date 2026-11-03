@@ -180,6 +180,10 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
         // already is. A row without a current capture cannot be selected, so its state
         // names the step that is missing instead.
         stateLabel: row.id === payload?.selected ? t('outputStylesStateSelected') : isSelectable(row) ? t('outputStylesStateNotSelected') : t('outputStylesStateUncaptured'),
+        // The switch is a choice, not an on/off: the verb says so, and the title says only
+        // one style is in force at a time. Without a verb a screen reader hears the style's
+        // own name twice — once for the row, once for the control.
+        toggleLabel: t('outputStylesSelect'),
         // The step the state word names, offered where the word is: a row that cannot be
         // selected because its text was never captured says so and gives the action that
         // fixes it, instead of sending the reader into the dialog to find out.
