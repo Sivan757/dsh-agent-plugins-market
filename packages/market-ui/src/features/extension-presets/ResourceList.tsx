@@ -3,6 +3,7 @@ import { createElement as h, useCallback, useId, useMemo, useState, type ReactNo
 import { type ExtensionResource } from '../../../../market-contracts/src/contracts/extension-presets.js'
 import { TabRail } from '../../ui/TabRail.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
+import type { ResourceSurface as SurfaceFamily } from '../../ui/ResourceCard.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { displayText } from '../../ui/translated-text.js'
 import { useTranslationEnabled } from '../../ui/translation-enabled.js'
@@ -14,13 +15,27 @@ import { useTabLayout, type TabLayoutMessages } from '../../workspace/tab-layout
 import { visibleTabs, type WorkspaceTabKey } from '../../../../market-contracts/src/contracts/tab-layout.js'
 import { PRESET_FACES, WORKSPACE_TAB_META, workspaceKeyOfFace } from '../../workspace/tab-meta.js'
 import { surfaceProviderCuts, type SurfaceProvider } from '../../ui/surface-facets.js'
-import { FAILURE_GUIDANCE_LABEL, failureCause, failureGuidanceKey } from '../../ui/failure-guidance.js'
+import { buildFaceEntry, type FaceRowFacts } from '../../ui/face-entry.js'
 import type { LocaleKey } from '../../locales.js'
 // The faces, their labels and the noun each collection is counted in all come from
 // the workspace's own metadata: this surface names one collection differently
 // (`agents` here, `personas` in the workspace) and that difference lives in one
 // field there rather than in four maps here.
 const faces = PRESET_FACES
+/** The card family each preset face draws with; a prompt-layer face has none of these rules. */
+const SURFACE_OF: Record<(typeof PRESET_FACES)[number], SurfaceFamily> = {
+  market: 'market',
+  skills: 'skills',
+  commands: 'commands',
+  agents: 'personas',
+  mcp: 'mcp',
+  lsp: 'lsp',
+  hooks: 'hooks',
+  // A style and an instruction block are documents, not collections of plugins: no card rule
+  // keys off them, so they ride the nearest family without borrowing its meaning.
+  outputStyles: 'commands',
+  instructions: 'commands'
+}
 /** Each face's workspace tab key, resolved once from the shared metadata. */
 const TAB_KEY = Object.fromEntries(faces.map(face => [face, workspaceKeyOfFace(face)!])) as Record<(typeof faces)[number], WorkspaceTabKey>
 /** The face's tab label, or the noun one collection of it is counted in. */
@@ -36,29 +51,6 @@ const countOf = (face: (typeof faces)[number]): LocaleKey | undefined => WORKSPA
  * @param row - the row, or undefined when the id is unknown.
  * @returns the provider, or undefined when the row is unknown.
  */
-/**
- * The warning a service row's live state earns, in the panel's own words.
- *
- * The panels classify a failure with `failureGuidanceKey` and keep the cause before the
- * colon plus the time the attempt took; the manager says the same sentence rather than a
- * second wording of its own.
- *
- * @param row - the resource row.
- * @param t - the translator.
- * @returns the sentence, or undefined when the row is in a state its panel accepts.
- */
-function runtimeWarning(row: ExtensionResource, t: ExtensionTranslate): string | undefined {
-  const runtime = row.runtime
-  if (runtime === undefined || runtime.state === 'connected') return undefined
-  // The same classifier the panel runs, with the same inputs: a code when the runtime
-  // recorded one, the summary line, and the messages under it.
-  const guidance = failureGuidanceKey({ code: runtime.code, reason: runtime.reason, causes: runtime.causes })
-  const sentence = guidance === undefined ? runtime.reason : t(FAILURE_GUIDANCE_LABEL[guidance])
-  if (sentence === undefined || sentence === '') return undefined
-  const seconds = runtime.mountMs === undefined || runtime.mountMs < 1000 ? undefined : (runtime.mountMs / 1000).toFixed(1) + 's'
-  return seconds === undefined ? failureCause(sentence) : failureCause(sentence) + ' · ' + seconds
-}
-
 function providerOf(row: ExtensionResource | undefined): SurfaceProvider | undefined {
   if (row === undefined) return undefined
   if (row.face === 'market' || row.face === 'hooks') return 'suite'
@@ -179,20 +171,18 @@ export function ResourceList({
     const row = rowById.get(rowId)
     return row !== undefined && selected(row)
   }
-  const entries = rows.map(row => ({
-    id: row.id,
-    name: displayName(row),
-    hint: row.version,
-    mono: row.face === 'commands',
-    tag: ownerLabel(row),
-    description: displayDescription(row),
-    // The panel's own facts, in the panel's own slots: a service row's transport is meta, its
-    // tool count is a count, and its failure is a warning line in the panel's own words. The
-    // rail and the state word keep this surface's meaning (in the preset or not).
-    monoBody: row.runtime !== undefined && row.face === 'mcp',
-    // A row with no switch still shows whether the host has it on.
-    meta: row.control === 'global-only' ? row.source + ' · ' + t(selected(row) ? 'epOn' : 'epOff') : (row.transport ?? row.source),
-    counts:
+  /**
+   * The facts both surfaces share about one row.
+   *
+   * The manager adapts a preset row onto this shape and lets the shared builder draw it, so a
+   * fact the settings face learns arrives here without a second implementation. `switchability`
+   * is this surface's own distinction: a host-managed row and a row with nothing behind it are
+   * both unswitchable, but they say different things.
+   */
+  const factsOf = (row: ExtensionResource): FaceRowFacts => {
+    const noSwitch = row.unavailableReason === 'instructions-no-switch'
+    const globalOnly = row.control === 'global-only'
+    const counts =
       row.toolCount === undefined
         ? row.face === 'market'
           ? faces
@@ -204,30 +194,45 @@ export function ResourceList({
               })
               .filter(item => item.count > 0)
           : undefined
-        : [{ label: t(row.toolCount === 1 ? 'mcpTool' : 'mcpTools'), count: row.toolCount }],
-    // A service in a state its panel would flag says so here too, in the same words; a row
-    // this surface cannot switch adds its own explanation.
-    warning: runtimeWarning(row, t) ?? (!row.available || row.control === 'global-only' ? hints(row) : undefined),
-    // A row the host manages globally has no switch of its own, and an instruction file
-    // has none at all: the card says why instead.
-    hideToggle: row.control === 'global-only' || row.unavailableReason === 'instructions-no-switch',
-    // Off rows wear the quiet chrome; unavailable ones wear the warning chrome.
-    state: !row.available ? (row.control === 'global-only' ? ('disabled' as const) : ('warning' as const)) : selected(row) ? ('active' as const) : ('disabled' as const),
-    // The rail is colour only; this is what a screen reader hears. An instruction file
-    // has no on/off switch, so it says whether the host injects it rather than borrowing
-    // the vocabulary of the switches beside it.
-    stateLabel:
-      row.face === 'instructions'
-        ? t(row.available ? 'epInstructionInjected' : 'epInstructionNotInjected')
-        : !row.available
-          ? t('stateUnavailable')
-          : selected(row)
-            ? t('enabledLabel')
-            : t('disabledLabel'),
-    // The switch's verb, so the control is not announced as the resource's name a second
-    // time. Hidden rows have no switch to label.
-    ...(row.control === 'global-only' || row.unavailableReason === 'instructions-no-switch' ? {} : { toggleLabel: selected(row) ? t('disable') : t('enable') })
-  }))
+        : [{ label: t(row.toolCount === 1 ? 'mcpTool' : 'mcpTools'), count: row.toolCount }]
+    return {
+      surface: SURFACE_OF[row.face],
+      provider: providerOf(row) ?? 'user',
+      id: row.id,
+      name: displayName(row),
+      ...(row.version === undefined ? {} : { version: row.version }),
+      ...(row.face === 'commands' ? { mono: true } : {}),
+      // The panel's own facts, in the panel's own slots: a service row's transport rides the
+      // bottom line, its endpoint and tools are a monospace body and a count.
+      ...(row.runtime !== undefined && row.face === 'mcp' ? { monoBody: true } : {}),
+      tag: ownerLabel(row),
+      description: displayDescription(row),
+      // A host-managed row has no switch, so the bottom line carries its position in the
+      // preset's own words instead.
+      meta: globalOnly ? row.source + ' · ' + t(selected(row) ? 'epOn' : 'epOff') : (row.transport ?? row.source),
+      keywords: [row.name, row.description ?? '', row.source].join(' '),
+      ...(counts === undefined ? {} : { counts }),
+      showSwitch: !globalOnly && !noSwitch,
+      switchability: globalOnly ? 'global-only' : !row.available ? 'unavailable' : 'ready',
+      on: selected(row),
+      ...(row.runtime === undefined
+        ? {}
+        : {
+            live: {
+              state: row.runtime.state,
+              ...(row.runtime.code === undefined ? {} : { code: row.runtime.code }),
+              ...(row.runtime.reason === undefined ? {} : { reason: row.runtime.reason }),
+              ...(row.runtime.causes === undefined ? {} : { causes: row.runtime.causes }),
+              ...(row.runtime.mountMs === undefined ? {} : { mountMs: row.runtime.mountMs })
+            }
+          }),
+      // An instruction file has no on/off switch, so it says whether the host injects it
+      // rather than borrowing the vocabulary of the switches beside it.
+      ...(row.face === 'instructions' ? { unswitchableWord: t(row.available ? 'epInstructionInjected' : 'epInstructionNotInjected') } : {}),
+      ...(!row.available || globalOnly ? { note: hints(row) } : {})
+    }
+  }
+  const entries = rows.map(row => buildFaceEntry(t, factsOf(row), 'resolve'))
   return (
     <div className={workspace.workspace}>
       <TabRail

@@ -29,9 +29,11 @@ import {
   type LspStatusState
 } from '../../api.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
+import { buildFaceEntry } from '../../ui/face-entry.js'
+import { FAILURE_GUIDANCE_LABEL, failureGuidanceKey } from '../../ui/failure-guidance.js'
 import { surfaceProviderCuts } from '../../ui/surface-facets.js'
 import { StatusBand, bandTone } from '../../ui/StatusBand.js'
-import { FAILURE_GUIDANCE_LABEL, failureCause, failureGuidanceKey } from '../../ui/failure-guidance.js'
+
 import { DiagnoseBlock } from '../../ui/DiagnoseBlock.js'
 import { type ResourceState } from '../../ui/ResourceCard.js'
 import { DetailRow, DetailRows, KvGrid, kvCell } from '../../ui/DetailRows.js'
@@ -161,48 +163,42 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
     // The shared renderer draws the list; the panel supplies entries, the detail and the editor.
     h(ResourceSurface, {
       t,
+      // This panel's rows, adapted onto the facts the preset manager reads too: the shared
+      // builder owns the rail, the failure sentence and the switch verb on both surfaces.
       entries: payload.entries.map(entry => ({
-        id: entry.id,
-        name: entry.serverKey,
-        mono: true,
-        tag: entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect'),
-        description: entry.command,
-        meta: entry.suiteName === undefined ? String(Object.keys(entry.extensions).length) : entry.suiteName,
-        // A row that did not mount says why on the card, cause first: the advice
-        // after the colon stays in the detail. A mounted row whose last call
-        // failed is the other thing this panel can say, because the seam has no
-        // death signal.
-        ...(() => {
-          if (entry.state === 'mounted' || entry.state === 'disabled') {
-            return entry.observation === undefined || entry.observation.ok ? {} : { warning: t('lspLastCallShort') }
-          }
-          const guidance = failureGuidanceKey({ code: entry.code, reason: entry.reason, causes: entry.causes })
-          const sentence = guidance === undefined ? entry.reason : t(FAILURE_GUIDANCE_LABEL[guidance])
-          if (sentence === undefined || sentence === '') return {}
-          // A start that took twenty seconds and one that failed in forty milliseconds
-          // read the same in a one-line cause; the slow row says so on the card.
-          const seconds = entry.mountMs === undefined || entry.mountMs < 1000 ? undefined : (entry.mountMs / 1000).toFixed(1) + 's'
-          return { warning: seconds === undefined ? failureCause(sentence) : failureCause(sentence) + ' · ' + seconds }
-        })(),
-        // The row that did not mount carries the action that fixes it: the same principle
-        // the connectors list follows, and the restart used to live only in the row's
-        // dialog. A restart names this row's mount, so it cannot touch a sibling.
-        ...(entry.state === 'failed' ? { primary: { label: t('lspRestart'), title: t('lspRestartHint'), onSelect: () => void restart(entry) } } : {}),
-        state: lspCardState(entry.state),
-        // The rail is colour only; this is what a screen reader hears.
-        stateLabel: stateLabel(t, entry.state),
-        // The switch's verb, so the control is not announced as the server's name a second
-        // time: 启用/禁用 plus the row says which row and what it does.
-        toggleLabel: entry.state === 'disabled' ? t('enable') : t('disable')
+        ...buildFaceEntry(
+          t,
+          {
+            surface: 'lsp',
+            provider: entry.kind === 'plugin' ? 'suite' : 'user',
+            id: entry.id,
+            name: entry.serverKey,
+            mono: true,
+            tag: entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect'),
+            description: entry.command,
+            meta: entry.suiteName ?? String(Object.keys(entry.extensions).length),
+            keywords: [entry.serverKey, entry.command, entry.reason ?? ''].join(' '),
+            showSwitch: true,
+            on: entry.state !== 'disabled',
+            live: {
+              state: entry.state === 'mounted' ? 'connected' : entry.state === 'starting' ? 'starting' : entry.state === 'disabled' ? 'disabled' : 'failed',
+              ...(entry.code === undefined ? {} : { code: entry.code }),
+              ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+              ...(entry.causes === undefined ? {} : { causes: entry.causes }),
+              ...(entry.mountMs === undefined ? {} : { mountMs: entry.mountMs })
+            },
+            liveWord: stateLabel(t, entry.state),
+            // A mounted row whose last call failed is the other thing this panel can say,
+            // because the seam has no death signal.
+            ...(entry.state === 'mounted' && entry.observation !== undefined && !entry.observation.ok ? { note: t('lspLastCallShort') } : {})
+          },
+          'settings'
+        ),
+        // The row that did not mount carries the action that fixes it, the same principle the
+        // connectors list follows; the restart names this row's mount, so it cannot touch a
+        // sibling.
+        ...(entry.state === 'failed' ? { primary: { label: t('lspRestart'), title: t('lspRestartHint'), onSelect: () => void restart(entry) } } : {})
       })),
-      capabilities: { toggle: true },
-      searchLabel: t('lspSearch'),
-      searchPlaceholder: t('lspSearch'),
-      // A status surface earns its tabs from states, not from who declared the
-      // row: the declaring suite is a chip the row already prints. Matching the
-      // card's own state also drops the old comparison against translated copy.
-      // A failed read has no counts to offer, so it has no tabs either.
-      // The shared provider facet, exactly as the connectors panel has it.
       filters: surfaceProviderCuts('lsp', t, (id: string) => (payload.entries.find(entry => entry.id === id)?.kind === 'plugin' ? 'suite' : 'user')),
       // Nothing read is not nothing mounted: the alert says the read failed.
       emptyText: payload.entries.length === 0 && error !== undefined ? t('statusUnreadable') : loading && payload.entries.length === 0 ? t('loading') : t('lspEmpty'),

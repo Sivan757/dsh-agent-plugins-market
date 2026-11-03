@@ -5,14 +5,14 @@ import type { Translate } from '../../i18n.js'
 import type { CredentialApi } from '../../credentials.js'
 import { fetchMcpStatus, reauthorizeMcpServer, removeMcpServer, retryMcpMounts, setMcpServerEnabled, type McpStatusEntry, type McpStatusPayload } from '../../api.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
+import { buildFaceEntry, type FaceRowFacts } from '../../ui/face-entry.js'
 import panelCss from '../../ui/panel.module.css'
 import { pollUntilTranslated } from '../../ui/translation-settle.js'
 import { nextConnectionRead } from './mcp-status-view-model.js'
 import { surfaceProviderCuts } from '../../ui/surface-facets.js'
-import { mcpCardState, mcpConnectionNote, mcpDisplayName, mcpStateLabel } from './state-helpers.js'
+import { mcpConnectionNote, mcpDisplayName, mcpStateLabel } from './state-helpers.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
-import { FAILURE_GUIDANCE_LABEL, failureCause, failureGuidanceKey } from '../../ui/failure-guidance.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { useTranslationRefresh } from '../../ui/translation-enabled.js'
 import { McpDetailModal } from './McpDetailModal.js'
@@ -203,52 +203,61 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
   // this panel maps its rows onto the shared entry contract and keeps only the
   // domain work (open, toggle, edit) and the dialogs.
   const byId = new Map(payload.entries.map(entry => [entry.id, entry]))
-  const entries = payload.entries.map(entry => {
-    const displayName = mcpDisplayName(entry)
-    // One sentence for the card and the detail band: the live supervisor's
-    // phase when the connection dropped, absent otherwise.
+  /**
+   * This panel's rows, adapted onto the facts the preset manager reads too.
+   *
+   * The card itself is the shared builder's work: the same rail, the same failure sentence, the
+   * same switch verb on both surfaces. What stays here is what only this panel knows — the live
+   * word for each state, the retry the failed row carries, and the handlers.
+   */
+  const factsOf = (entry: McpStatusEntry): FaceRowFacts => {
+    // One sentence for the card and the detail band: the live supervisor's phase when the
+    // connection dropped, absent otherwise.
     const connectionNote = mcpConnectionNote(t, entry, now)
+    const switchable = entry.suiteId !== undefined && entry.serverKey !== undefined && entry.state !== 'foreign'
+    return {
+      surface: 'mcp',
+      provider: entry.kind === 'plugin' ? 'suite' : 'user',
+      id: entry.id,
+      name: mcpDisplayName(entry),
+      ...(entry.name === mcpDisplayName(entry) ? {} : { hint: entry.name }),
+      mono: true,
+      monoBody: connectionNote === undefined,
+      tag: entry.kind === 'plugin' ? t('mcpPlugin') : t('mcpDirect'),
+      description: connectionNote ?? entry.endpoint ?? t('mcpObservedEndpoint'),
+      meta: entry.transport,
+      counts: [{ label: entry.tools.length === 1 ? t('mcpTool') : t('mcpTools'), count: entry.tools.length }],
+      keywords: [entry.name, entry.endpoint ?? '', entry.transport, entry.reason ?? '', ...(entry.credentialRefs ?? [])].join(' '),
+      showSwitch: switchable,
+      on: entry.state !== 'disabled',
+      live: {
+        state: entry.state,
+        ...(entry.code === undefined ? {} : { code: entry.code }),
+        ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+        ...(entry.causes === undefined ? {} : { causes: entry.causes }),
+        ...(entry.mountMs === undefined ? {} : { mountMs: entry.mountMs })
+      },
+      liveWord: mcpStateLabel(t, entry.state)
+    }
+  }
+  const entries = payload.entries.map(entry => {
     const switchable = entry.suiteId !== undefined && entry.serverKey !== undefined && entry.state !== 'foreign'
     const disabled = entry.state === 'disabled'
     return {
-      id: entry.id,
-      name: displayName,
-      hint: entry.name === displayName ? undefined : entry.name,
-      mono: true,
-      tag: entry.kind === 'plugin' ? t('mcpPlugin') : t('mcpDirect'),
+      ...buildFaceEntry(t, factsOf(entry), 'settings'),
       chip: true,
-      surface: 'mcp' as const,
-      description: connectionNote ?? entry.endpoint ?? t('mcpObservedEndpoint'),
-      monoBody: connectionNote === undefined,
       source: entry.kind === 'plugin' ? (entry.suiteId ?? entry.source ?? '—') : t('mcpDirect'),
-      meta: entry.transport,
-      counts: [{ label: entry.tools.length === 1 ? t('mcpTool') : t('mcpTools'), count: entry.tools.length }],
-      // Text the card does not render, so search still finds it.
-      keywords: [entry.name, entry.endpoint ?? '', entry.transport, entry.reason ?? '', ...(entry.credentialRefs ?? [])].join(' '),
-      state: mcpCardState(entry.state),
-      stateLabel: mcpStateLabel(t, entry.state),
-      // The list is scanned to find the row that needs attention, so the row says
-      // why it failed: the advice after the colon stays in the detail.
-      ...(() => {
-        const guidance = failureGuidanceKey({ code: entry.code, reason: entry.reason, causes: entry.causes })
-        if (guidance === undefined) return {}
-        // A failure that took ten seconds and one that took forty milliseconds read
-        // the same in a one-line cause; the row that needed ten seconds says so, so a
-        // slow row is distinguishable before anything is opened.
-        const seconds = entry.mountMs === undefined || entry.mountMs < 1000 ? undefined : (entry.mountMs / 1000).toFixed(1) + 's'
-        return { warning: seconds === undefined ? failureCause(t(FAILURE_GUIDANCE_LABEL[guidance])) : failureCause(t(FAILURE_GUIDANCE_LABEL[guidance])) + ' · ' + seconds }
-      })(),
       // The row that failed carries the action that fixes it: the state word names the
-      // problem, and the retry used to live only in the row's dialog. The retry checks
-      // every managed service (its own hint says so), which is what the detail offers too.
+      // problem, and the retry used to live only in the row's dialog. The retry checks every
+      // managed service (its own hint says so), which is what the detail offers too.
       ...(entry.state === 'failed' || entry.state === 'degraded'
         ? { primary: { label: t('mcpRetryConnection'), title: t('mcpRetryPreservesCredentials'), onSelect: () => void retry(entry.id) } }
         : {}),
       canEdit: switchable,
-      toggleLabel: disabled ? t('enable') : t('disable')
+      ...(switchable ? {} : { hideToggle: true }),
+      ...(disabled ? {} : {})
     }
   })
-
   return h(
     'div',
     { className: css.surface },
