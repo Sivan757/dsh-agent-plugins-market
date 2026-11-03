@@ -372,6 +372,22 @@ describe('MCP status actions', () => {
     expect(card.textContent).not.toContain('failureGuideTimeout')
   })
 
+  it('offers retry on the failed row itself, before anything is opened', async () => {
+    // The state word names the problem and the action that fixes it sits beside it: the
+    // retry used to live only inside the row's dialog.
+    const api = await import('../../../packages/market-ui/src/api.js')
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
+    const el = await mountPanel()
+    const card = el.querySelector('[data-resource-state="error"]')!
+    const retry = [...card.querySelectorAll('button')].find(node => (node.textContent ?? '').includes('mcpRetryConnection'))
+    expect(retry).toBeDefined()
+    await act(async () => {
+      retry!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(api.retryMcpMounts).toHaveBeenCalled()
+  })
+
   it('offers retry in the status band and echoes the outcome in place', async () => {
     const api = await import('../../../packages/market-ui/src/api.js')
     vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)

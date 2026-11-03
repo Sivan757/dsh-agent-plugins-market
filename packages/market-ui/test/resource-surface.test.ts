@@ -54,6 +54,31 @@ async function mount(props: Partial<Parameters<typeof ResourceSurface>[0]> = {})
 const cards = (): HTMLElement[] => [...(host?.querySelectorAll<HTMLElement>('[data-resource-id]') ?? [])]
 const cardOf = (id: string): HTMLElement => cards().find(card => card.getAttribute('data-resource-id') === id)!
 
+describe('empty states', () => {
+  it("keeps the panel's own sentence for a list that really is empty", async () => {
+    await mount({ entries: [] })
+    expect(host!.textContent).toContain('nothing here')
+    expect(host!.textContent).not.toContain('resultsNoMatch')
+  })
+
+  it('says a search matched nothing, not that the collection is empty', async () => {
+    // A search that matches nothing is a fact about a list that has rows; the panel's empty
+    // sentence answers "there is nothing here", which is a different fact.
+    await mount({ searchLabel: 'search' })
+    const field = host!.querySelector<HTMLInputElement>('input')!
+    await act(async () => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- a property descriptor's accessor is invoked with the element as its receiver.
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(field, 'zzqqxx')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(host!.textContent).toContain('resultsNoMatch')
+    expect(host!.textContent).not.toContain('nothing here')
+    // The live region says the same fact, with the inventory size as its denominator.
+    expect(host!.querySelector('[data-resource-status]')!.textContent).toContain('resultsNone')
+  })
+})
+
 describe('resource surface contract', () => {
   it('opens the entry when its card is clicked', async () => {
     const onOpen = vi.fn()
