@@ -1,5 +1,9 @@
 import { execFile } from 'node:child_process'
 import { promisify } from 'node:util'
+import { HOST_SUPPORT_FLOOR, HOST_SUPPORT_RANGE } from '../../../../scripts/host-support-window.mjs'
+
+/** The fixtures pin the window's own floor, so they stay inside the declared support range. */
+const FLOOR = HOST_SUPPORT_FLOOR
 import { mkdtemp, mkdir, readFile, writeFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -17,9 +21,11 @@ it('keeps exact test-only host dependencies in dev while rejecting source import
   await mkdir(join(root, 'scripts'))
   await mkdir(join(root, 'packages'))
   await writeFile(join(root, 'scripts/check-host-alignment.mjs'), await readFile(new URL('../../../../scripts/check-host-alignment.mjs', import.meta.url), 'utf8'))
-  await writeFile(join(root, 'package.json'), JSON.stringify({ devDependencies: { '@deepseek-ai/dsh-agent-loop-testkit': '0.2.0-rc.2' } }))
-  await writeFile(join(root, 'pnpm-workspace.yaml'), "minimumReleaseAgeExclude:\n  - '@deepseek-ai/dsh-agent-loop-testkit@0.2.0-rc.2'\n")
-  const run = (...args: string[]) => exec(process.execPath, [join(root, 'scripts/check-host-alignment.mjs'), '--host-version', '0.2.0-rc.2', '--json', ...args], { cwd: root })
+  await writeFile(join(root, 'scripts/host-support-window.mjs'), await readFile(new URL('../../../../scripts/host-support-window.mjs', import.meta.url), 'utf8'))
+  await writeFile(join(root, 'scripts/host-support-window.mjs'), await readFile(new URL('../../../../scripts/host-support-window.mjs', import.meta.url), 'utf8'))
+  await writeFile(join(root, 'package.json'), JSON.stringify({ devDependencies: { '@deepseek-ai/dsh-agent-loop-testkit': FLOOR } }))
+  await writeFile(join(root, 'pnpm-workspace.yaml'), `minimumReleaseAgeExclude:\n  - '@deepseek-ai/dsh-agent-loop-testkit@${FLOOR}'\n`)
+  const run = (...args: string[]) => exec(process.execPath, [join(root, 'scripts/check-host-alignment.mjs'), '--host-version', FLOOR, '--json', ...args], { cwd: root })
   expect(report((await run()).stdout).violations).toEqual([])
   await run('--fix')
   expect((JSON.parse(await readFile(join(root, 'package.json'), 'utf8')) as { peerDependencies: unknown }).peerDependencies).toEqual({})
@@ -46,15 +52,16 @@ it('rejects the optional marker on a package imported for value and keeps it for
   await mkdir(join(root, 'scripts'))
   await mkdir(join(root, 'packages'))
   await writeFile(join(root, 'scripts/check-host-alignment.mjs'), await readFile(new URL('../../../../scripts/check-host-alignment.mjs', import.meta.url), 'utf8'))
+  await writeFile(join(root, 'scripts/host-support-window.mjs'), await readFile(new URL('../../../../scripts/host-support-window.mjs', import.meta.url), 'utf8'))
   const manifest = (optional: boolean): string =>
     JSON.stringify({
-      peerDependencies: { '@deepseek-ai/dsh-tools': '>=0.2.0-rc.2 <0.3.0-0' },
+      peerDependencies: { '@deepseek-ai/dsh-tools': HOST_SUPPORT_RANGE },
       peerDependenciesMeta: optional ? { '@deepseek-ai/dsh-tools': { optional: true } } : {},
-      devDependencies: { '@deepseek-ai/dsh-tools': '0.2.0-rc.2' }
+      devDependencies: { '@deepseek-ai/dsh-tools': FLOOR }
     })
   await writeFile(join(root, 'package.json'), manifest(true))
-  await writeFile(join(root, 'pnpm-workspace.yaml'), "minimumReleaseAgeExclude:\n  - '@deepseek-ai/dsh-tools@0.2.0-rc.2'\n")
-  const run = (...args: string[]) => exec(process.execPath, [join(root, 'scripts/check-host-alignment.mjs'), '--host-version', '0.2.0-rc.2', '--json', ...args], { cwd: root })
+  await writeFile(join(root, 'pnpm-workspace.yaml'), `minimumReleaseAgeExclude:\n  - '@deepseek-ai/dsh-tools@${FLOOR}'\n`)
+  const run = (...args: string[]) => exec(process.execPath, [join(root, 'scripts/check-host-alignment.mjs'), '--host-version', FLOOR, '--json', ...args], { cwd: root })
   await writeFile(join(root, 'packages/index.ts'), "import { defineTool } from '@deepseek-ai/dsh-tools'\n")
   try {
     await run()
@@ -68,7 +75,7 @@ it('rejects the optional marker on a package imported for value and keeps it for
     peerDependenciesMeta: Record<string, unknown>
   }
   expect(repaired.peerDependenciesMeta).toEqual({})
-  expect(repaired.peerDependencies['@deepseek-ai/dsh-tools']).toBe('>=0.2.0-rc.2 <0.3.0-0')
+  expect(repaired.peerDependencies['@deepseek-ai/dsh-tools']).toBe(HOST_SUPPORT_RANGE)
   // The marker stays valid for a type-only import: it is erased, so the package carries no runtime obligation.
   await writeFile(join(root, 'package.json'), manifest(true))
   await writeFile(join(root, 'packages/index.ts'), "import type { ToolDefinition } from '@deepseek-ai/dsh-tools'\n")

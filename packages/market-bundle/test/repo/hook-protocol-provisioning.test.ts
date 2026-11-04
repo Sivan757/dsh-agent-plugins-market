@@ -18,10 +18,11 @@
  */
 import { readFile } from 'node:fs/promises'
 import { describe, expect, it } from 'vitest'
+import { HOST_SUPPORT_RANGE } from '../../../../scripts/host-support-window.mjs'
 
 const PACKAGE = '@deepseek-ai/dsh-hook-protocol'
 /** The support window the gate forces on a self-provisioned host package. */
-const SUPPORT_RANGE = '>=0.2.0-rc.2 <0.3.0-0'
+const SUPPORT_RANGE = HOST_SUPPORT_RANGE
 
 interface Manifest {
   dependencies?: Record<string, string>

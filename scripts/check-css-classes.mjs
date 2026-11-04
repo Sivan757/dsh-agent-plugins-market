@@ -68,13 +68,25 @@ function boundIdentifiers(text, stylesheet, file) {
 }
 
 /**
+ * Escape the characters a regular expression treats as syntax.
+ *
+ * The identifiers here come from source files, so a backslash, a bracket or a dot in an
+ * export name would otherwise change what the pattern matches.
+ * @param text - the literal text to match.
+ * @returns the text with every metacharacter escaped.
+ */
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^$(){}|[\]\\]/g, '\\$&')
+}
+
+/**
  * Whether a file reaches a stylesheet through a computed key, which the analysis cannot follow.
  * @param text - module text.
  * @param ident - the identifier the stylesheet is bound to.
  * @returns true when the identifier is indexed or concatenated.
  */
 function computedAccess(text, ident) {
-  const escaped = ident.replace(/[$]/g, '\\$&')
+  const escaped = escapeRegExp(ident)
   return new RegExp('\\b' + escaped + '\\s*\\[').test(text) || new RegExp(escaped + "\\s*\\+\\s*'").test(text) || new RegExp("'\\s*\\+\\s*" + escaped + '\\b').test(text)
 }
 
