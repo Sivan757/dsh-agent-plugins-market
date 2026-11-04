@@ -9,6 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.14.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.14.0...dsh-agent-plugins-market-v0.14.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **deps:** start the host support window at the version this repository tests ([28b5a68](https://github.com/Sivan757/dsh-agent-plugins-market/commit/28b5a6851cad0394275622ff9888891b564bc430))
+* **scripts:** escape every metacharacter in the identifiers a pattern is built from ([21f65ab](https://github.com/Sivan757/dsh-agent-plugins-market/commit/21f65ab2f5a54d7acd755bf6ec7d0661c217d7f0))
+
 ## [0.14.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.13.0...dsh-agent-plugins-market-v0.14.0) (2026-11-04)
 
 
