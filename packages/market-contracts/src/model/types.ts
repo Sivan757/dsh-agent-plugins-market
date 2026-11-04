@@ -111,6 +111,8 @@ export interface SuiteComponents {
   hooks?: unknown
   mcpServers?: unknown
   lspServers?: unknown
+  /** Output-style files or directories; the field replaces the conventional directory. */
+  outputStyles?: unknown
 }
 
 export interface SuiteMarkdownResource {
@@ -144,6 +146,8 @@ export interface SuiteSurfaceCounts {
   commands: number
   agents: number
   lsp: number
+  /** Markdown styles the suite ships under `output-styles/`; absent means none. */
+  outputStyles?: number
 }
 
 /**
@@ -239,6 +243,26 @@ export type SuiteDimension = 'user' | 'project'
  * timestamp, or effective surface set — except where the layout describes the
  * set itself (project-native). Runtime consumers take {@link Suite}.
  */
+/**
+ * One Markdown output style a suite ships.
+ *
+ * Claude Code delivers a plugin style as a file: frontmatter for metadata, then the
+ * instructions. The body is read at scan time because the file is small and both the
+ * preview and the injected section need the exact bytes.
+ */
+export interface SuiteStyleFile {
+  /** The style's name: the frontmatter `name`, else the file stem. */
+  name: string
+  /** The frontmatter description, or an empty string when the file has none. */
+  description: string
+  /** Whether the style keeps the harness's software-engineering instructions. */
+  keepCodingInstructions: boolean
+  /** Absolute path of the Markdown file the style was read from. */
+  file: string
+  /** The instructions themselves, without the frontmatter block. */
+  body: string
+}
+
 export interface DiscoveredSuite {
   resources?: { commands: SuiteMarkdownResource[]; agents: SuiteMarkdownResource[] }
   systemPrompt?: string
@@ -253,6 +277,8 @@ export interface DiscoveredSuite {
   mcp?: McpSuiteConfig
   /** Parsed inline `lspServers` declarations; absent when the suite declares none. */
   lsp?: LspSuiteConfig
+  /** Markdown output styles the suite ships; absent when it ships none. */
+  styles?: SuiteStyleFile[]
   surfaces: SuiteSurfaceCounts
   dimension: SuiteDimension
   enabled: boolean

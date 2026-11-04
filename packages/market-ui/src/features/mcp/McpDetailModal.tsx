@@ -3,24 +3,27 @@ import { createElement as h } from 'react'
 import { Button, IconRefreshOutlineMedium, IconSearchOutlineMedium, Input, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { StatusBand, bandTone } from '../../ui/StatusBand.js'
-import { failureGuidanceKey } from '../../ui/failure-guidance.js'
+import { DiagnoseBlock } from '../../ui/DiagnoseBlock.js'
+import { FAILURE_GUIDANCE_LABEL, failureGuidanceKey } from '../../ui/failure-guidance.js'
 import type { Translate } from '../../i18n.js'
 import type { McpStatusEntry } from '../../api.js'
 import { mcpDetailActions } from './detail-actions.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { TOOL_PAGE_SIZE, toolParameterRows } from './detail-helpers.js'
-import { kvCell } from '../../ui/DetailRows.js'
+import { KvGrid, kvCell } from '../../ui/DetailRows.js'
 import { displayText } from '../../ui/translated-text.js'
 import { useTranslationEnabled } from '../../ui/translation-enabled.js'
 import { hintProps, hoverHint } from '../../ui/hover-hint.js'
-import { mcpCardState, mcpDisplayName, mcpDotState, mcpStateLabel, mcpTagTone } from './state-helpers.js'
+import { mcpCardState, mcpConnectionNote, mcpDisplayName, mcpDotState, mcpStateLabel, mcpTagTone } from './state-helpers.js'
 import { mcpToolRows } from './mcp-status-view-model.js'
+import { copyText, diagnosticsText } from '../../ui/diagnostics.js'
 import { setMcpServerTool } from '../../api.js'
 import css from './mcp-status.module.css'
 import panelCss from '../../ui/panel.module.css'
 
 export function McpDetailModal({
   entry,
+  now = Date.now(),
   t,
   backend,
   showOriginal = false,
@@ -28,9 +31,12 @@ export function McpDetailModal({
   onClose,
   onRetry,
   onReauthorize,
-  onRefresh
+  onRefresh,
+  onDelete
 }: {
   entry: McpStatusEntry
+  /** The panel's clock, so a retry countdown reads the same here as on the card. */
+  now?: number
   t: Translate
   /** The mount backend; `host` cannot enforce tool filters. */
   backend: 'builtin' | 'host'
@@ -42,6 +48,12 @@ export function McpDetailModal({
   onRetry: (entryId: string) => Promise<McpStatusEntry>
   onReauthorize: (id: string, serverName: string) => Promise<McpStatusEntry>
   onRefresh: (id: string) => Promise<McpStatusEntry>
+  /**
+   * Removes this service's declaration. Offered only for a row the panel owns,
+   * and only here: the card's click opens this dialog, and the one irreversible
+   * action waits one step inside it behind the shared confirmation.
+   */
+  onDelete?: () => void
 }): ReactNode {
   const [pending, setPending] = useState(false)
   const [confirmAuth, setConfirmAuth] = useState(false)
@@ -56,6 +68,7 @@ export function McpDetailModal({
   const view = { original: !translationEnabled || showOriginal === true }
   const actions = mcpDetailActions(entry)
   const guidance = failureGuidanceKey({ code: entry.code, reason: entry.reason, causes: entry.causes })
+  const guidanceSentence = guidance === undefined ? '' : t(FAILURE_GUIDANCE_LABEL[guidance])
   const tools = mcpToolRows(entry)
   const needle = toolSearch.trim().toLowerCase()
   const matchingTools = needle === '' ? tools : tools.filter(tool => tool.name.toLowerCase().includes(needle))
@@ -94,7 +107,37 @@ export function McpDetailModal({
       setPending(false)
     }
   }
-  const recovery: ReactNode[] = []
+  // The block a reader pastes when they ask someone else why a service failed.
+  const diagnostics = diagnosticsText({
+    surface: t('mcpSection'),
+    name: mcpDisplayName(entry),
+    state: mcpStateLabel(t, entry.state),
+    facts: [
+      { label: 'endpoint', value: entry.endpoint ?? '' },
+      { label: 'transport', value: entry.transport },
+      { label: 'tools', value: String(entry.tools.length) },
+      { label: 'reason', value: entry.reason ?? '' },
+      { label: 'advice', value: guidanceSentence },
+      { label: 'mountMs', value: entry.mountMs === undefined ? '' : String(entry.mountMs) },
+      { label: 'proxy', value: entry.proxyMismatch === undefined ? '' : entry.proxyMismatch.proxy + ' (host not in NO_PROXY: ' + entry.proxyMismatch.host + ')' }
+    ],
+    causes: entry.causes === undefined ? [] : [...entry.causes]
+  })
+  const recovery: ReactNode[] = [
+    h(
+      Button,
+      {
+        key: 'diagnostics',
+        variant: 'ghost',
+        size: 'sm',
+        title: t('copyDiagnosticsExplain'),
+        onClick: () => {
+          void copyText(diagnostics).then(copied => setFeedback({ error: !copied, text: t(copied ? 'diagnosticsCopied' : 'diagnosticsCopyFailed') }))
+        }
+      },
+      t('copyDiagnostics')
+    )
+  ]
   if (!readOnly && actions.retry) {
     recovery.push(
       h(
@@ -112,6 +155,26 @@ export function McpDetailModal({
         },
         h(IconRefreshOutlineMedium),
         t('mcpRetryConnection')
+      )
+    )
+  }
+  if (!readOnly && onDelete !== undefined) {
+    recovery.push(
+      h(
+        Button,
+        {
+          key: 'delete',
+          variant: 'ghost',
+          size: 'sm',
+          title: t('mcpDeleteDesc'),
+          'aria-label': t('mcpDelete'),
+          onClick: () => {
+            // The panel owns the confirmation and the re-read; the dialog only
+            // asks, so both entry points share one destructive flow.
+            onDelete()
+          }
+        },
+        t('mcpDelete')
       )
     )
   }
@@ -134,6 +197,9 @@ export function McpDetailModal({
       )
     )
   }
+  // The live phase sentence, when a supervisor reports a lost connection: it
+  // carries the attempt the user is waiting on and the last error.
+  const connectionNote = mcpConnectionNote(t, entry, now)
   return h(DetailModal, {
     open: true,
     onClose: () => {
@@ -163,10 +229,33 @@ export function McpDetailModal({
         ...(recovery.length === 0 ? {} : { action: recovery }),
         ...(feedback === undefined ? {} : { echo: feedback }),
         ...(guidance === undefined ? {} : { guidance }),
-        ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+        // A dropped connection's own sentence outranks the recorded diagnostic:
+        // it names the phase and the attempt the user is waiting on.
+        ...((connectionNote ?? entry.reason) === undefined ? {} : { reason: connectionNote ?? entry.reason }),
         ...(entry.causes === undefined ? {} : { causes: entry.causes }),
         mono: entry.endpoint ?? t('mcpObservedEndpoint')
       }),
+      // A failed or degraded connection has something to explain; a mounted one does not, and
+      // a read-only surface keeps the explanation available because reading is all it does.
+      entry.state === 'failed' || entry.state === 'degraded'
+        ? h(
+            'div',
+            { className: panelCss.block },
+            h(DiagnoseBlock, {
+              t,
+              face: 'mcp',
+              failure: {
+                state: entry.state,
+                ...(entry.code === undefined ? {} : { code: entry.code }),
+                ...((connectionNote ?? entry.reason) === undefined ? {} : { reason: connectionNote ?? entry.reason }),
+                ...(entry.causes === undefined ? {} : { causes: entry.causes }),
+                transport: entry.transport,
+                ...(entry.mountMs === undefined ? {} : { mountMs: entry.mountMs })
+              },
+              disabled: pending
+            })
+          )
+        : null,
       // The one destructive confirmation sits directly under the band it
       // belongs to, and keeps its in-line shape rather than becoming a panel
       // or the host's risk dialog.
@@ -197,18 +286,27 @@ export function McpDetailModal({
         'div',
         { className: panelCss.block },
         h('h4', { className: panelCss.blockHead }, t('overviewSection')),
-        h(
-          'dl',
-          { className: panelCss.kvGrid },
-          kvCell(t('sourceLabel'), entry.kind === 'plugin' ? (entry.suiteId ?? entry.source ?? '—') : t('mcpDirect'), true),
-          kvCell(t('detailTypeLabel'), entry.kind === 'plugin' ? t('panelSourcePlugin') : t('panelSourceUser')),
-          kvCell(t('detailTransport'), entry.transport, true),
-          // The mount identity the runtime registers, which is not always the
-          // name the declaration uses. A user's own declaration mounts under
-          // its key and then there is nothing extra to name.
-          entry.name === (entry.serverKey ?? entry.name) ? null : kvCell(t('mcpMountNameLabel'), entry.name, true)
-        )
+        h(KvGrid, {
+          cells: [
+            kvCell(t('sourceLabel'), entry.kind === 'plugin' ? (entry.suiteId ?? entry.source ?? '—') : t('mcpDirect'), true),
+            kvCell(t('detailTypeLabel'), entry.kind === 'plugin' ? t('panelSourcePlugin') : t('panelSourceUser')),
+            kvCell(t('detailTransport'), entry.transport, true),
+            // How long the last attempt took: the one number that separates a slow
+            // handshake from a configuration error when the reason alone is ambiguous.
+            entry.mountMs === undefined ? null : kvCell(t('mcpMountDurationLabel'), t('mcpMountDurationValue', { ms: entry.mountMs }), true),
+            // The mount identity the runtime registers, which is not always the name the
+            // declaration uses. A user's own declaration mounts under its key and then
+            // there is nothing extra to name.
+            entry.name === (entry.serverKey ?? entry.name) ? null : kvCell(t('mcpMountNameLabel'), entry.name, true)
+          ]
+        })
       ),
+      // A failure this machine's proxy explains says so here, next to the advice:
+      // the service owner cannot answer it, and the reader would otherwise spend the
+      // next hour on the remote side.
+      entry.proxyMismatch === undefined
+        ? null
+        : h('p', { className: panelCss.detailProse, 'data-proxy-mismatch': '' }, t('mcpProxyMismatch', { proxy: entry.proxyMismatch.proxy, host: entry.proxyMismatch.host })),
       entry.kind === 'direct' && !entry.managed ? h('p', { className: panelCss.detailProse }, t('mcpDirectBoundary')) : null,
       h(
         'div',

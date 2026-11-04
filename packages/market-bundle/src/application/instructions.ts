@@ -22,7 +22,7 @@ import { lstat, readFile, stat, unlink } from 'node:fs/promises'
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { dshHomeDisplay, resolveDshHome } from '@deepseek-ai/dsh-home-paths'
-import { resolveAgentsRoot } from '../../../market-catalog/src/index.js'
+import { PROJECT_ROOT_MARKERS, projectRootOf, resolveAgentsRoot } from '../../../market-catalog/src/index.js'
 import {
   INSTRUCTION_CANDIDATES,
   INSTRUCTION_GLOBAL_CANDIDATE,
@@ -35,14 +35,19 @@ import {
 /** The package that owns the rules. Reached only through `import(...)`. */
 const INSTRUCTIONS_PACKAGE = '@deepseek-ai/dsh-agent-instructions'
 
-/** Host-provided default for the rendered baseline cap. Keep equal to the host row. */
-export const DEFAULT_INSTRUCTION_MAX_BYTES = 65_536
+/**
+ * The rendered baseline cap this page reports: the value every shipped harness
+ * profile gives `maxBytes`.
+ *
+ * Display-only, because the host does not export its resolved cap and makes it a
+ * required field. A profile that raises it makes this number stale and nothing
+ * here can tell, which is the trade against the alternative: a plugin-side
+ * override would describe a budget the model never got.
+ */
+export const INSTRUCTION_MAX_BYTES = 65_536
 
-/** Host-provided default for one file's source cap. Keep equal to the host row. */
-export const DEFAULT_INSTRUCTION_MAX_SOURCE_BYTES = 1_048_576
-
-/** Root markers the host climbs for. It does not export the list, so it is mirrored. */
-const PROJECT_ROOT_MARKERS = ['.git'] as const
+/** The per-file source cap this page reports: the host loader's private default. */
+export const INSTRUCTION_MAX_SOURCE_BYTES = 1_048_576
 
 /**
  * Display directories the host keeps out of the project namespace. A project
@@ -58,21 +63,8 @@ export interface InstructionLimits {
   maxSourceBytes: number
 }
 
-/**
- * Validate the two configured byte limits.
- *
- * @param config - the plugin configuration's instruction fields.
- * @returns the limits the read and write paths use.
- * @throws when a limit is not a usable number, so a typo fails at load instead
- * of turning into an accidental "never loads".
- */
-export function resolveInstructionLimits(config: { instructionMaxBytes?: number; instructionMaxSourceBytes?: number }): InstructionLimits {
-  const maxBytes = config.instructionMaxBytes ?? DEFAULT_INSTRUCTION_MAX_BYTES
-  const maxSourceBytes = config.instructionMaxSourceBytes ?? DEFAULT_INSTRUCTION_MAX_SOURCE_BYTES
-  if (!Number.isInteger(maxBytes) || maxBytes < 0) throw new Error(`instructionMaxBytes must be a non-negative integer, received ${String(maxBytes)}`)
-  if (!Number.isInteger(maxSourceBytes) || maxSourceBytes < 1) throw new Error(`instructionMaxSourceBytes must be a positive integer, received ${String(maxSourceBytes)}`)
-  return { maxBytes, maxSourceBytes }
-}
+/** The byte limits the read and write paths run under; a caller wanting another passes its own. */
+export const INSTRUCTION_LIMITS: InstructionLimits = { maxBytes: INSTRUCTION_MAX_BYTES, maxSourceBytes: INSTRUCTION_MAX_SOURCE_BYTES }
 
 type HostInstructions = typeof import('@deepseek-ai/dsh-agent-instructions')
 
@@ -120,6 +112,19 @@ function readHomes(): InstructionHomes {
   return { dshHome, agentsHome, dshLabel: dshHomeDisplay(dshHome), agentsLabel }
 }
 
+/**
+ * The directory that reads as "no project": the user's own Agent root.
+ *
+ * A page with no session has no workspace to answer for, and the process directory is not a
+ * workspace either - it is whatever directory the harness was started in. Reading the user root
+ * keeps such a page to the user-level half of the chain, where its files actually live.
+ *
+ * @returns the absolute Agents home directory.
+ */
+export function userScopeDirectory(): string {
+  return resolveAgentsRoot()
+}
+
 /** One candidate the page can act on. */
 interface CandidateTarget {
   scope: InstructionScope
@@ -128,52 +133,6 @@ interface CandidateTarget {
   absolutePath: string
   /** The display path: the host's own for a discovered file, mirrored otherwise. */
   displayPath: string
-}
-
-/** Whether a path error means "not there" rather than "cannot tell". */
-function isMissingPathError(error: unknown): boolean {
-  return error instanceof Error && 'code' in error && (error.code === 'ENOENT' || error.code === 'ENOTDIR')
-}
-
-/**
- * Mirror of the host's root-marker probe: a marker is present when it exists as
- * anything, including the `.git` file a linked worktree carries.
- * @param path - the marker path inside one directory.
- * @returns whether the marker exists.
- * @throws the probe's own error when the filesystem refuses to answer.
- */
-async function markerExists(path: string): Promise<boolean> {
-  try {
-    await stat(path)
-    return true
-  } catch (error) {
-    if (isMissingPathError(error)) return false
-    throw error
-  }
-}
-
-/**
- * Mirrored host rule: climb from `cwd` to the first directory holding a project
- * root marker, and fall back to `cwd` itself when none exists.
- *
- * The host does not export `findProjectRoot`, and the discovery result names
- * only files that already exist, so offering creation for a directory needs
- * this walk. A marker probe that fails for any reason other than absence
- * propagates: the page renders that reason instead of inventing a root.
- * @param cwd - absolute session working directory.
- * @param markers - marker names that identify a project root.
- * @returns the absolute project root.
- */
-export async function projectRootOf(cwd: string, markers: readonly string[] = PROJECT_ROOT_MARKERS): Promise<string> {
-  let current = resolve(cwd)
-  for (;;) {
-    for (const marker of markers) {
-      if (await markerExists(join(current, marker))) return current
-    }
-    const parent = dirname(current)
-    if (parent === current) return resolve(cwd)
-    current = parent
-  }
 }
 
 /** The inclusive root-to-cwd directory chain, broadest first. */
@@ -379,7 +338,12 @@ function discoveryOptions(context: ChainContext): Parameters<HostInstructions['d
  * @param limits - the byte caps in force.
  * @returns the rows, the rendered baseline, and the budget it ran under.
  */
-export async function readInstructions(cwd: string, limits: InstructionLimits): Promise<InstructionsPayload> {
+export async function readInstructions(
+  cwd: string,
+  limits: InstructionLimits,
+  /** `user` answers for the user level only: no project marker walk, no project rows. */
+  scope: 'all' | 'user' = 'all'
+): Promise<InstructionsPayload> {
   const hosts = await loadHost()
   const homes = readHomes()
   const base = { cwd: resolve(cwd), projectRoot: resolve(cwd), budget: limits.maxBytes, maxSourceBytes: limits.maxSourceBytes, total: 0 }
@@ -396,7 +360,9 @@ export async function readInstructions(cwd: string, limits: InstructionLimits): 
   let discovered: Awaited<ReturnType<HostInstructions['discoverBaselineInstructionFiles']>>
   let rendered: Awaited<ReturnType<HostInstructions['loadBaselineInstructions']>>
   try {
-    const projectRoot = await projectRootOf(cwd)
+    // A user-only read anchors the project root at the caller's directory, so the host never
+    // walks a marker above it and no workspace file can enter the chain.
+    const projectRoot = scope === 'user' ? resolve(cwd) : await projectRootOf(cwd)
     context = chainContext(resolve(cwd), limits, hosts, projectRoot, homes)
     discovered = await hosts.discoverBaselineInstructionFiles(discoveryOptions(context))
     rendered = await hosts.loadBaselineInstructions({ ...discoveryOptions(context), maxBytes: limits.maxBytes, maxSourceBytes: limits.maxSourceBytes })
@@ -454,7 +420,9 @@ export async function readInstructions(cwd: string, limits: InstructionLimits): 
     available: true,
     projectRoot: context.projectRoot,
     total: Buffer.byteLength(text, 'utf8'),
-    rows,
+    // A user-only read speaks for the user level: a page that belongs to no workspace must not
+    // offer to create `~/.agents/AGENTS.md` as a "project" file either.
+    rows: scope === 'user' ? rows.filter(row => row.scope !== 'project') : rows,
     rendered: { text, omitted: rendered?.omitted ?? [], truncated: rendered?.truncated ?? [] }
   }
 }

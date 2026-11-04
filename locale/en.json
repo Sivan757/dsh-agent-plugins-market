@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Agent Plugins",
-    "description": "Manage skills, shortcuts, experts, connectors, and language engines to extend your agent."
+    "description": "Manage suites and the skills, shortcuts, experts, connectors, and language servers they bring."
   }
 }

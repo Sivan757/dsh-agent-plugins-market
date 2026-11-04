@@ -72,14 +72,34 @@ function commandHost(registered: Map<string, Registration>, occupied: string[] =
   } as unknown as Context
 }
 
-/** Run one registered command and report the follow-up body the model would receive. */
-async function forward(definition: Registration, rawInput: string): Promise<{ body: string; outcome: { kind: string; text: string } }> {
-  let body = ''
+/**
+ * The authored body inside the measured slash-command metadata.
+ *
+ * The follow-up now carries `<command-message>` lines, a horizontals rule, the
+ * body and an `ARGUMENTS:` trailer. These cases are about the body, so they read
+ * it back out; `forwards the authored body verbatim` pins the wrapper itself.
+ * @param forwarded - the whole follow-up text the agent received.
+ * @returns the authored body between the rule and the trailer.
+ */
+function authoredBodyOf(forwarded: string): string {
+  const lines = forwarded.split('\n')
+  const rule = lines.indexOf('---')
+  if (rule < 0) return forwarded
+  const rest = lines.slice(rule + 1)
+  const trailer = rest.findIndex(line => line.startsWith('ARGUMENTS: '))
+  const body = (trailer < 0 ? rest : rest.slice(0, trailer)).join('\n')
+  // Drop only the one blank line the wrapper inserts before the trailer.
+  return body.endsWith('\n') ? body.slice(0, -1) : body
+}
+
+/** Run one registered command and report the follow-up text and the authored body. */
+async function forward(definition: Registration, rawInput: string): Promise<{ body: string; forwarded: string; outcome: { kind: string; text: string } }> {
+  let forwarded = ''
   const outcome = (await definition.handler({
-    agent: { session: { header: {} }, followup: (message: { content: Array<{ text: string }> }) => (body = message.content[0]?.text ?? '') },
+    agent: { session: { header: {} }, followup: (message: { content: Array<{ text: string }> }) => (forwarded = message.content[0]?.text ?? '') },
     rawInput
   })) as { kind: string; text: string }
-  return { body, outcome }
+  return { body: authoredBodyOf(forwarded), forwarded, outcome }
 }
 
 describe('suite command name allocation', () => {
@@ -203,7 +223,19 @@ describe('suite command name allocation', () => {
       rawInput: ' now'
     })) as { kind: string; text: string }
     expect(result).toEqual({ kind: 'success', text: '/compact-1 已转交模型执行' })
-    expect(forwarded).toBe('Ours: now')
+    // The measured slash-command metadata around the authored body.
+    expect(forwarded).toBe(
+      [
+        '<command-message>compact-1</command-message>',
+        '<command-name>/compact-1</command-name>',
+        '<command-args>now</command-args>',
+        '',
+        '---',
+        'Ours: now',
+        '',
+        'ARGUMENTS: now'
+      ].join('\n')
+    )
     registry.disposeAll()
   })
 

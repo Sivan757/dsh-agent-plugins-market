@@ -1,0 +1,294 @@
+<!doctype html>
+<html lang="zh-CN" data-theme="light">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+    <title>页签管理 · 四个方案</title>
+    <style>
+      :root {
+        --dsw-static-deepseek-100: rgb(228, 237, 253);
+        --dsw-static-deepseek-500: rgb(65, 118, 230);
+        --dsw-static-neutral-bluish-00: rgb(255, 255, 255);
+        --dsw-static-neutral-bluish-50: rgb(249, 250, 251);
+        --dsw-static-neutral-bluish-60: rgb(245, 246, 247);
+        --dsw-static-neutral-bluish-300: rgb(207, 211, 214);
+        --dsw-static-neutral-bluish-400: rgb(173, 178, 184);
+        --dsw-static-neutral-bluish-600: rgb(129, 133, 140);
+        --dsw-static-neutral-bluish-700: rgb(97, 102, 107);
+        --dsw-static-neutral-bluish-800: rgb(53, 54, 56);
+        --dsw-static-neutral-bluish-850: rgb(44, 44, 46);
+        --dsw-static-neutral-bluish-1000: rgb(15, 17, 21);
+        --dsw-radius-sm: 6px;
+        --dsw-radius-panel: 16px;
+        --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-00);
+        --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-00);
+        --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-60);
+        --dsw-alias-border-l1: rgba(0, 0, 0, 0.06);
+        --dsw-alias-border-l2: rgba(0, 0, 0, 0.1);
+        --dsw-alias-border-l3: rgba(0, 0, 0, 0.12);
+        --dsw-alias-interactive-bg-hover: rgba(38, 49, 72, 0.06);
+        --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-1000);
+        --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-700);
+        --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-600);
+        --dsw-alias-state-business-primary: var(--dsw-static-deepseek-500);
+        --dsw-alias-state-business-tertiary: var(--dsw-static-deepseek-100);
+        --dsw-elevation-soft: 0 1px 2px rgba(15, 17, 21, 0.04), 0 4px 16px rgba(15, 17, 21, 0.06);
+        --dsw-elevation-prominent: 0 8px 40px rgba(15, 17, 21, 0.16);
+      }
+      :root[data-theme='dark'] {
+        --dsw-alias-bg-layer-2: var(--dsw-static-neutral-bluish-850);
+        --dsw-alias-bg-layer-3: var(--dsw-static-neutral-bluish-800);
+        --dsw-alias-bg-module-platform: var(--dsw-static-neutral-bluish-850);
+        --dsw-alias-border-l1: rgba(255, 255, 255, 0.08);
+        --dsw-alias-border-l2: rgba(255, 255, 255, 0.12);
+        --dsw-alias-border-l3: rgba(255, 255, 255, 0.16);
+        --dsw-alias-interactive-bg-hover: rgba(255, 255, 255, 0.08);
+        --dsw-alias-label-primary: var(--dsw-static-neutral-bluish-50);
+        --dsw-alias-label-secondary: var(--dsw-static-neutral-bluish-300);
+        --dsw-alias-label-tertiary: var(--dsw-static-neutral-bluish-400);
+        --dsw-alias-state-business-tertiary: rgb(52, 65, 91);
+        --dsw-elevation-soft: 0 1px 2px rgba(0, 0, 0, 0.2), 0 4px 16px rgba(0, 0, 0, 0.24);
+        --dsw-elevation-prominent: 0 8px 40px rgba(0, 0, 0, 0.5);
+      }
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+      body {
+        font-family: -apple-system, 'PingFang SC', 'Segoe UI', sans-serif;
+        font-size: 14px;
+        line-height: 22px;
+        color: var(--dsw-alias-label-primary);
+        background: var(--dsw-alias-bg-module-platform);
+        padding: 34px 36px 60px;
+      }
+      .wrap {
+        max-width: 880px;
+        margin: 0 auto;
+      }
+      h1 {
+        font-size: 22px;
+        line-height: 30px;
+        font-weight: 650;
+        letter-spacing: -0.015em;
+        margin-bottom: 8px;
+      }
+      .lead {
+        font-size: 13px;
+        color: var(--dsw-alias-label-tertiary);
+        max-width: 660px;
+        margin-bottom: 24px;
+      }
+      .card {
+        display: block;
+        text-decoration: none;
+        color: inherit;
+        background: var(--dsw-alias-bg-layer-2);
+        border: 1px solid var(--dsw-alias-border-l2);
+        border-radius: var(--dsw-radius-panel);
+        padding: 16px 20px;
+        margin-bottom: 10px;
+        box-shadow: var(--dsw-elevation-soft);
+        transition:
+          transform 0.2s cubic-bezier(0.34, 1.4, 0.64, 1),
+          box-shadow 0.24s ease,
+          border-color 0.2s ease;
+      }
+      .card:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--dsw-elevation-prominent);
+        border-color: var(--dsw-alias-border-l3);
+      }
+      .card.rec {
+        border-color: var(--dsw-alias-state-business-primary);
+      }
+      .card b {
+        font-size: 15px;
+        font-weight: 640;
+        display: block;
+        margin-bottom: 3px;
+      }
+      .card .tag {
+        display: inline-block;
+        font-size: 10.5px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--dsw-alias-state-business-primary);
+        background: var(--dsw-alias-state-business-tertiary);
+        border-radius: 999px;
+        padding: 1px 8px;
+        margin-left: 8px;
+        vertical-align: 2px;
+        font-weight: 600;
+      }
+      .card p {
+        font-size: 12.5px;
+        color: var(--dsw-alias-label-tertiary);
+        max-width: 650px;
+      }
+      .card .meta {
+        font-size: 11.5px;
+        color: var(--dsw-alias-label-tertiary);
+        margin-top: 7px;
+        display: flex;
+        gap: 14px;
+        flex-wrap: wrap;
+      }
+      .card .meta i {
+        font-style: normal;
+      }
+      .card .meta .yes {
+        color: var(--dsw-alias-state-business-primary);
+      }
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        font-size: 12.5px;
+        margin: 6px 0 4px;
+      }
+      th,
+      td {
+        text-align: left;
+        padding: 6px 10px;
+        border-bottom: 1px solid var(--dsw-alias-border-l1);
+      }
+      th {
+        font-weight: 600;
+        color: var(--dsw-alias-label-secondary);
+        font-size: 11.5px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+      td {
+        color: var(--dsw-alias-label-tertiary);
+      }
+      hr {
+        border: 0;
+        border-top: 1px solid var(--dsw-alias-border-l1);
+        margin: 24px 0 18px;
+      }
+      h2 {
+        font-size: 13px;
+        font-weight: 640;
+        color: var(--dsw-alias-label-secondary);
+        margin-bottom: 8px;
+      }
+      ul {
+        list-style: none;
+        font-size: 12.5px;
+        color: var(--dsw-alias-label-tertiary);
+      }
+      li {
+        padding-left: 16px;
+        position: relative;
+        margin-bottom: 6px;
+        line-height: 19px;
+      }
+      li::before {
+        content: '—';
+        position: absolute;
+        left: 0;
+        opacity: 0.6;
+      }
+      kbd {
+        font: inherit;
+        font-size: 11.5px;
+        background: var(--dsw-alias-bg-layer-3);
+        border: 1px solid var(--dsw-alias-border-l1);
+        border-bottom-width: 2px;
+        border-radius: 5px;
+        padding: 0 5px;
+        color: var(--dsw-alias-label-secondary);
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>页签管理 · 四个方案</h1>
+      <p class="lead">
+        两个目标：页签行的可用空间不再被常驻按钮吃掉；收纳与<b>排序</b>都要有。四个方案都去掉了行尾按钮，
+        区别只在「入口藏在哪种手势里」以及「排序怎么下手」。每页可切深色、可重放引导。
+      </p>
+
+      <a class="card rec" href="d-press-sort.html">
+        <b>方案 D · 长按抬升 → 排序 / 拖出收纳<span class="tag">推荐</span></b>
+        <p>一个手势管两件事。长按 260ms 整行浮起，横向拖动改顺序，继续拖过右缘就收纳。点击仍然是切换页签。</p>
+        <div class="meta"><i class="yes">排序 ✓</i><i class="yes">收纳 ✓</i><i>零常驻控件</i><i>触屏成立</i></div>
+      </a>
+
+      <a class="card" href="a-edge-rail.html">
+        <b>方案 A · 边缘磁轨 + 长按排序<span class="tag">组合</span></b>
+        <p>行尾 10px 留白的磁轨负责成段收纳与取回（每次一格，34px 磁吸）；长按页签做横向排序。两种手势各管一件事。</p>
+        <div class="meta"><i class="yes">排序 ✓</i><i class="yes">收纳 ✓</i><i>磁吸回弹</i><i>成段收纳最快</i></div>
+      </a>
+
+      <a class="card" href="c-hover-bubble.html">
+        <b>方案 C · 长悬停气泡 + 右缘渐隐<span class="tag">长悬停</span></b>
+        <p>悬停 620ms 弹气泡，气泡里给 <kbd>←</kbd> <kbd>→</kbd> 挪位、收纳、在列表中看；溢出页签化成渐隐 + 数字。</p>
+        <div class="meta"><i class="yes">排序 ✓（按键）</i><i class="yes">收纳 ✓</i><i>入口最容易被发现</i></div>
+      </a>
+
+      <a class="card" href="b-press-and-lift.html">
+        <b>方案 B · 长按抬升 + 拖出收纳<span class="tag">仅收纳</span></b>
+        <p>长按抬升后拖到右缘收纳。第一版没有排序，留作手势原型的参照。</p>
+        <div class="meta"><i>排序 ✗</i><i class="yes">收纳 ✓</i><i>纯手势</i></div>
+      </a>
+
+      <hr />
+      <h2>排序能力的四种做法</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>方案</th>
+            <th>排序入口</th>
+            <th>键盘等效</th>
+            <th>代价</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td>D</td>
+            <td>长按 → 横向拖动，2px 竖线示位</td>
+            <td><kbd>⌥</kbd>+<kbd>←/→</kbd></td>
+            <td>长按与「长按选中文字」有冲突，需位移阈值</td>
+          </tr>
+          <tr>
+            <td>A</td>
+            <td>同上，另有一套成段收纳的磁轨</td>
+            <td><kbd>⌥</kbd>+<kbd>←/→</kbd>、<kbd>⌫</kbd></td>
+            <td>两种手势要各教一次</td>
+          </tr>
+          <tr>
+            <td>C</td>
+            <td>气泡里的 <kbd>←</kbd><kbd>→</kbd>，一次挪一格</td>
+            <td>同一对按钮就是键盘路径</td>
+            <td>挪远要靠连点，长距离排序慢</td>
+          </tr>
+          <tr>
+            <td>B</td>
+            <td>无</td>
+            <td>—</td>
+            <td>不满足需求</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <h2>排序的存储（四个方案共用）</h2>
+      <ul>
+        <li>布局文档从 <code>{ hidden }</code> 扩成 <code>{ hidden, order }</code>：<code>order</code> 是全部九键的完整排列，未知键被丢弃、缺失键按默认顺序补齐。</li>
+        <li><code>market</code> 固定第一位：任何拖动、任何手写文件都把它拨回首位，因此排序与收纳一样不可能把行弄空。</li>
+        <li>收纳不动 <code>order</code>：收起再放回时页签回到原来的位置，而不是队尾。</li>
+        <li>一次手势结束只写一次盘；同一次拖动里既排序又收纳时合并成一次写。</li>
+      </ul>
+
+      <h2>共同约束</h2>
+      <ul>
+        <li>入口与排序都不进 <code>role="tablist"</code> 的焦点序列；编辑态不改变 ←/→ 的切换语义。</li>
+        <li>每个鼠标手势都有键盘路径，<kbd>Esc</kbd> 退出编辑态并放弃本次手势。</li>
+        <li><code>prefers-reduced-motion</code> 下去掉位移、倾斜与弹入，只保留透明度与描边。</li>
+        <li>长按阈值 260ms、位移超过 8px 立即进入拖动并取消长按计时，避免与文本选择打架。</li>
+      </ul>
+    </div>
+  </body>
+</html>

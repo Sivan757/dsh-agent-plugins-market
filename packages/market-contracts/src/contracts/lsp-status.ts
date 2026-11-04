@@ -10,6 +10,22 @@ export type LspStatusState = 'mounted' | 'starting' | 'host-missing' | 'failed' 
 export type LspStatusCode = 'mount-failed' | 'unmount-failed' | 'seam-conflict' | 'host-missing'
 
 /**
+ * What the last `lsp` call routed to one provider did.
+ *
+ * The seam reports no process death, so this is the only evidence that a
+ * mounted provider is not answering: the host notices on the next request, and
+ * the request is where this record comes from.
+ */
+export interface LspCallObservation {
+  /** Epoch ms of the call. */
+  at: number
+  /** Whether the call returned without an error. */
+  ok: boolean
+  /** The failure's own message, when it failed. */
+  error?: string
+}
+
+/**
  * One declared language-server row for the status surface.
  *
  * Rows are built from the enabled suites' inline `lspServers` declarations
@@ -40,12 +56,20 @@ export interface LspStatusEntry {
   state: LspStatusState
   /** Latest diagnostic reason, when the state is not `mounted`/`disabled`. */
   reason?: string
+  /** How long the last start attempt took, in milliseconds, when one was recorded. */
+  mountMs?: number
   /** Why this row carries a reason; also the key the panel localizes it by. */
   code?: LspStatusCode
   /** The messages under the failure's `cause` chain, outermost first. */
   causes?: string[]
   /** Whether a failed mount will be retried automatically. */
   retryable?: boolean
+  /**
+   * The last call routed to this provider, once one has run. A mounted row with
+   * a failed observation is the "registered but not answering" state the seam
+   * cannot report on its own.
+   */
+  observation?: LspCallObservation
 }
 
 /** The LSP status response returned by the host. */

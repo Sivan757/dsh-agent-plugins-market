@@ -10,6 +10,7 @@ import {
   IconPlusOutlineMedium,
   IconCloseOutlineMedium,
   IconEllipsisOutlineMedium,
+  IconSparkleMedium,
   IconRefreshOutlineMedium
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
@@ -25,11 +26,13 @@ import type { ExtensionTranslate } from './types.js'
 import { ResourceList } from './ResourceList.js'
 import type { RenderExtensionDetail } from './details.js'
 import { useExtensionWindow, type ExtensionWindowObserver } from './use-window.js'
-import { resourceSelected, toggleResource, uniquePresetName } from './resource.js'
+import { presetCoverage, resourceSelected, toggleResource, uniquePresetName } from './resource.js'
+import { AiSelectionModal } from '../../ui/AiSelectionModal.js'
 import css from './presets.module.css'
 import { AgentExtensionIcon } from '../../ui/AgentExtensionIcon.js'
 import sourceCss from '../../ui/source-strip.module.css'
 import panelCss from '../../ui/panel.module.css'
+import { ReadFailed } from '../../ui/panel.js'
 import rc from '../../ui/resource-card.module.css'
 
 /** Re-exported from the leaf so an existing import from this module keeps working. */
@@ -46,7 +49,7 @@ export function ExtensionPresetEntry(props: ExtensionPresetEntryProps): ReactNod
   return h(SessionEntry, { ...props, key: props.sessionId })
 }
 function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetEntryProps): ReactNode {
-  const { data, error, mutate, retry } = useExtensionWindow(sessionId, observer)
+  const { data, error, notReady, mutate, retry } = useExtensionWindow(sessionId, observer)
   const selected = data?.intendedSelection ?? data?.state.selection
   const [menu, setMenu] = useState(false),
     [manager, setManager] = useState(false)
@@ -65,6 +68,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
     [newName, setNewName] = useState('')
   const [deletingId, setDeletingId] = useState<string>()
   const [detail, setDetail] = useState<ExtensionResource>()
+  const [suggesting, setSuggesting] = useState(false)
   // One reading mode for the whole manager: the switch lives in the list's
   // toolbar, so the cards and the detail dialog behind them flip together.
   const [showOriginal, setShowOriginal] = useState(false)
@@ -88,6 +92,57 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
     setDirty(false)
     setLocal({ name: preset?.name ?? '', enabledIds: preset ? [...preset.enabledIds] : globalIds() })
     setFeedback('')
+  }
+  /**
+   * Choose a preset, and say what it changed besides the switches.
+   *
+   * A preset can carry an output style now, so selecting one may change how the session
+   * answers as well as what is installed. A silent change to the reader's style is the
+   * kind of surprise this surface is supposed to remove, so the toast names it.
+   */
+  const selectPreset = (presetId: string | null): void => {
+    const styleRow = presetId === null ? undefined : styleOfPreset(presetId)
+    // The menu keeps closing itself, and a modified selection still asks before replacing;
+    // only the confirmation sentence is this function's business.
+    setMenu(false)
+    if (selected?.modified) {
+      setReplacement({ presetId })
+      return
+    }
+    void report(() => mutate('select', { presetId }), styleRow === undefined ? t('epSelected') : t('epSelectedWithStyle', { style: styleRow }))
+  }
+  /**
+   * One line saying what a set of ids covers.
+   *
+   * The counts are the manager's own rows, so the sentence cannot disagree with the tabs
+   * below it: capabilities switched on, the single style when one is chosen, and the
+   * instruction files, which have no switch and are listed regardless.
+   */
+  const summaryOf = (ids: readonly string[]): string => {
+    // The counts come from one helper so the sentence cannot drift from the faces: suites
+    // in the unit the market face totals, the single style when chosen, and the instruction
+    // files — with the ones the host does not inject named, not smoothed over.
+    const coverage = presetCoverage(data?.resources ?? [], ids)
+    const files =
+      coverage.missingFiles === 0
+        ? t('epSummaryFiles', { count: String(coverage.files) })
+        : t('epSummaryFilesPartial', { count: String(coverage.files), missing: String(coverage.missingFiles) })
+    return [
+      t('epSummaryCapabilities', { count: String(coverage.suites) }),
+      coverage.style === undefined
+        ? t('epSummaryNoStyle')
+        : coverage.styleInEffect
+          ? t('epSummaryStyle', { style: coverage.style })
+          : t('epSummaryStylePending', { style: coverage.style }),
+      files
+    ].join(' · ')
+  }
+  /** The style name a preset carries, when the inventory knows it. */
+  const styleOfPreset = (presetId: string): string | undefined => {
+    const preset = data?.library.presets.find(row => row.id === presetId)
+    const styleId = preset?.enabledIds.find(id => id.startsWith('outputStyles:'))
+    if (styleId === undefined) return undefined
+    return data?.resources.find(row => row.id === styleId)?.name
   }
   const report = async (operation: () => Promise<unknown>, success = t('epSaved')) => {
     const token = ++sequence.current
@@ -128,7 +183,11 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
   }
   const patch = (row: ExtensionResource, enabled: boolean) => {
     if (!row.available || row.control === 'global-only') return
-    let ids = toggleResource(row, draftRef.current.enabledIds, enabled)
+    // An output style is a single choice: turning one on turns the others off, the way
+    // the styles panel itself selects exactly one.
+    let base = draftRef.current.enabledIds
+    if (row.face === 'outputStyles' && enabled) base = base.filter(id => !id.startsWith('outputStyles:'))
+    let ids = toggleResource(row, base, enabled)
     if (row.face === 'market')
       for (const child of data?.resources ?? []) {
         if (child.suiteResourceId === row.id && child.available && child.control !== 'global-only') ids = toggleResource(child, ids, enabled)
@@ -146,14 +205,6 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
     setMenu(false)
     loadEditor(data.library, selected?.presetId ?? null)
     setManager(true)
-  }
-  const select = (presetId: string | null) => {
-    setMenu(false)
-    if (selected?.modified) {
-      setReplacement({ presetId })
-      return
-    }
-    void report(() => mutate('select', { presetId }))
   }
   const beginName = (mode: 'save' | 'default' | 'rename') => {
     setActionsOpen(false)
@@ -245,7 +296,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
     ? t('epNotReady')
     : data
       ? (selected?.presetName ?? t('epGlobal')) + (selected?.modified ? ' · ' + t('epModified') : '')
-      : t(error ? 'epLoadFailed' : 'epLoading')
+      : t(error ? (notReady ? 'epSessionInactive' : 'epLoadFailed') : 'epLoading')
   const savedDirty = dirty && !libraryDraft
   const duplicate = data?.library.presets.some(p => p.name === newName.trim() && (naming !== 'rename' || p.id !== editing)) === true
   const editableClipboard = (target: EventTarget | null) => target instanceof HTMLElement && !!target.closest('input, textarea, select, [contenteditable="true"]')
@@ -289,15 +340,19 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
                 ...(data.status?.recoverable ? [{ id: 'recover', label: t('epRecover'), disabled: data.busy || writes > 0 }] : [])
               ]
             : []),
+          // The session is ready but its catalog read is in flight, so its tools
+          // are hidden for a moment. Without this line the only report is the
+          // model saying a tool is gone.
+          ...(data?.status?.inventoryPending === true && !unready ? [{ type: 'label' as const, id: 'inventory-pending', text: t('epInventoryPending') }] : []),
           ...(error
             ? [
-                { type: 'label' as const, id: 'error', text: t('epLoadFailed') + ' ' + error },
+                { type: 'label' as const, id: 'error', text: t(notReady ? 'epSessionInactive' : 'epLoadFailed') + ' ' + error },
                 { id: 'retry', label: t('epRetry') }
               ]
             : [])
         ]}
         onSelect={id =>
-          id === 'manage' ? openManager() : id === 'retry' ? retry() : id === 'recover' ? void report(() => mutate('recover', {})) : select(id === 'global' ? null : id)
+          id === 'manage' ? openManager() : id === 'retry' ? retry() : id === 'recover' ? void report(() => mutate('recover', {})) : selectPreset(id === 'global' ? null : id)
         }
       />
       {toast && <Toast key={toast.id} text={toast.text} tone={toast.success ? 'success' : undefined} holdMs={toast.success ? 3000 : 10000} onDone={() => setToast(undefined)} />}
@@ -321,7 +376,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
           }
         >
           <div
-            className={css.managerBody + ' ' + panelCss.shell}
+            className={`${css.managerBody} ${panelCss.shell}`}
             tabIndex={0}
             onKeyDown={event => {
               if (!(event.ctrlKey || event.metaKey) || event.altKey || editableClipboard(event.target) || window.getSelection()?.toString()) return
@@ -348,8 +403,14 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
               transition(() => importText(text))
             }}
           >
+            {error === undefined || error === '' ? null : h(ReadFailed, { message: t('epLoadFailed') + ' ' + error, retryLabel: t('readRetry'), onRetry: retry })}
+            {/* What this preset covers, in the reader's own units: capabilities that are
+                on, the style it carries, and the prompt files it lists. */}
+            <p className={panelCss.subtitle} data-preset-summary>
+              {summaryOf(draft.enabledIds)}
+            </p>
             <div className={css.planBar}>
-              <div className={css.planStrip + ' ' + sourceCss.sourceTabsBoxLine} role="group" aria-label={t('epTitle')}>
+              <div className={`${css.planStrip} ${sourceCss.sourceTabsBoxLine}`} role="group" aria-label={t('epTitle')}>
                 <div className={sourceCss.sourceTabsRow}>
                   <div className={!editing && !libraryDraft ? sourceCss.srcTabOn : sourceCss.srcTab}>
                     <button
@@ -397,6 +458,9 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
                   )}
                 </div>
               </div>
+              <button type="button" className={rc.iconBtn} aria-label={t('aiSelectTitle')} title={t('aiSelectTitle')} disabled={writes > 0} onClick={() => setSuggesting(true)}>
+                <IconSparkleMedium size={14} />
+              </button>
               <button type="button" className={rc.iconBtn} aria-label={t('epSaveAs')} title={t('epSaveAs')} disabled={writes > 0 || savedDirty} onClick={() => beginName('save')}>
                 <IconPlusOutlineMedium />
               </button>
@@ -429,7 +493,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
               />
             </div>
             {savedDirty && writes === 0 && (
-              <div className={css.inlineStatus + ' ' + panelCss.subtitle} role="alert">
+              <div className={`${css.inlineStatus} ${panelCss.subtitle}`} role="alert">
                 <span>{feedback}</span>
                 {savedDirty && writes === 0 && (
                   <>
@@ -591,6 +655,20 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
           </Button>
         }
       />
+      {suggesting
+        ? h(AiSelectionModal, {
+            t,
+            // The rows a preset can carry: everything the manager lists that the runtime has.
+            candidates: (data?.resources ?? []).filter(row => row.configuration === undefined && row.available).map(row => ({ id: row.id, label: row.name })),
+            onApply: async suggestion => {
+              const next = await mutate('create', { name: suggestion.name, enabledIds: suggestion.enabledIds })
+              const created = next.library.presets.find(preset => preset.name === suggestion.name)
+              if (created !== undefined) loadEditor(next.library, created.id)
+              setSuggesting(false)
+            },
+            onClose: () => setSuggesting(false)
+          })
+        : null}
       {detail
         ? renderDetail({
             resource: detail,
@@ -599,7 +677,8 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
             onClose: () => setDetail(undefined),
             checked: detail.available && resourceSelected(detail, draft.enabledIds),
             disabled: !detail.available || detail.control === 'global-only',
-            onToggle: enabled => patch(detail, enabled)
+            // A row the list draws without a switch must not grow one inside the dialog.
+            ...(detail.available && detail.control !== 'global-only' && detail.unavailableReason === undefined ? { onToggle: (enabled: boolean) => patch(detail, enabled) } : {})
           })
         : null}
     </span>

@@ -21,7 +21,9 @@ import {
   readDraftServerDocument,
   rowsFromPastedText,
   serverFormCompatible,
+  ServerFormError,
   timeoutMsFromText,
+  type ServerFormErrorCode,
   type ServerKind,
   type ServerConfig,
   type ServerPolicyDraft
@@ -29,6 +31,15 @@ import {
 import { DetailRow, DetailRows } from './DetailRows.js'
 import formCss from './form.module.css'
 import css from './detail.module.css'
+
+/** The dictionary key for each way a server document can be rejected. */
+const SERVER_FORM_MESSAGE: Record<ServerFormErrorCode, Parameters<Translate>[0]> = {
+  'not-object': 'serverFormNotObject',
+  'service-key': 'serverFormServiceKey',
+  'policy-key': 'serverFormPolicyKey',
+  'single-service': 'serverFormSingleService',
+  'service-object': 'serverFormServiceObject'
+}
 
 /** One JSON document backs both modes. Invalid JSON is retained, never silently converted or reset. */
 export function ServerConfigEditor(props: {
@@ -84,7 +95,15 @@ export function ServerConfigEditor(props: {
       parsed = parseServerConfig(props.text)
     }
   } catch (error) {
-    parseError = error instanceof Error ? error.message : String(error)
+    // A rejected document has a code, and the sentence that describes it lives
+    // in the dictionaries: an English sentence inside a Chinese dialog is not
+    // something the reader can act on.
+    parseError =
+      error instanceof ServerFormError
+        ? props.t(SERVER_FORM_MESSAGE[error.code], error.serviceKey === undefined ? undefined : { key: error.serviceKey })
+        : error instanceof Error
+          ? error.message
+          : String(error)
   }
   // A `const` binding: the form body reads it from inside field callbacks, where
   // the narrowing of a reassignable binding would be discarded.

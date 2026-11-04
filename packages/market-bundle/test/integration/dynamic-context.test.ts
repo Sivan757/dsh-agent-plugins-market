@@ -1,3 +1,4 @@
+import { authoredBodyOf } from './helpers/command-forward.js'
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -155,7 +156,7 @@ describe('dynamic context reaches the model through the surfaces', () => {
       rawInput: ''
     })
     expect(result).toMatchObject({ kind: 'success' })
-    expect(forwarded).toBe('Status:  M a.ts')
+    expect(authoredBodyOf(forwarded)).toBe('Status:  M a.ts')
     expect(shell.workdirs).toEqual([dir])
     registry.disposeAll()
   })
@@ -192,7 +193,7 @@ describe('dynamic context reaches the model through the surfaces', () => {
       agent: { session: { header: { cwd: dir } }, followup: (message: { content: Array<{ text: string }> }) => (forwarded = message.content[0]?.text ?? '') },
       rawInput: ''
     })
-    expect(forwarded).toBe('Status: !`git status --short`')
+    expect(authoredBodyOf(forwarded)).toBe('Status: !`git status --short`')
     registry.disposeAll()
   })
 

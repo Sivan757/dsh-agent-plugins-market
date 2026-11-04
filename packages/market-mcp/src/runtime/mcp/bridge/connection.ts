@@ -32,6 +32,7 @@ import { syncTools } from './tools.js'
 import type { ToolBridgeOptions, ToolDisposers, ToolHost } from './tools.js'
 import type { Config } from '../../../application/mcp/mcp-bridge-config.js'
 import { DEFAULT_STARTUP_TIMEOUT_MS } from '../../../application/mcp/mcp-bridge-config.js'
+import type { McpConnectionObservation } from '../../../../../market-contracts/src/contracts/mcp-status.js'
 
 /** Automatic reconnect policy for one MCP server connection. */
 import type { ReconnectConfig } from '../../../application/mcp/mcp-bridge-config.js'
@@ -124,7 +125,14 @@ export interface ConnectionHandle {
  *   by default.
  * @returns Handle with a `ready` promise for startup-await and a `dispose` for teardown.
  */
-export function startConnection(host: ToolHost, config: Config, policy: ResolvedReconnectPolicy, credentials?: unknown, opener?: BrowserOpener): ConnectionHandle {
+export function startConnection(
+  host: ToolHost,
+  config: Config,
+  policy: ResolvedReconnectPolicy,
+  credentials?: unknown,
+  opener?: BrowserOpener,
+  observe?: (observation: McpConnectionObservation) => void
+): ConnectionHandle {
   const label = `mcp-client(${config.serverName})`
   const opts: ToolBridgeOptions = {
     registrationFailure: 'contain',
@@ -155,6 +163,23 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
   let connectedAt: number | undefined
   /** The real error from the first connection attempt, for startup-await diagnostics. */
   let firstAttemptError: unknown
+  /** The last redacted transport or attempt failure, so a disconnect can say what it was. */
+  let lastError: string | undefined
+
+  /**
+   * Publish one lifecycle edge to the status surface.
+   *
+   * The supervisor already logs each edge, but a log line is not where a user
+   * looks. The observation carries the phase, the attempt count, the next retry
+   * time, and the last error, so a row can say "reconnecting, attempt 2 of 10,
+   * in 1s" instead of showing the stale tools of a dead server.
+   *
+   * @param edge - the phase and what the supervisor knows at this moment.
+   */
+  const report = (edge: Omit<McpConnectionObservation, 'serverName'>): void => {
+    if (observe === undefined) return
+    observe({ serverName: config.serverName, ...edge })
+  }
 
   /** A generation may act only while it is the current one on a live bridge. */
   const isCurrent = (generation: Client): boolean => !disposed && client === generation
@@ -205,6 +230,14 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
         ? 'connection lost and reconnect is disabled — registered tools will fail until an HMR reload or Host restart'
         : 'connection failed and reconnect is disabled — no tools were registered; reload the plugin or restart the Host to connect'
       host.logger.error(`${label}: ${message}`)
+      report({
+        phase: 'failed',
+        since: Date.now(),
+        attempt: failedAttempts,
+        maxAttempts: policy.maxAttempts,
+        reason: 'reconnect-disabled',
+        ...(lastError === undefined ? {} : { error: lastError })
+      })
       return
     }
     // A connection that stayed up past the stability window (= maxDelayMs, the
@@ -222,11 +255,28 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
       host.logger.error(
         `${label}: giving up after ${policy.maxAttempts} consecutive failed reconnect attempts — tools unregistered; reload the plugin or restart the Host to reconnect`
       )
+      report({
+        phase: 'failed',
+        since: Date.now(),
+        attempt: failedAttempts,
+        maxAttempts: policy.maxAttempts,
+        reason: 'gave-up',
+        ...(lastError === undefined ? {} : { error: lastError })
+      })
       return
     }
     const delayMs = Math.min(policy.maxDelayMs, policy.initialDelayMs * 2 ** (failedAttempts - 1))
     const action = lostEstablishedConnection ? 'connection lost; reconnecting' : 'connection failed; retrying'
     host.logger.warn(`${label}: ${action} in ${delayMs}ms (attempt ${failedAttempts}/${policy.maxAttempts})`)
+    report({
+      phase: 'reconnecting',
+      since: Date.now(),
+      attempt: failedAttempts,
+      maxAttempts: policy.maxAttempts,
+      retryAt: Date.now() + delayMs,
+      reason: lostEstablishedConnection ? 'transport-closed' : 'attempt-failed',
+      ...(lastError === undefined ? {} : { error: lastError })
+    })
     reconnectTimer = setTimeout(() => {
       reconnectTimer = undefined
       settling = connectGeneration(false)
@@ -253,6 +303,12 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
     const hasClosed = (): boolean => closeObserved
     client = generation
     clientClosed = closed.promise
+    report({ phase: 'connecting', since: Date.now(), attempt: failedAttempts + 1, maxAttempts: policy.maxAttempts, ...(lastError === undefined ? {} : { error: lastError }) })
+    // The transport reports a dead process here before onclose fires; keeping
+    // the message is the only way the row can say why the connection dropped.
+    generation.onerror = (error: Error) => {
+      lastError = redactErrorMessage(String(error))
+    }
     generation.onclose = () => {
       closeObserved = true
       closed.resolve()
@@ -297,6 +353,14 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
       host.logger.error(
         `${label}: failed generation did not close within ${GENERATION_CLOSE_TIMEOUT_MS}ms — reconnect stopped to avoid overlapping server processes; reload the plugin or restart the Host to retry`
       )
+      report({
+        phase: 'failed',
+        since: Date.now(),
+        attempt: failedAttempts,
+        maxAttempts: policy.maxAttempts,
+        reason: 'transport-stuck',
+        ...(lastError === undefined ? {} : { error: lastError })
+      })
     }
     /**
      * Retire the generation that raised the `401` and re-establish in place.
@@ -339,9 +403,10 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
       await enqueueSync(generation, startup ? startupOpts : opts)
     } catch (error) {
       if (firstAttemptError === undefined) firstAttemptError = error
+      lastError = redactErrorMessage(String(error))
       // Disposal clears current ownership before it closes the generation, so
       // only a live supervisor reports an attempt failure.
-      if (isCurrent(generation)) host.logger.warn(`${label}: connection attempt failed: ${redactErrorMessage(String(error))}`)
+      if (isCurrent(generation)) host.logger.warn(`${label}: connection attempt failed: ${lastError}`)
       // A pending browser leg outlives the initialize timeout: the human is
       // mid-approval. Hold this generation open — transport and loopback
       // listener stay alive — until the leg settles; abandoning it would
@@ -349,6 +414,7 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
       const leg = oauthProvider?.browserLeg
       if (leg !== undefined) {
         host.logger.warn(`${label}: waiting for browser authorization (up to 5 minutes) — approve access in the page that opened`)
+        report({ phase: 'connecting', since: Date.now(), attempt: failedAttempts, maxAttempts: policy.maxAttempts, reason: 'authorization-pending' })
         const legSettled = await leg
         attemptSettled = true
         if (!isCurrent(generation)) return
@@ -382,6 +448,8 @@ export function startConnection(host: ToolHost, config: Config, policy: Resolved
     }
     if (!isCurrent(generation)) return
     connectedAt = Date.now()
+    lastError = undefined
+    report({ phase: 'connected', since: Date.now(), attempt: 0, maxAttempts: policy.maxAttempts })
     if (failedAttempts > 0) host.logger.info(`${label}: reconnected and re-synced tools (attempt ${failedAttempts}/${policy.maxAttempts})`)
   }
 

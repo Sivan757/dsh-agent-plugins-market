@@ -11,6 +11,7 @@ import { bindAgentPresetsEnabled } from '../../../../packages/market-ui/src/ui/a
 import { ExtensionPresetEntry } from '../../../../packages/market-ui/src/features/extension-presets/ExtensionPresetEntry.js'
 import { useExtensionWindow } from '../../../../packages/market-ui/src/features/extension-presets/use-window.js'
 import { extensionPresetsEn, extensionPresetsZh } from '../../../../packages/market-ui/src/locales-extension-presets.js'
+import { en as englishCopy } from '../../../../packages/market-ui/src/locales.js'
 import type { ExtensionResource, ExtensionWindowPayload } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
 const renderDetail = vi.fn(() => null)
 globalThis.IS_REACT_ACT_ENVIRONMENT = true
@@ -46,9 +47,10 @@ let root: Root | undefined
 let host: HTMLDivElement | undefined
 let state: ExtensionWindowPayload
 const posts: Array<{ url: string; body: Record<string, unknown> }> = []
-async function mount(started = false, busy = false, library?: ExtensionWindowPayload['library']) {
+async function mount(started = false, busy = false, library?: ExtensionWindowPayload['library'], resources?: ExtensionWindowPayload['resources']) {
   state = payload(started, busy)
   if (library) state = { ...state, library }
+  if (resources) state = { ...state, resources }
   localStorage.setItem('dsh-extension-guide:/workspace', 'seen')
   posts.length = 0
   vi.stubGlobal(
@@ -222,6 +224,32 @@ describe('extension preset state', () => {
     expect(Object.keys(extensionPresetsEn).sort()).toEqual(Object.keys(extensionPresetsZh).sort())
   })
 })
+describe('output style ownership', () => {
+  it('tags a suite style as a suite, because a style never has a suite child row', async () => {
+    // The owner tag fell through to the child-row test and labelled every suite style 用户:
+    // a style carries its own source, not a suiteResourceId.
+    const styleRow = (id: string, source: string, name: string) => ({
+      id,
+      face: 'outputStyles' as const,
+      name,
+      source,
+      available: source !== 'src',
+      globalEnabled: false,
+      detail: { kind: 'outputStyle' as const, entryId: id.replace('outputStyles:', '') }
+    })
+    await mount(false, false, undefined, [styleRow('outputStyles:suite:src/teaching', 'src', 'teaching-style'), styleRow('outputStyles:user:brief', 'user', 'brief')])
+    await click('Research')
+    await click('Manage presets')
+    await click('Output styles')
+    const tagOf = (needle: string): string => {
+      const card = [...document.querySelectorAll<HTMLElement>('article')].find(node => (node.textContent ?? '').includes(needle))
+      return card?.querySelector('[data-tone]')?.textContent?.trim() ?? ''
+    }
+    expect(tagOf('teaching-style')).toBe(englishCopy.panelSourcePlugin)
+    expect(tagOf('brief')).toBe(englishCopy.panelSourceUser)
+  })
+})
+
 describe('extension preset rendering', () => {
   it('labels customized selection and confirms before replacement', async () => {
     await mount()
@@ -260,6 +288,26 @@ describe('extension preset rendering', () => {
     await click('Recover session extensions and continue queued input')
     expect(posts[0]!.url).toContain('/recover')
     expect(posts[0]!.body).toEqual({ sessionId: 'unready', expectedRevision: 7 })
+  })
+  it('says a ready session is re-reading the catalog while its tools are hidden', async () => {
+    await mount()
+    // Ready, but the catalog read is in flight: this is the state whose only
+    // report used to be the model saying a tool was gone.
+    state = { ...state, sessionId: 'pending', status: { ready: true, revision: 3, recoverable: false, inventoryPending: true } }
+    await act(async () =>
+      root!.render(
+        h(ExtensionPresetEntry, {
+          renderDetail,
+          sessionId: 'pending',
+          t: key => extensionPresetsEn[key as keyof typeof extensionPresetsEn] ?? settingsEn[key as keyof typeof settingsEn] ?? key
+        })
+      )
+    )
+    await act(async () => host!.querySelector('button')!.click())
+    expect(document.body.textContent).toContain(extensionPresetsEn.epInventoryPending)
+    // The line is not the not-ready state: the session is usable and selections stay open.
+    expect(document.body.textContent).not.toContain(extensionPresetsEn.epNotReady)
+    expect([...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Default')!.disabled).toBe(false)
   })
   it('keeps a retry action after load failure without claiming global selection', async () => {
     await mount()
@@ -437,8 +485,8 @@ describe('extension preset rendering', () => {
     await click('Manage presets')
     await click('Connectors')
     expect(document.querySelector('[role="switch"]')).toBeNull()
-    expect(document.body.textContent).toContain(extensionPresetsEn.epGlobalManagedShort)
-    expect(document.body.textContent).not.toContain(extensionPresetsEn.epGlobalManaged)
+    // The card states the reason inline instead of carrying a chip.
+    expect(document.body.textContent).toContain(extensionPresetsEn.epGlobalManaged)
     expect(document.body.textContent).toContain('Enabled')
   })
   it('allows a valid native skill with its global default off to be enabled in a saved preset', async () => {
@@ -470,14 +518,14 @@ describe('extension preset rendering', () => {
     )
     await click('Research')
     await click('Manage presets')
-    const card = document.querySelector<HTMLElement>('article[role="button"]')!
-    const toggle = document.querySelector<HTMLButtonElement>('[role="switch"]')!
+    const card = document.querySelector<HTMLElement>('article')!
+    const toggle = card.querySelector<HTMLButtonElement>('[role="switch"]')!
     expect(card.getAttribute('data-resource-state')).toBe('disabled')
-    expect(card.getAttribute('aria-pressed')).toBe('false')
+    // The card opens the detail; the switch is what changes the selection.
+    expect(card.getAttribute('aria-pressed')).toBeNull()
     expect(toggle.disabled).toBe(false)
-    await act(async () => card.click())
+    await act(async () => toggle.click())
     expect(card.getAttribute('data-resource-state')).toBe('active')
-    expect(toggle.getAttribute('aria-checked')).toBe('true')
     expect(posts).toHaveLength(1)
     expect(posts[0]!.url).toContain('/update')
     expect(posts[0]!.body.enabledIds).toEqual([native.id])
@@ -513,7 +561,11 @@ describe('extension preset rendering', () => {
     const filterTab = document.getElementById(inner.getAttribute('aria-labelledby')!)!
     expect(filterTab.textContent).toContain('All')
     expect(filterTab.getAttribute('aria-controls')).toBe(inner.id)
-    await act(async () => [...panel.querySelectorAll<HTMLElement>('[role="tab"]')].find(node => node.textContent?.startsWith('Disabled'))!.click())
+    // Any cut the fixture actually fills: a cut nothing falls into is no longer drawn, and
+    // this test is about the ARIA wiring, not about which cut exists.
+    const filterTabs = [...panel.querySelectorAll<HTMLElement>('[role="tab"]')].filter(node => (node.getAttribute('aria-controls') ?? '').includes('-panel'))
+    const target = filterTabs.find(node => !(node.textContent ?? '').startsWith('All')) ?? filterTabs[0]!
+    await act(async () => target.click())
     const filteredPanel = panel.querySelector<HTMLElement>('[role="tabpanel"]')!
     expect(document.getElementById(filteredPanel.getAttribute('aria-labelledby')!)!.getAttribute('aria-controls')).toBe(filteredPanel.id)
     await click('Shortcuts')
@@ -524,21 +576,16 @@ describe('extension preset rendering', () => {
     await mount()
     await click('Research')
     await click('Manage presets')
-    const card = document.querySelector<HTMLElement>('article[role="button"]')!
+    const card = document.querySelector<HTMLElement>('article')!
+    const toggle = card.querySelector<HTMLButtonElement>('[role="switch"]')!
+    // One toggle per activation, and the switch is the only control that writes.
+    await act(async () => toggle.click())
+    expect(posts).toHaveLength(1)
+    await act(async () => toggle.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
+    expect(posts).toHaveLength(1)
+    // The card opens the detail and writes nothing.
     await act(async () => card.click())
     expect(posts).toHaveLength(1)
-    await act(async () => card.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })))
-    expect(posts).toHaveLength(2)
-    const toggle = document.querySelector<HTMLButtonElement>('[role="switch"]')!
-    await act(async () => toggle.click())
-    expect(posts).toHaveLength(3)
-    await act(async () => toggle.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
-    expect(posts).toHaveLength(3)
-    const detail = document.querySelector<HTMLButtonElement>('button[aria-label="View details · Skill"]')!
-    await act(async () => detail.click())
-    expect(posts).toHaveLength(3)
-    await act(async () => detail.dispatchEvent(new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true })))
-    expect(posts).toHaveLength(3)
     expect(renderDetail).toHaveBeenCalled()
     expect(posts.every(post => post.url.endsWith('/update'))).toBe(true)
   })
@@ -547,7 +594,7 @@ describe('extension preset rendering', () => {
     await click('Research')
     await click('Manage presets')
     vi.mocked(fetch).mockResolvedValueOnce({ ok: false, status: 409, json: async () => ({ ok: false, code: 'conflict' }) } as Response)
-    await act(async () => document.querySelector<HTMLElement>('article[role="button"]')!.click())
+    await act(async () => document.querySelector<HTMLElement>('article [role="switch"]')!.click())
     expect(document.body.textContent).toContain(extensionPresetsEn.epFailed)
     expect(document.body.textContent).toContain(extensionPresetsEn.epDiscard)
     await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click())
@@ -555,7 +602,7 @@ describe('extension preset rendering', () => {
     expect(document.querySelector<HTMLButtonElement>('button[aria-label="Save as a new preset"]')!.disabled).toBe(true)
     await click('Cancel')
     await click('Discard unsaved changes')
-    expect(document.querySelector('[role="switch"]')!.getAttribute('aria-checked')).toBe('true')
+    expect(document.querySelector<HTMLElement>('article')!.getAttribute('data-resource-state')).toBe('active')
     await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click())
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })

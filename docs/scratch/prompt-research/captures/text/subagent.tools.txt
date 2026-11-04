@@ -1,0 +1,5 @@
+### Read
+{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"file_path":{"description":"The absolute path to the file to read","type":"string"},"offset":{"description":"The line number to start reading from. Only provide if the file is too large to read at once","type":"integer","minimum":0,"maximum":9007199254740991},"limit":{"description":"The number of lines to read.
+
+### Grep
+{"$schema":"https://json-schema.org/draft/2020-12/schema","type":"object","properties":{"pattern":{"description":"The regular expression pattern to search for in file contents","type":"string"},"path":{"description":"File or directory to search in (rg PATH). Defaults to current working directory.","type":"string"},"glob":{"description":"Glob pattern to filter files (e.g. \"*.js\", \"*.{ts,tsx}\") 

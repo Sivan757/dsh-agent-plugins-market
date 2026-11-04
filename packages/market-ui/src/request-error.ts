@@ -14,3 +14,22 @@ export class RequestTimeoutError extends Error {
     this.name = 'RequestTimeoutError'
   }
 }
+
+/**
+ * A request the host answered with a failure status.
+ *
+ * The message keeps the route label and the code for logs; a panel renders the
+ * localized sentence and the code, because `MCP status failed: 502` in a Chinese
+ * panel says nothing a reader can act on.
+ */
+export class RequestFailedError extends Error {
+  readonly status: number
+  /** The host's own explanation, when it gave one. */
+  readonly hostReason?: string
+  constructor(label: string, status: number, hostReason?: string) {
+    super(hostReason === undefined ? `${label}: ${status}` : hostReason)
+    this.name = 'RequestFailedError'
+    this.status = status
+    this.hostReason = hostReason
+  }
+}

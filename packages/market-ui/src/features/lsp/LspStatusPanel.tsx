@@ -11,14 +11,16 @@
  */
 import { Fragment, useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, IconEditOutlineMedium, Switch, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconRefreshOutlineMedium, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ServerConfigModal } from '../../ui/ServerConfigModal.js'
-import { PanelHeader, PanelActions } from '../../ui/panel.js'
+import { PanelHeader, PanelActions, ReadFailed } from '../../ui/panel.js'
+import { copyText, diagnosticsText } from '../../ui/diagnostics.js'
 import type { Translate } from '../../i18n.js'
 import {
   fetchLspStatus,
   migrateLspSeam,
+  restartLspServers,
   setLspServerEnabled,
   type LspLegacySeam,
   type LspLegacySeamMigration,
@@ -26,19 +28,19 @@ import {
   type LspStatusPayload,
   type LspStatusState
 } from '../../api.js'
-import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
+import { ResourceSurface } from '../../ui/ResourceSurface.js'
+import { buildFaceEntry } from '../../ui/face-entry.js'
+import { FAILURE_GUIDANCE_LABEL, failureGuidanceKey } from '../../ui/failure-guidance.js'
+import { surfaceProviderCuts } from '../../ui/surface-facets.js'
 import { StatusBand, bandTone } from '../../ui/StatusBand.js'
-import { failureGuidanceKey } from '../../ui/failure-guidance.js'
-import { CardIdentity, interactiveCardProps, ResourceCard, ResourceCollection, type ResourceState } from '../../ui/ResourceCard.js'
-import { DetailRow, DetailRows, kvCell } from '../../ui/DetailRows.js'
-import { useWorkspaceView } from '../../ui/workspace-view.js'
-import { LSP_FILTERS, deriveLspStatusViewModel, type LspStatusFilter } from './lsp-status-view-model.js'
+
+import { DiagnoseBlock } from '../../ui/DiagnoseBlock.js'
+import { type ResourceState } from '../../ui/ResourceCard.js'
+import { DetailRow, DetailRows, KvGrid, kvCell } from '../../ui/DetailRows.js'
 import css from '../mcp/mcp-status.module.css'
-import rc from '../../ui/resource-card.module.css'
 import panelCss from '../../ui/panel.module.css'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
-import { hintProps, hoverHint } from '../../ui/hover-hint.js'
 
 interface LspStatusPanelProps {
   t: Translate
@@ -51,30 +53,11 @@ const EMPTY_STATUS: LspStatusPayload = {
   hostMissing: true
 }
 
-/** Filter tab label; the switched-off tab reuses the shared panel wording. */
-function lspFilterLabel(t: Translate, kind: LspStatusFilter): string {
-  if (kind === 'plugin') return t('lspPlugin')
-  if (kind === 'direct') return t('lspDirect')
-  if (kind === 'disabled') return t('panelFilterDisabled')
-  return t('lspAll')
-}
-
-/** Tooltip text per filter: the counts alone do not explain the grouping. */
-function lspFilterHint(t: Translate, kind: LspStatusFilter): string {
-  if (kind === 'plugin') return t('lspFilterPluginHint')
-  if (kind === 'direct') return t('lspFilterDirectHint')
-  if (kind === 'disabled') return t('lspFilterDisabledHint')
-  return t('lspFilterAllHint')
-}
-
 /** Language-server inventory with per-state overview and per-server detail. */
 export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
   const [payload, setPayload] = useState<LspStatusPayload>(EMPTY_STATUS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | undefined>(undefined)
-  const [filter, setFilter] = useState<LspStatusFilter>('all')
-  const [search, setSearch] = useState('')
-  const [view, setView] = useWorkspaceView()
   const [selected, setSelected] = useState<LspStatusEntry | undefined>(undefined)
   const [editing, setEditing] = useState<LspStatusEntry>()
   const [editorOpen, setEditorOpen] = useState(false)
@@ -104,6 +87,22 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
         setError(clientErrorMessage(t, caught))
       })
   }
+
+  // A restart is the one action that replaces a provider whose process died
+  // underneath its mount: `ctx.lsp` reports no death, so nothing else would
+  // ever re-verify that row. It names this row's mount, so a restart in one
+  // service's dialog leaves every other language server's work alone. The
+  // refreshed row goes back into the dialog, which is also what the echo below
+  // the band reports from.
+  const restart = (entry: LspStatusEntry): Promise<LspStatusEntry> =>
+    restartLspServers(entry.id)
+      .then(() => fetchLspStatus(true))
+      .then(next => {
+        setPayload(next)
+        const refreshed = next.entries.find(item => item.id === entry.id) ?? entry
+        setSelected(refreshed)
+        return refreshed
+      })
 
   useEffect(() => {
     refresh()
@@ -136,15 +135,8 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
     }
   }, [anyStarting])
 
-  const { filtered, filterCounts } = deriveLspStatusViewModel(payload, filter, search)
   // The filter tablist names this region, and the host derives its panel id
   // (`<filterId>-<value>-panel`) from the same base the toolbar receives.
-  const filterId = 'lsp-status-filter'
-  const panelProps = {
-    role: 'tabpanel' as const,
-    id: `${filterId}-${filter}-panel`,
-    'aria-labelledby': `${filterId}-${filter}`
-  }
 
   return h(
     'div',
@@ -167,53 +159,75 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
             refresh()
           }
         }),
-    h(SearchFilterToolbar, {
-      className: css.toolbar,
-      search,
+    error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
+    // The shared renderer draws the list; the panel supplies entries, the detail and the editor.
+    h(ResourceSurface, {
+      t,
+      // This panel's rows, adapted onto the facts the preset manager reads too: the shared
+      // builder owns the rail, the failure sentence and the switch verb on both surfaces.
+      entries: payload.entries.map(entry => ({
+        ...buildFaceEntry(
+          t,
+          {
+            surface: 'lsp',
+            provider: entry.kind === 'plugin' ? 'suite' : 'user',
+            id: entry.id,
+            name: entry.serverKey,
+            mono: true,
+            tag: entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect'),
+            description: entry.command,
+            meta: entry.suiteName ?? String(Object.keys(entry.extensions).length),
+            keywords: [entry.serverKey, entry.command, entry.reason ?? ''].join(' '),
+            showSwitch: true,
+            on: entry.state !== 'disabled',
+            live: {
+              state: entry.state === 'mounted' ? 'connected' : entry.state === 'starting' ? 'starting' : entry.state === 'disabled' ? 'disabled' : 'failed',
+              ...(entry.code === undefined ? {} : { code: entry.code }),
+              ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+              ...(entry.causes === undefined ? {} : { causes: entry.causes }),
+              ...(entry.mountMs === undefined ? {} : { mountMs: entry.mountMs })
+            },
+            liveWord: stateLabel(t, entry.state),
+            // A mounted row whose last call failed is the other thing this panel can say,
+            // because the seam has no death signal.
+            ...(entry.state === 'mounted' && entry.observation !== undefined && !entry.observation.ok ? { note: t('lspLastCallShort') } : {})
+          },
+          'settings'
+        ),
+        // The row that did not mount carries the action that fixes it, the same principle the
+        // connectors list follows; the restart names this row's mount, so it cannot touch a
+        // sibling.
+        ...(entry.state === 'failed' ? { primary: { label: t('lspRestart'), title: t('lspRestartHint'), onSelect: () => void restart(entry) } } : {})
+      })),
+      // The toolbar carries the search field and the two provider cuts; without it the face
+      // would answer "all, suite, user" nowhere while every other list does.
       searchLabel: t('lspSearch'),
       searchPlaceholder: t('lspSearch'),
-      onSearchChange: setSearch,
-      filters: LSP_FILTERS.map(key => ({
-        id: key,
-        label: lspFilterLabel(t, key),
-        count: filterCounts[key],
-        active: filter === key,
-        onSelect: () => setFilter(key),
-        hint: lspFilterHint(t, key)
-      })),
-      // The panel's own title names the filter segment for assistive tech.
-      filterId,
-      filterLabel: t('lspStatusTitle'),
-      view,
       toListLabel: t('switchToList'),
       toGridLabel: t('switchToGrid'),
-      onViewChange: nextView => setView(nextView)
+      filters: surfaceProviderCuts('lsp', t, (id: string) => (payload.entries.find(entry => entry.id === id)?.kind === 'plugin' ? 'suite' : 'user')),
+      // Nothing read is not nothing mounted: the alert says the read failed.
+      emptyText: payload.entries.length === 0 && error !== undefined ? t('statusUnreadable') : loading && payload.entries.length === 0 ? t('loading') : t('lspEmpty'),
+      onOpen: entryId => {
+        const entry = payload.entries.find(item => item.id === entryId)
+        if (entry !== undefined) setSelected(entry)
+      },
+      onToggle: entryId => {
+        const entry = payload.entries.find(item => item.id === entryId)
+        if (entry !== undefined) toggle(entry)
+      },
+      onEdit: entryId => {
+        const entry = payload.entries.find(item => item.id === entryId)
+        if (entry !== undefined) setEditing(entry)
+      },
+      isOn: entryId => payload.entries.find(item => item.id === entryId)?.state !== 'disabled'
     }),
-    error !== undefined
-      ? h('div', { className: css.error, ...panelProps }, error, h(Button, { variant: 'ghost', size: 'sm', onClick: refresh }, t('mcpRetry')))
-      : loading && payload.entries.length === 0
-        ? h('div', { className: css.empty, ...panelProps }, t('loading'))
-        : filtered.length === 0
-          ? h('div', { className: css.empty, ...panelProps }, t('lspEmpty'))
-          : h(
-              ResourceCollection,
-              { view, ...panelProps },
-              filtered.map(entry =>
-                h(LspRow, {
-                  key: entry.id,
-                  entry,
-                  t,
-                  onOpen: () => setSelected(entry),
-                  onToggle: () => toggle(entry),
-                  onEdit: () => setEditing(entry)
-                })
-              )
-            ),
     selected === undefined
       ? null
       : h(LspDetailModal, {
           entry: selected,
           t,
+          onRestart: restart,
           onClose: () => {
             setSelected(undefined)
             refresh()
@@ -320,75 +334,78 @@ function lspTagTone(state: LspStatusState): 'success' | 'warning' | 'danger' | '
   return 'warning'
 }
 
-/**
- * One language-server card: the server key with its state tag on the identity
- * row and the enable switch on its trailing edge; the command on the body row;
- * the declaring suite and the extension count on the source row.
- */
-function LspRow({ entry, t, onOpen, onToggle, onEdit }: { entry: LspStatusEntry; t: Translate; onOpen: () => void; onToggle: () => void; onEdit: () => void }): ReactNode {
-  const interactive = interactiveCardProps(onOpen)
-  const extensions = Object.keys(entry.extensions).length
-  const disabled = entry.state === 'disabled'
-  return h(
-    ResourceCard,
-    { state: lspCardState(entry.state), surface: 'lsp', ...interactive },
-    // The state rail on the card's leading edge carries the state; a written
-    // label beside it would say the same thing twice.
-    h(CardIdentity, { text: entry.serverKey, mono: true, tag: entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect'), chip: true }),
-    h(
-      'div',
-      { className: rc.rowActions },
-      // The editor is the dialog the add flow uses; it sits just before the
-      // switch, where the row's actions end.
-      h(
-        'button',
-        {
-          type: 'button',
-          className: rc.iconBtn,
-          title: t('panelEdit'),
-          'aria-label': `${t('panelEdit')} ${entry.serverKey}`,
-          onClick: (event: { stopPropagation(): void }) => {
-            event.stopPropagation()
-            onEdit()
-          }
-        },
-        h(IconEditOutlineMedium)
-      ),
-      h(
-        'span',
-        { className: rc.switchWrap, onClick: (event: { stopPropagation(): void }) => event.stopPropagation() },
-        h(Switch, {
-          checked: !disabled,
-          label: disabled ? t('enable') : t('disable'),
-          title: disabled ? t('enable') : t('disable'),
-          onChange: onToggle
-        })
-      )
-    ),
-    // The card clips this line to one row, so it carries the full command as a hint.
-    hoverHint([entry.command, ...entry.args].join(' '), h('p', hintProps({ className: `${rc.rowBody} ${rc.monoLine}` }), [entry.command, ...entry.args].join(' '))),
-    h(
-      'div',
-      { className: rc.rowFoot },
-      hoverHint(
-        entry.kind === 'plugin' ? entry.suiteName : entry.serverKey,
-        h('span', hintProps({ className: rc.provenance }), entry.kind === 'plugin' ? entry.suiteName : t('lspDirect'))
-      ),
-      h('span', { className: rc.separator }, '·'),
-      h('span', { className: rc.count }, h('span', { className: rc.countValue }, String(extensions)), ' ', t('lspExtensionCount'))
-    )
-  )
-}
-
-export function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t: Translate; onClose: () => void }): ReactNode {
+export function LspDetailModal({
+  entry,
+  t,
+  onClose,
+  onRestart
+}: {
+  entry: LspStatusEntry
+  t: Translate
+  onClose: () => void
+  /** Rebuild this server's mount; absent in a read-only surface, which hides the action. */
+  onRestart?: (entry: LspStatusEntry) => Promise<LspStatusEntry>
+}): ReactNode {
   const guidance = failureGuidanceKey({ code: entry.code, reason: entry.reason, causes: entry.causes })
+  const [pending, setPending] = useState(false)
+  const [feedback, setFeedback] = useState<{ error: boolean; text: string }>()
+  // A dead process and a failed mount are both replaced by the same rebuild. A
+  // disabled, missing-package or conflicting row needs a different repair, so
+  // the action is not offered for it.
+  const restartable = onRestart !== undefined && (entry.state === 'mounted' || entry.state === 'failed')
+  const restart = async (): Promise<void> => {
+    if (onRestart === undefined) return
+    setPending(true)
+    setFeedback(undefined)
+    try {
+      const next = await onRestart(entry)
+      // The reason itself is the band's own from the refreshed row, so this
+      // echo only says what the action did.
+      setFeedback({ error: next.state === 'failed', text: next.state === 'failed' ? t('lspRestartFailed') : t('lspRestartDone') })
+    } catch (reason) {
+      setFeedback({ error: true, text: t('actionFail') + ': ' + clientErrorMessage(t, reason) })
+    } finally {
+      setPending(false)
+    }
+  }
   return h(DetailModal, {
     open: true,
     onClose,
     title: entry.serverKey,
     closeLabel: t('cancel'),
     contentClassName: css.detailBody,
-    footer: h('div', { className: css.modalFooter }, h(Button, { variant: 'ghost', onClick: onClose }, t('detailDone'))),
+    footer: h(
+      'div',
+      { className: css.modalFooter },
+      h(
+        Button,
+        {
+          variant: 'ghost',
+          size: 'sm',
+          title: t('copyDiagnosticsExplain'),
+          onClick: () => {
+            // The same block the connector dialog copies: whoever reads it should
+            // not have to care which of the two surfaces failed.
+            const text = diagnosticsText({
+              surface: t('workspaceTabLsp'),
+              name: entry.serverKey,
+              state: stateLabel(t, entry.state),
+              facts: [
+                { label: 'command', value: [entry.command, ...entry.args].join(' ') },
+                { label: 'kind', value: entry.kind },
+                { label: 'reason', value: entry.reason ?? '' },
+                { label: 'advice', value: guidance === undefined ? '' : t(FAILURE_GUIDANCE_LABEL[guidance]) },
+                { label: 'mountMs', value: entry.mountMs === undefined ? '' : String(entry.mountMs) }
+              ],
+              causes: entry.causes === undefined ? [] : [...entry.causes]
+            })
+            void copyText(text).then(copied => setFeedback({ error: !copied, text: t(copied ? 'diagnosticsCopied' : 'diagnosticsCopyFailed') }))
+          }
+        },
+        t('copyDiagnostics')
+      ),
+      h(Button, { variant: 'ghost', onClick: onClose }, t('detailDone'))
+    ),
     children: h(
       'div',
       null,
@@ -403,22 +420,75 @@ export function LspDetailModal({ entry, t, onClose }: { entry: LspStatusEntry; t
           h(Tag, null, entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect')),
           entry.kind === 'plugin' ? h(Tag, { tone: 'quiet' }, entry.suiteName) : null
         ),
+        ...(restartable
+          ? {
+              action: h(
+                Button,
+                {
+                  variant: 'outline',
+                  size: 'sm',
+                  disabled: pending,
+                  title: t('lspRestartHint'),
+                  'aria-label': t('lspRestart'),
+                  onClick: () => {
+                    void restart()
+                  }
+                },
+                h(IconRefreshOutlineMedium),
+                t('lspRestart')
+              )
+            }
+          : {}),
+        ...(feedback === undefined ? {} : { echo: feedback }),
         ...(guidance === undefined ? {} : { guidance }),
         ...(entry.reason === undefined ? {} : { reason: entry.reason }),
         ...(entry.causes === undefined ? {} : { causes: entry.causes }),
         mono: [entry.command, ...entry.args].join(' ')
       }),
+      // An explanation is offered where the failure is stated, and only for a row that
+      // actually failed: a mounted server has nothing to explain.
+      entry.state === 'failed' || entry.state === 'disabled'
+        ? h(
+            'div',
+            { className: panelCss.block },
+            h(DiagnoseBlock, {
+              t,
+              face: 'lsp',
+              failure: {
+                state: entry.state,
+                ...(entry.code === undefined ? {} : { code: entry.code }),
+                ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+                ...(entry.causes === undefined ? {} : { causes: entry.causes }),
+                ...(entry.mountMs === undefined ? {} : { mountMs: entry.mountMs })
+              },
+              disabled: pending
+            })
+          )
+        : null,
+      // The last call the host routed to this provider: the only evidence that
+      // a mounted server is not answering.
+      entry.observation === undefined
+        ? null
+        : h(
+            'div',
+            { className: panelCss.block },
+            h('h4', { className: panelCss.blockHead }, t('lspLastCall')),
+            h('p', { className: panelCss.detailProse }, entry.observation.ok ? t('lspLastCallOk') : t('lspLastCallFailed', { error: entry.observation.error ?? '' }))
+          ),
       h(
         'div',
         { className: panelCss.block },
         h('h4', { className: panelCss.blockHead }, t('overviewSection')),
-        h(
-          'dl',
-          { className: panelCss.kvGrid },
-          kvCell(t('sourceLabel'), entry.kind === 'plugin' ? entry.suiteName : t('lspDirect'), false),
-          kvCell(t('detailTypeLabel'), entry.kind === 'plugin' ? t('panelSourcePlugin') : t('panelSourceUser'), false),
-          kvCell(t('lspDeclaredInLabel'), entry.kind === 'plugin' ? `lsp.json · ${entry.suiteName}` : 'lsp.json', true)
-        )
+        h(KvGrid, {
+          cells: [
+            kvCell(t('sourceLabel'), entry.kind === 'plugin' ? entry.suiteName : t('lspDirect'), false),
+            kvCell(t('detailTypeLabel'), entry.kind === 'plugin' ? t('panelSourcePlugin') : t('panelSourceUser'), false),
+            kvCell(t('lspDeclaredInLabel'), entry.kind === 'plugin' ? `lsp.json · ${entry.suiteName}` : 'lsp.json', true),
+            // How long the last start took: a language server that never comes up is the
+            // other half of "it says starting forever".
+            entry.mountMs === undefined ? null : kvCell(t('mcpMountDurationLabel'), t('mcpMountDurationValue', { ms: entry.mountMs }), true)
+          ]
+        })
       ),
       h(
         'div',

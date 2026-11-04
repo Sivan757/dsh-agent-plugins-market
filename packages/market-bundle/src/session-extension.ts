@@ -5,6 +5,8 @@ import type { Context } from '@deepseek-ai/cordis'
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import type { ExtensionHookRunInput, ExtensionHooksOverview, ExtensionResource, ExtensionSelection } from '../../market-contracts/src/contracts/extension-presets.js'
+import type { OutputStylesPayload } from '../../market-contracts/src/contracts/output-styles.js'
+import type { InstructionsPayload } from '../../market-contracts/src/contracts/instructions.js'
 import type { Suite } from '../../market-contracts/src/model/types.js'
 import { pluginPathEnvironment, pluginRootOf, suiteDataDir } from '../../market-catalog/src/index.js'
 import { loadDisabledLspServers } from '../../market-lsp/src/index.js'
@@ -24,6 +26,7 @@ import {
   shellSeamOf,
   projectAgentRoles,
   type ExtensionToolGates,
+  type InventoryRetryPolicy,
   type ExtensionSuiteCandidate,
   type RuntimeReconciler,
   type HostTranslate,
@@ -32,6 +35,7 @@ import {
 } from '../../market-runtime/src/index.js'
 import type { Catalog } from './application/catalog.js'
 import { createProjectExtensionResources } from './application/extension-project.js'
+import { createProjectReaderCache } from './application/project-readers.js'
 import { readExtensionInventory } from './application/extension-inventory.js'
 import { mountExtensionPresetRoutes } from './routes-extension-presets.js'
 import type { SuiteRouteSessionResolver } from './routes.js'
@@ -50,6 +54,24 @@ interface SessionExtensionOptions {
   agentsRoot: string
   runtime: RuntimeReconciler
   hostLocale: { t: HostTranslate }
+  /** Resolved schedule for re-reading a session whose inventory read did not land. */
+  inventoryRetry?: InventoryRetryPolicy
+}
+
+/**
+ * The prompt layer the preset manager lists.
+ *
+ * A preset can carry an output style and can only read the instruction chain, so the
+ * inventory needs both reads. They arrive through a getter because the composition root
+ * builds these services after this module: nothing calls it before a session asks.
+ */
+export interface PromptLayerPorts {
+  /** The styles one workspace can choose from, and which one is chosen. */
+  outputStyles(workspace: string): Promise<OutputStylesPayload>
+  /** Make one style the workspace's choice. */
+  selectStyle(workspace: string, styleId: string): Promise<unknown>
+  /** The instruction chain the host would inject for one workspace. */
+  instructions(workspace: string): Promise<InstructionsPayload>
 }
 
 interface SessionExtensionSources {
@@ -57,6 +79,7 @@ interface SessionExtensionSources {
   panels: ReturnType<typeof createUserPanelStores>
   resources: ReturnType<typeof createPanelResources>
   readUserDeclarations: () => Promise<ExtensionSuiteCandidate[]>
+  promptLayer?: () => PromptLayerPorts | undefined
 }
 
 interface SessionExtensions {
@@ -125,7 +148,7 @@ export async function resolveHookDeclaration(catalog: HooksOverviewCatalog, suit
  * Create the stable readers before catalog initialization. Mount only after its sources are loaded.
  * Call mount once. Host injection owns start and disposal; construction registers nothing.
  */
-export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: SessionExtensionOptions): SessionExtensions {
+export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale, inventoryRetry }: SessionExtensionOptions): SessionExtensions {
   let extensionPresets: ExtensionRuntime | undefined
   let scopedContributors: ScopedExtensionContributors | undefined
   let selectedRoleSuites: ((agent: Agent) => Promise<Suite[]>) | undefined
@@ -135,7 +158,7 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
     complete: false
   })
 
-  const mount = ({ catalog, panels, resources, readUserDeclarations }: SessionExtensionSources): void => {
+  const mount = ({ catalog, panels, resources, readUserDeclarations, promptLayer }: SessionExtensionSources): void => {
     ctx.inject(['agents', 'sessions', 'sessionQuery', 'tools'], hostCtx => {
       const eligible = (agent: Agent): boolean => {
         const cwd = agent.session.header.cwd
@@ -157,20 +180,21 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
           },
           {
             ready: candidate => extensionRuntime.ready(candidate),
-            allows: (candidate, resourceId, suiteId) => extensionRuntime.allows(candidate, resourceId, suiteId)
+            allows: (candidate, resourceId, suiteId) => extensionRuntime.allows(candidate, resourceId, suiteId),
+            // A pending catalog read denies every managed capability, and the
+            // model's failure reason must say so rather than telling it to ask
+            // the user to enable a resource that is already enabled.
+            denialReason: candidate => extensionRuntime.denialReason(candidate)
           }
         )
         gates.set(agent, gate)
         return gate
       }
-      const projectReaders = new Map<Agent, ReturnType<typeof createProjectExtensionResources>>()
-      const getProjectReader = (agent: Agent): ReturnType<typeof createProjectExtensionResources> => {
-        const existing = projectReaders.get(agent)
-        if (existing !== undefined) return existing
-        const created = createProjectExtensionResources(catalog, panels, extensionWorkspace(agent))
-        projectReaders.set(agent, created)
-        return created
-      }
+      // One reader per workspace, not per agent: the reader's only session-varying
+      // input is the project directory, and it owns the panel row caches that
+      // absorb repeated scans.
+      const projectReaders = createProjectReaderCache(workspace => createProjectExtensionResources(catalog, panels, workspace))
+      const getProjectReader = (agent: Agent): ReturnType<typeof createProjectExtensionResources> => projectReaders.reader(extensionWorkspace(agent))
       const pendingSelections = new Map<Agent, ExtensionSelection>()
       const readCandidates = async (agent: Agent): Promise<ExtensionSuiteCandidate[]> => {
         const [user, project] = await Promise.all([readUserDeclarations(), catalog.readProjectCatalog(extensionWorkspace(agent))])
@@ -185,6 +209,19 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
       }
       const extensionRuntime = new ExtensionRuntime(hostCtx, {
         dataRoot,
+        // A preset that carries an output style applies it here: the surface selection
+        // cannot, because a style is one choice rather than an on/off row.
+        ...(promptLayer === undefined
+          ? {}
+          : {
+              applyOutputStyle: async (agent: Agent, styleId: string) => {
+                const layer = promptLayer()
+                const workspace = agent.session.header.cwd
+                if (layer === undefined || typeof workspace !== 'string' || !isAbsolute(workspace)) return
+                await layer.selectStyle(workspace, styleId)
+              }
+            }),
+        ...(inventoryRetry === undefined ? {} : { inventoryRetry }),
         // Only an agent with a real absolute workspace is governed. Every other
         // agent keeps the host's own lifecycle: no selection, no gate, no delay.
         eligible,
@@ -224,7 +261,16 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
                   kind,
                   { list: async () => [...(await resources[kind].list(true)), ...(await project.panels[kind].list(true))] }
                 ])
-              ) as Parameters<typeof readExtensionInventory>[0]['panels']
+              ) as Parameters<typeof readExtensionInventory>[0]['panels'],
+              ...(() => {
+                const layer = promptLayer?.()
+                const workspace = agent.session.header.cwd
+                if (layer === undefined || typeof workspace !== 'string' || !isAbsolute(workspace)) return {}
+                return {
+                  outputStyles: () => layer.outputStyles(workspace),
+                  instructions: () => layer.instructions(workspace)
+                }
+              })()
             },
             { projectSuites: listedSuites, hookSuites, candidates, mcpOverrides, lspDisabledIds, sessionId: agent.id, mcpSessionControl: backend === 'builtin' }
           )
@@ -239,11 +285,15 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
         // home directory. A named session only widens the lookup to that workspace's
         // project hooks; it never supplies the run directory.
         hookRun: async input => {
+          // A dry run executes a declared command, so it may only reach a suite the
+          // user actually enabled. `enabledSuites` is what every other surface reads,
+          // and a checked-in but disabled suite is exactly the case where running its
+          // command would be a surprise.
           const suites = [...(await catalog.enabledUserSuites())]
           if (input.sessionId !== undefined) {
             const agent = hostCtx.agents.get(SessionId(input.sessionId))
             const cwd = agent?.session.header.cwd
-            if (typeof cwd === 'string' && isAbsolute(cwd)) suites.push(...(await catalog.readProjectCatalog(cwd)).suites)
+            if (typeof cwd === 'string' && isAbsolute(cwd)) suites.push(...(await catalog.readProjectCatalog(cwd)).enabledSuites)
           }
           const resolved = await resolveHookDeclaration(catalog, suites, input)
           if ('error' in resolved) return hookRunFailure(resolved.error)
@@ -275,7 +325,10 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
               selectedSuites(agent, selection),
               catalog.mcpBackend()
             ])
-            runtime.setCatalogAuthority(candidates, globalSuites)
+            // Seed only: this read belongs to one session, and publishing it as
+            // the process-wide authority would let it narrow what every other
+            // session still has mounted. The catalog pipeline owns replacement.
+            runtime.ensureCatalogAuthority(candidates, globalSuites)
             const shared = suites
               .filter(suite => suite.dimension === 'user')
               .map(suite => (backend === 'builtin' ? suite : { ...suite, mcp: undefined, activeSurfaces: { ...suite.activeSurfaces, mcp: false } }))
@@ -328,7 +381,14 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale }: 
       hostCtx.on('agent/disposed', ({ agent }) => {
         gates.get(agent)?.dispose()
         gates.delete(agent)
-        projectReaders.delete(agent)
+        // A workspace reader is shared, so it outlives the first session that
+        // leaves one. Releasing it only when no other agent names the workspace
+        // keeps the scan for the sessions still reading it.
+        const workspace = extensionWorkspace(agent)
+        projectReaders.release(
+          workspace,
+          hostCtx.agents.list().some(candidate => candidate !== agent && extensionWorkspace(candidate) === workspace)
+        )
         pendingSelections.delete(agent)
         void runtime.releaseSessionDemand(agent).catch(error => ctx.logger.warn(String(error)))
         void contributors.dispose(agent).catch(error => ctx.logger.warn('extension disposal: ' + String(error)))

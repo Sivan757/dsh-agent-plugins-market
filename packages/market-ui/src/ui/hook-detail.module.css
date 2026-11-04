@@ -5,18 +5,21 @@
  * same labelled grid and block rhythm. Values come from the platform tokens
  * only, so dark mode needs no branch.
  */
+/* The sections carry their own top margin (the shared `.block`), so the column
+   adds no second rhythm on top of it. */
 .stack {
   display: flex;
   flex-direction: column;
-  gap: 22px;
 }
 
 .card {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 14px 18px;
-  border-radius: 12px;
+  gap: 6px;
+  /* The leading summary box the market and connector details draw: this one had
+     grown a 14/18 box with a 12px radius of its own. */
+  padding: 12px 14px;
+  border-radius: 10px;
   background: var(--dsw-alias-bg-layer-2);
 }
 
@@ -24,7 +27,7 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 8px;
+  gap: 7px;
 }
 
 .cardName {
@@ -48,15 +51,10 @@
 .pathText {
   color: var(--dsw-alias-label-secondary);
   font-family: ui-monospace, Menlo, Consolas, monospace;
-  font-size: 12.5px;
-  line-height: 19px;
+  /* One size for a monospace value line, the same as the shared .monoBlock. */
+  font-size: 11.5px;
+  line-height: 18px;
   overflow-wrap: anywhere;
-}
-
-.section {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
 }
 
 .sectionHead {
@@ -64,14 +62,6 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-}
-
-.sectionTitle {
-  margin: 0;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 13px;
-  line-height: 20px;
-  font-weight: 500;
 }
 
 .status {

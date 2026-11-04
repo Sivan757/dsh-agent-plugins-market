@@ -225,12 +225,17 @@ function conversationColumn(): HTMLElement | undefined {
 }
 
 /**
- * One class of the page-mode stylesheet. The generated module is an unchecked
- * string map, so a renamed class would otherwise reach the DOM as the literal
- * `undefined`; the surface renders unstyled and says so instead of failing.
+ * The two page-mode classes, named here rather than looked up by string.
+ *
+ * The previous version indexed the stylesheet with a runtime name, which the CSS
+ * class checker cannot follow: it skipped the whole market stylesheet, and every
+ * dead rule in that file went unreported. Naming the map lets the checker read
+ * the file, and the compiler now catches a renamed class instead of the console.
  */
-function cssClass(name: string): string {
-  const value = css[name]
+const PAGE_CLASSES = { pageView: css.pageView, pageEntry: css.pageEntry }
+
+function cssClass(name: keyof typeof PAGE_CLASSES): string {
+  const value = PAGE_CLASSES[name]
   if (value === undefined) {
     console.warn(`[dsh-agent-plugins-market] market.module.css has no class "${name}" — the page-mode surface renders unstyled`)
     return ''

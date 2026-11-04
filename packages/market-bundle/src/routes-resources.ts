@@ -6,6 +6,9 @@
  * handlers live in their own module so the main route table stays untouched
  * by the window; the composition root mounts both under one disposer.
  */
+import { isTrustedMutation } from './request-trust.js'
+import { routeFailurePayload, type RouteLogger } from './route-errors.js'
+import { readJsonBody, sendJson } from './route-http.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { RESOURCE_ROUTES, resolveFavoriteInput } from '../../market-contracts/src/contracts/resource-window.js'
 import type { ResourceFace } from '../../market-contracts/src/contracts/resource-window.js'
@@ -32,9 +35,9 @@ export interface ResourceRouteDeps extends ResourceInventoryDeps {
 
 interface RouteHost {
   webServer: WebServerService
+  /** Receives a failure's full detail, including the paths the browser never sees. */
+  logger?: RouteLogger
 }
-
-const MAX_BODY_BYTES = 64 * 1024
 
 /** Mount the resource-window routes; returns the disposer releasing them all. */
 export function mountResourceRoutes(hostCtx: unknown, deps: ResourceRouteDeps): () => void {
@@ -49,7 +52,7 @@ export function mountResourceRoutes(hostCtx: unknown, deps: ResourceRouteDeps): 
         kind: 'exact',
         path,
         handler: (request, response) => {
-          if (!sameOrigin(request)) {
+          if (!isTrustedMutation(request)) {
             sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
             return
           }
@@ -63,7 +66,7 @@ export function mountResourceRoutes(hostCtx: unknown, deps: ResourceRouteDeps): 
               const value = await handler(body as Record<string, unknown>, request)
               sendJson(response, 200, { ok: true, ...value })
             } catch (error) {
-              sendJson(response, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+              sendJson(response, 400, routeFailurePayload(error, 'route ' + path, host.logger))
             }
           })()
         }
@@ -116,46 +119,4 @@ export function mountResourceRoutes(hostCtx: unknown, deps: ResourceRouteDeps): 
   return () => {
     for (const dispose of disposers) dispose()
   }
-}
-
-function sameOrigin(request: IncomingMessage): boolean {
-  const origin = request.headers['origin']
-  if (origin === undefined) return true
-  try {
-    return new URL(origin).host === request.headers['host']
-  } catch {
-    return false
-  }
-}
-
-/** Parses the request body; `undefined` for an oversized, unparsable, or failed read. */
-function readJsonBody(request: IncomingMessage): Promise<unknown> {
-  return new Promise(resolve => {
-    let size = 0
-    const chunks: Buffer[] = []
-    request.on('data', (chunk: Buffer) => {
-      size += chunk.length
-      if (size > MAX_BODY_BYTES) {
-        resolve(undefined)
-        request.destroy()
-        return
-      }
-      chunks.push(chunk)
-    })
-    request.on('end', () => {
-      if (size > MAX_BODY_BYTES) return
-      try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')))
-      } catch {
-        resolve(undefined)
-      }
-    })
-    request.on('error', () => resolve(undefined))
-  })
-}
-
-function sendJson(response: ServerResponse, status: number, payload: unknown): void {
-  const body = JSON.stringify(payload)
-  response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body) })
-  response.end(body)
 }

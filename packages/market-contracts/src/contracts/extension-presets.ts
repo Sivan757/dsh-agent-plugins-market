@@ -15,6 +15,14 @@ export interface ExtensionSelection {
   presetRevision: number | null
   modified: boolean
   enabledIds: string[]
+  /**
+   * True when the capture is the authority and the live catalog must not add to it.
+   *
+   * A selection that names no preset follows the catalog, so a suite installed mid-session
+   * joins it. One captured from the pre-preset resource filters is the exception: those
+   * filters were the person's own switches, and re-deriving the set would turn them back on.
+   */
+  frozen?: boolean
 }
 
 /** One workspace's preset library; null default captures current global choices at session creation. */
@@ -32,7 +40,7 @@ export interface ExtensionPresetInput {
 export const EXTENSION_TRANSFER_FORMAT = 'dsh-agent-extension-preset'
 export const EXTENSION_TRANSFER_MAX_BYTES = 64 * 1024
 const MAX_ENTRIES = 4096
-const ENTRY_ID = /^(market|skills|commands|agents|mcp|lsp|hooks):.{1,1023}$/u
+const ENTRY_ID = /^(market|skills|commands|agents|mcp|lsp|hooks|instructions|outputStyles):.{1,1023}$/u
 
 /**
  * Which hook events the market runtime runs, per
@@ -178,6 +186,10 @@ export type ExtensionDetail = (
   | { kind: 'panel'; panel: 'skills' | 'commands' | 'agents'; entryId: string }
   | { kind: 'mcp'; entryId: string }
   | { kind: 'lsp'; entryId: string }
+  /** One output style: a preset's single choice, opened by the style's own id. */
+  | { kind: 'outputStyle'; entryId: string }
+  /** One instruction file: listed so the record shows what it covers, not toggled. */
+  | { kind: 'instructions'; entryId: string }
   | {
       kind: 'hook'
       /** The suite whose declaration carries the hook. */
@@ -202,9 +214,41 @@ export type ExtensionDetail = (
     }
 ) & { sessionId?: string }
 
+/**
+ * The surfaces a preset can name.
+ *
+ * The first seven are installable capabilities with an on/off switch. The last two are
+ * the prompt layer: an output style is a single choice, so a preset can carry it, and an
+ * instruction file has no switch at all — a preset lists it so the reader can see what
+ * the record covers, and the resource says why it cannot be toggled.
+ */
+export type ExtensionPresetFace = 'market' | 'skills' | 'commands' | 'agents' | 'mcp' | 'lsp' | 'hooks' | 'instructions' | 'outputStyles'
+
+/** Whether a face is one a preset can switch on and off. */
+export const TOGGLEABLE_FACES: readonly ExtensionPresetFace[] = ['market', 'skills', 'commands', 'agents', 'mcp', 'lsp', 'hooks', 'outputStyles']
+
+/**
+ * The live state a service row is in, in the vocabulary its own panel uses.
+ *
+ * The preset manager renders the same rows the settings panel does, so it needs the same
+ * facts: which state the row is in, why, and how long the last attempt took. The words are
+ * the client's; this record carries only the state and the raw reason.
+ */
+export interface ExtensionRuntime {
+  state: 'connected' | 'starting' | 'failed' | 'degraded' | 'disabled' | 'foreign' | 'orphaned' | 'needs-credentials' | 'unknown'
+  /** The code the runtime recorded for the state, when it recorded one. */
+  code?: string
+  /** The reason the service reported, when it is not connected. */
+  reason?: string
+  /** The messages under the reason, so the same classifier can read them. */
+  causes?: readonly string[]
+  /** How long the last mount attempt took, in milliseconds. */
+  mountMs?: number
+}
+
 export interface ExtensionResource {
   id: string
-  face: 'market' | 'skills' | 'commands' | 'agents' | 'mcp' | 'lsp' | 'hooks'
+  face: ExtensionPresetFace
   /** Local configuration is not a market offering. Resource ids and parent gates remain stable. */
   configuration?: 'project' | 'user-hooks'
   name: string
@@ -230,6 +274,12 @@ export interface ExtensionResource {
   followsSuite?: boolean
   /** A surface that cannot be controlled safely must explain why, not pretend to toggle. */
   unavailableReason?: string
+  /** The transport a service row declares, as its panel shows it on the meta line. */
+  transport?: string
+  /** How many tools the service exposes, when the panel counts them. */
+  toolCount?: number
+  /** Live runtime facts for a service row; absent for a resource with no process behind it. */
+  runtime?: ExtensionRuntime
   detail: ExtensionDetail
 }
 
@@ -245,8 +295,15 @@ export interface ExtensionWindowPayload {
   busy: boolean
   library: ExtensionPresetLibrary
   state: ExtensionSessionSnapshot
-  /** While not ready, state is a display-only recovery snapshot, never effective authorization. */
-  status?: { ready: boolean; revision: number; recoverable: boolean; error?: string; selection?: ExtensionSelection }
+  /**
+   * While not ready, state is a display-only recovery snapshot, never effective
+   * authorization.
+   *
+   * `inventoryPending` is the third state a person has to tell apart: the
+   * session is ready, but its catalog read is still in flight, so every managed
+   * capability is denied for a moment and comes back without any action.
+   */
+  status?: { ready: boolean; revision: number; recoverable: boolean; error?: string; inventoryPending?: boolean; selection?: ExtensionSelection }
   /**
    * The selection a request made mid-turn will commit at the next safe boundary.
    * Absent when nothing is pending: `state` stays the effective selection until then.

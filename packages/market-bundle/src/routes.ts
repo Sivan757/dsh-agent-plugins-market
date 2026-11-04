@@ -6,11 +6,14 @@
  * cross-site form or fetch cannot trigger a clone, an uninstall, or an
  * enable/disable against a local profile.
  */
+import { isTrustedMutation } from './request-trust.js'
+import { queryOf, readJsonBody, sendJson } from './route-http.js'
 import { isAbsolute } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { MARKET_ROUTES, userPanelRoute, type UserPanelKind } from '../../market-contracts/src/contracts/market.js'
 import { expandHome } from '../../market-catalog/src/index.js'
 import { sanitizeOverridePatch } from '../../market-mcp/src/index.js'
+import { routeFailurePayload, type RouteLogger } from './route-errors.js'
 import type { MarketService } from '../../market-contracts/src/ports/queries.js'
 import type { SourcePatch } from '../../market-contracts/src/ports/ports.js'
 import type { SourceKind, SuiteSurfaceKey } from '../../market-contracts/src/model/types.js'
@@ -21,8 +24,6 @@ import type { ProjectExtensionReader } from './application/extension-project.js'
 import type { McpStatusPayload } from '../../market-mcp/src/index.js'
 import type { LspStatusPayload } from '../../market-contracts/src/contracts/lsp-status.js'
 
-const MAX_BODY_BYTES = 64 * 1024
-
 export interface WebServerService {
   register(route: { kind: 'exact' | 'prefix'; path: string; handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void> }): () => void
 }
@@ -30,6 +31,8 @@ export interface WebServerService {
 interface RouteHost {
   webServer: WebServerService
   get?(name: string): unknown
+  /** Receives a failure's full detail, including the paths the browser never sees. */
+  logger?: RouteLogger
 }
 
 /** Recount a merged MCP view so its totals describe the entries actually returned. */
@@ -95,7 +98,7 @@ export function mountSuiteRoutes(
         kind: 'exact',
         path,
         handler: (request, response) => {
-          if (!sameOrigin(request)) {
+          if (!isTrustedMutation(request)) {
             sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
             return
           }
@@ -110,13 +113,9 @@ export function mountSuiteRoutes(
               sendJson(response, 200, { ok: true, ...value })
             } catch (error) {
               // A rejection that names its fields travels with them, so the editor
-              // can place each reason beside the input it belongs to.
-              const fields = (error as { fields?: unknown }).fields
-              sendJson(response, 400, {
-                ok: false,
-                error: error instanceof Error ? error.message : String(error),
-                ...(Array.isArray(fields) ? { fields } : {})
-              })
+              // can place each reason beside the input it belongs to. A message
+              // that names a filesystem path does not cross; its detail is logged.
+              sendJson(response, 400, routeFailurePayload(error, 'POST ' + path, host.logger))
             }
           })()
         }
@@ -192,7 +191,7 @@ export function mountSuiteRoutes(
       const query = queryOf(request)
       sendJson(response, 200, await readModelCatalog(host, query.get('provider') || undefined, query.get('model') || undefined))
     } catch (error) {
-      sendJson(response, 503, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      sendJson(response, 503, routeFailurePayload(error, 'GET ' + MARKET_ROUTES.modelCatalog, host.logger))
     }
   })
 
@@ -219,7 +218,7 @@ export function mountSuiteRoutes(
       if (kind !== 'mcp' && kind !== 'lsp') throw new Error('invalid service kind')
       sendJson(response, 200, await manager.serverConfig(kind, query.get('id') ?? '', query.get('create') === 'true'))
     } catch (error) {
-      sendJson(response, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      sendJson(response, 400, routeFailurePayload(error, 'GET ' + MARKET_ROUTES.serverConfig, host.logger))
     }
   })
   post(MARKET_ROUTES.saveServerConfig, async body => {
@@ -314,7 +313,7 @@ export function mountSuiteRoutes(
         )
       )
     } catch (error) {
-      sendJson(response, 404, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      sendJson(response, 404, routeFailurePayload(error, 'GET ' + MARKET_ROUTES.suite, host.logger))
     }
   })
 
@@ -344,7 +343,7 @@ export function mountSuiteRoutes(
         )
       )
     } catch (error) {
-      sendJson(response, 404, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      sendJson(response, 404, routeFailurePayload(error, 'GET ' + MARKET_ROUTES.suiteDocument, host.logger))
     }
   })
 
@@ -481,7 +480,7 @@ export function mountSuiteRoutes(
     try {
       sendJson(response, 200, { ok: true, overrides: await manager.mcpOverrides(sourceId, suiteId) })
     } catch (error) {
-      sendJson(response, 404, { ok: false, error: error instanceof Error ? error.message : String(error) })
+      sendJson(response, 404, routeFailurePayload(error, 'GET ' + MARKET_ROUTES.mcpOverrides, host.logger))
     }
   })
 
@@ -544,13 +543,6 @@ export function mountSuiteRoutes(
     sendJson(response, 200, await manager.mcpBackendInfo())
   })
 
-  post(MARKET_ROUTES.setMcpBackend, async body => {
-    const backend = body['backend']
-    if (backend !== 'builtin' && backend !== 'host') throw new Error('backend must be "builtin" or "host"')
-    await manager.setMcpBackend(backend)
-    return await manager.mcpBackendInfo()
-  })
-
   // Validate and persist the user's direct LSP server table; the reconcile
   // pass picks it up and mounts it alongside the suite declarations. The
   // mutation path is distinct from the read path: the webserver's exact table
@@ -570,6 +562,15 @@ export function mountSuiteRoutes(
     const enabled = body['enabled']
     if (typeof enabled !== 'boolean') throw new Error('missing boolean enabled')
     await manager.setLspServerEnabled(id, enabled)
+    return {}
+  })
+  // Manual LSP rebuild: tears down and re-mounts the named language server, or
+  // every live one when the body names none, without touching any catalog
+  // state. The seam exposes no death signal, so a provider whose process died
+  // keeps matching its own config until this runs.
+  post(MARKET_ROUTES.lspRestart, async body => {
+    const id = body['id'] === undefined ? undefined : textField(body['id'], 'LSP server id').trim()
+    await manager.restartLspServers(id === '' ? undefined : id)
     return {}
   })
   // Upgrade repair: drop the hand-written profile layer an older release told
@@ -721,51 +722,4 @@ function parseSha256(raw: unknown): string | undefined {
   const value = textField(raw, 'sha256').trim().toLowerCase()
   if (!/^[0-9a-f]{64}$/.test(value)) throw new Error('sha256 must be a 64-character hex digest')
   return value
-}
-
-function sameOrigin(request: IncomingMessage): boolean {
-  const origin = request.headers['origin']
-  if (origin === undefined) return true
-  try {
-    return new URL(origin).host === request.headers['host']
-  } catch {
-    return false
-  }
-}
-
-/** Parses the request body; `undefined` for an oversized, unparsable, or failed read. */
-function readJsonBody(request: IncomingMessage): Promise<unknown> {
-  return new Promise(resolve => {
-    let size = 0
-    const chunks: Buffer[] = []
-    request.on('data', (chunk: Buffer) => {
-      size += chunk.length
-      if (size > MAX_BODY_BYTES) {
-        resolve(undefined)
-        request.destroy()
-        return
-      }
-      chunks.push(chunk)
-    })
-    request.on('end', () => {
-      if (size > MAX_BODY_BYTES) return
-      try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')))
-      } catch {
-        resolve(undefined)
-      }
-    })
-    request.on('error', () => resolve(undefined))
-  })
-}
-
-/** Parse the query string of one request into a URLSearchParams. */
-function queryOf(request: IncomingMessage): URLSearchParams {
-  return new URL(request.url ?? '/', 'http://dsh.local').searchParams
-}
-
-function sendJson(response: ServerResponse, status: number, payload: unknown): void {
-  const body = JSON.stringify(payload)
-  response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body) })
-  response.end(body)
 }

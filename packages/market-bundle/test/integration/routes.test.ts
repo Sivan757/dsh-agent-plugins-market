@@ -50,6 +50,7 @@ function service(): MarketService {
     setLspServerEnabled: async () => {},
     migrateLegacyLspSeam: async profile => ({ profile, patchPath: '/p/cordis.patch.yml', backupPath: '/p/cordis.patch.yml.bak', restartRequired: false }),
     retryMounts: async () => {},
+    restartLspServers: async () => {},
     reauthorizeMcpServer: async () => {},
     mcpReauthorizeAvailable: () => true,
     mcpBackendInfo: async () => ({
@@ -57,7 +58,6 @@ function service(): MarketService {
       hostClient: { available: true, version: '0.1.1-rc.2' },
       downloadRegion: { setting: 'auto' as const, effective: 'global' as const }
     }),
-    setMcpBackend: async () => {},
     menuRowFaces: async () => [],
     notifyPanelsChanged: async () => {}
   }
@@ -180,7 +180,7 @@ describe('market HTTP routes', () => {
     // constants whose own module mounts them: the user panel routes appear only
     // when a panel store set is provided, and the tab-layout pair belongs to
     // its own module. The strict mock reproduces that duplicate-throw contract.
-    const mountedElsewhere = new Set<string>([MARKET_ROUTES.userPanel, MARKET_ROUTES.tabLayout, MARKET_ROUTES.setTabLayout])
+    const mountedElsewhere = new Set<string>([MARKET_ROUTES.userPanel, MARKET_ROUTES.tabLayout, MARKET_ROUTES.setTabLayout, MARKET_ROUTES.setTabOrder])
     expect([...routes.keys()].sort()).toEqual(
       [...Object.values(MARKET_ROUTES).filter(path => !mountedElsewhere.has(path)), `${MARKET_ROUTES.lspServers}/save`, `${MARKET_ROUTES.lspServers}/enabled`].sort()
     )
@@ -193,6 +193,35 @@ describe('market HTTP routes', () => {
     await routes.get(MARKET_ROUTES.mcpRetry)?.(postRequest(MARKET_ROUTES.mcpRetry, {}), retryResponse)
     await settle()
     expect(retryResponse.value()).toMatchObject({ ok: true })
+
+    // Manual LSP restart: same-origin POST rebuilds the named language-server
+    // mount, or every live one when the body names none. It is the one recovery
+    // action the seam can offer, because nothing observes a language-server
+    // process after its mount succeeds.
+    const lspRestartCalls: Array<string | undefined> = []
+    const restartRoutes: RouteTable = new Map()
+    const disposeRestart = mountSuiteRoutes(
+      { webServer: strictWebServer(restartRoutes) },
+      {
+        ...service(),
+        restartLspServers: async (id?: string) => {
+          lspRestartCalls.push(id)
+        }
+      }
+    )
+    const lspRestartResponse = response()
+    await restartRoutes.get(MARKET_ROUTES.lspRestart)?.(postRequest(MARKET_ROUTES.lspRestart, {}), lspRestartResponse)
+    await settle()
+    expect(lspRestartResponse.value()).toMatchObject({ ok: true })
+    expect(lspRestartCalls).toEqual([undefined])
+    // A named restart carries the row id, so restarting one service in its
+    // dialog leaves every other language server's in-flight work alone.
+    const namedRestart = response()
+    await restartRoutes.get(MARKET_ROUTES.lspRestart)?.(postRequest(MARKET_ROUTES.lspRestart, { id: 'official/lsp-suite/ts' }), namedRestart)
+    await settle()
+    expect(namedRestart.value()).toMatchObject({ ok: true })
+    expect(lspRestartCalls).toEqual([undefined, 'official/lsp-suite/ts'])
+    disposeRestart()
 
     // Re-authorize: drops the grant record for the named server.
     const reauthCalls: Array<string> = []
@@ -222,7 +251,7 @@ describe('market HTTP routes', () => {
     expect(reauthRoutes.size).toBe(0)
   })
 
-  it('serves the MCP backend block and validates backend switches', async () => {
+  it('serves the MCP backend block', async () => {
     const routes: RouteTable = new Map()
     const webServer = strictWebServer(routes)
     const dispose = mountSuiteRoutes({ webServer }, service())
@@ -230,17 +259,6 @@ describe('market HTTP routes', () => {
     const getResponse = response()
     await routes.get(MARKET_ROUTES.mcpBackend)?.({ url: MARKET_ROUTES.mcpBackend, headers: {} }, getResponse)
     expect(getResponse.value()).toMatchObject({ backend: 'builtin', hostClient: { available: true, version: '0.1.1-rc.2' } })
-
-    const postResponse = response()
-    await routes.get(MARKET_ROUTES.setMcpBackend)?.(postRequest(MARKET_ROUTES.setMcpBackend, { backend: 'host' }), postResponse)
-    await settle()
-    expect(postResponse.value()).toMatchObject({ ok: true, backend: 'builtin' })
-
-    // An unknown backend value is rejected with a 400 payload.
-    const badResponse = response()
-    await routes.get(MARKET_ROUTES.setMcpBackend)?.(postRequest(MARKET_ROUTES.setMcpBackend, { backend: 'nope' }), badResponse)
-    await settle()
-    expect(badResponse.value()).toMatchObject({ ok: false })
 
     dispose()
     expect(routes.size).toBe(0)
@@ -688,7 +706,9 @@ describe('market HTTP routes', () => {
       const output = response()
       await routes.get(MARKET_ROUTES.setMcpServerTool)!(postRequest(MARKET_ROUTES.setMcpServerTool, { suiteId: 'demo/suite', serverKey: 'db', tool: '', enabled: true }), output)
       await settle()
-      expect(output.value()).toEqual({ ok: false, error: 'missing MCP tool name' })
+      // An authored validation message keeps its text, and every failure now
+      // carries the stable code the browser branches on.
+      expect(output.value()).toEqual({ ok: false, code: 'request-failed', error: 'missing MCP tool name' })
     } finally {
       dispose()
     }

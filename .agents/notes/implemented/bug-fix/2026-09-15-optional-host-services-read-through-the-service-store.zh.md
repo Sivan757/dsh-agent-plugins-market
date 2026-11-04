@@ -9,8 +9,8 @@ Status: implemented
 Cordis 解析 `ctx.<name>` 时沿**读取方 fiber 的祖先**向上查找，返回第一个 store 中带该名字的祖先。由**兄弟** fiber 提供的服务对这条链路不可见，走到根 fiber 即抛错。宿主正是从兄弟 fiber 提供 `shell`（bash 沙箱）与 `tools`（工具注册表），于是这些读取在各自的位置上都抛错：
 
 - `packages/market-bundle/src/index.ts` 以 `(ctx as unknown as { shell?: ShellSeam }).shell` 解析 shell seam，所在 entry fiber 的 `inject` 只有 `['skills','commands']` —— 这是 `SuiteSkillProvider.get()` 的路径，也就是每一个 market 提供的技能正文。
-- `src/runtime/commands-mounts.ts` 以 `(this.ctx as unknown as { shell?: ShellSeam }).shell` 解析同一个 seam，既落在 entry fiber 上，也落在项目挂载自己的 `['commands']` scope 上 —— 这是每一条套件斜杠命令的路径，且在检查正文里有没有占位符之前就执行。
-- `src/runtime/feedback-tool.ts` 在 entry fiber 上读取 `(hostCtx as unknown as ToolsHost).tools`。`syncFeedbackTool` 把异常吞掉，于是日志里不是预期的「宿主没有工具注册表」，而是每次设置同步都出现 `feedback tool mount failed: cannot get property "tools" without inject`，`report_market_issue` 从未注册成功。
+- `packages/market-runtime/src/runtime/surfaces/commands-mounts.ts` 以 `(this.ctx as unknown as { shell?: ShellSeam }).shell` 解析同一个 seam，既落在 entry fiber 上，也落在项目挂载自己的 `['commands']` scope 上 —— 这是每一条套件斜杠命令的路径，且在检查正文里有没有占位符之前就执行。
+- `packages/market-bundle/src/platform/feedback-tool.ts` 在 entry fiber 上读取 `(hostCtx as unknown as ToolsHost).tools`。`syncFeedbackTool` 把异常吞掉，于是日志里不是预期的「宿主没有工具注册表」，而是每次设置同步都出现 `feedback tool mount failed: cannot get property "tools" without inject`，`report_market_issue` 从未注册成功。
 
 测试三处都没拦住，原因相同：它们交给被测代码的是**普通对象**，服务直接挂在对象上。普通对象没有代理陷阱，`stub.shell` 要么读出 `undefined`、要么直接可用，而真实挂载的插件会抛错。`packages/market-bundle/test/integration/plugin-apply.test.ts` 把这个错误写在了注释里——它说自己的 stub「像宿主的服务代理一样把 tools 服务直接暴露在插件上下文上」，而代理对于 fiber 未 inject 的服务恰恰不会这样做。
 
@@ -22,9 +22,9 @@ Cordis 解析 `ctx.<name>` 时沿**读取方 fiber 的祖先**向上查找，返
 
 `ctx.get(name)` 读的是按 isolate 键索引的全局服务表而非祖先遍历，宿主未提供该服务时给出 `undefined`，并且仍然对提供方 fiber 的 active 状态保持严格。`inject` 只用于硬依赖。
 
-- `src/runtime/dynamic-context.ts` 的 `shellSeamOf(ctx)` 是解析 shell seam 的唯一位置；entry 与 `CommandMountRegistry` 都调用它。
-- `src/runtime/tool-registry-observer.ts` 的 `toolsServiceOf(ctx)` 原本就以这种方式为 MCP 状态面板读取 `tools`，现在也支撑 `mountFeedbackTool`。
-- `src/runtime/timer-seat.ts` 的 `seatOf(ctx)` 最先采用这个写法，也是设置 Note 记录下来的那一次。
+- `packages/market-runtime/src/runtime/surfaces/dynamic-context.ts` 的 `shellSeamOf(ctx)` 是解析 shell seam 的唯一位置；entry 与 `CommandMountRegistry` 都调用它。
+- `packages/market-runtime/src/runtime/host/tool-registry-observer.ts` 的 `toolsServiceOf(ctx)` 原本就以这种方式为 MCP 状态面板读取 `tools`，现在也支撑 `mountFeedbackTool`。
+- `packages/market-runtime/src/runtime/core/timer-seat.ts` 的 `seatOf(ctx)` 最先采用这个写法，也是设置 Note 记录下来的那一次。
 
 **测试的对象是拓扑，不是被测函数。** `packages/market-bundle/test/integration/host-service-seam.test.ts` 挂载一棵真实的 Cordis 树：`shell`、`tools`、`skills`、`commands` 各自来自读取方的**兄弟** fiber，然后跑通三条生产路径——entry 注册的技能 provider 加载正文里带 `` !`cmd` `` 占位符的技能、`CommandMountRegistry` 转发注入后的命令正文、`mountFeedbackTool` 在工具服务上完成注册。每个用例同时钉住陷阱本身：同一 fiber 上的属性读取会抛 `without inject`，这样「为什么要从服务表读」的理由不会随时间消失。entry 用例挂载的插件对象由 entry 自己导出的 `name`/`inject`/`apply` 组成，因此后来往注入列表里加服务、或者把某个可选服务当属性读，都会按 loader 的真实方式被执行到。
 
@@ -40,9 +40,9 @@ Cordis 解析 `ctx.<name>` 时沿**读取方 fiber 的祖先**向上查找，返
 
 ## Consequences
 
-套件技能与命令恢复加载（含动态上下文），反馈工具恢复注册。每处读取都是一次调用，祖先遍历的陷阱记在解析处而不是各个调用点。`src/runtime/feedback-tool.ts` 去掉了自己的 `ToolsHost` 外壳，直接从 `toolsServiceOf` 取那段注册表切片。
+套件技能与命令恢复加载（含动态上下文），反馈工具恢复注册。每处读取都是一次调用，祖先遍历的陷阱记在解析处而不是各个调用点。`packages/market-bundle/src/platform/feedback-tool.ts` 去掉了自己的 `ToolsHost` 外壳，直接从 `toolsServiceOf` 取那段注册表切片。
 
-`src/**` 其余的服务读取，要么发生在该 fiber 已注入的地方（`ctx.inject` 下的 `tools`、`llm`、`subagents`、`agents`，各自 inject 下的 `webServer` 与 `loader`，entry 与项目 scope 上的 `commands`，套件指令 scope 上的 `systemPrompt`），要么走 `ctx.get`（凭据存储的 `credentials`、模型目录里的 `llm`、经由 seat 的 `timer`、经 `src/runtime/host-locale.ts` 语言来源的 `settings`）。浏览器半边还有一处字面上的越界：`packages/market-ui/src/index.ts` 在一个只注入 `settingsScope` 的子 scope 上读取 `slots`；它从父级 client-root fiber 的 store 解析得到，所以当前可用，下次改动该文件时应把它归入那个子 scope 自己的 `inject`。
+`src/**` 其余的服务读取，要么发生在该 fiber 已注入的地方（`ctx.inject` 下的 `tools`、`llm`、`subagents`、`agents`，各自 inject 下的 `webServer` 与 `loader`，entry 与项目 scope 上的 `commands`，套件指令 scope 上的 `systemPrompt`），要么走 `ctx.get`（凭据存储的 `credentials`、模型目录里的 `llm`、经由 seat 的 `timer`、经 `packages/market-runtime/src/runtime/host/host-locale.ts` 语言来源的 `settings`）。浏览器半边还有一处字面上的越界：`packages/market-ui/src/index.ts` 在一个只注入 `settingsScope` 的子 scope 上读取 `slots`；它从父级 client-root fiber 的 store 解析得到，所以当前可用，下次改动该文件时应把它归入那个子 scope 自己的 `inject`。
 
 只记录、不改动：entry 的 `inject = ['skills','commands']` 让 `commands` 成为硬门，而三处代码把它当作可选（`CommandMountRegistry` 的「此 profile 没有 `ctx.commands`」诊断、`UserCommandMountRegistry`、以及 entry 自己的诊断）。这些兜底恰恰在 `commands` 缺席时不可达。移动这道门属于激活语义的决定，不在本次修复范围内。
 

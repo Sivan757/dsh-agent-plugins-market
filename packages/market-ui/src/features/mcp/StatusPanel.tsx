@@ -1,33 +1,29 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, IconEditOutlineMedium, IconTrashOutlineMedium, Switch } from '@deepseek-ai/dsh-client-ui-primitives'
-import { ConfirmModal, PanelActions, PanelHeader, type PanelConfirmState } from '../../ui/panel.js'
+import { ConfirmModal, PanelActions, PanelHeader, ReadFailed, type PanelConfirmState } from '../../ui/panel.js'
 import type { Translate } from '../../i18n.js'
 import type { CredentialApi } from '../../credentials.js'
 import { fetchMcpStatus, reauthorizeMcpServer, removeMcpServer, retryMcpMounts, setMcpServerEnabled, type McpStatusEntry, type McpStatusPayload } from '../../api.js'
-import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
-import { CardIdentity, interactiveCardProps, ResourceCard, ResourceCollection } from '../../ui/ResourceCard.js'
-import { useWorkspaceView } from '../../ui/workspace-view.js'
+import { ResourceSurface } from '../../ui/ResourceSurface.js'
+import { buildFaceEntry, type FaceRowFacts } from '../../ui/face-entry.js'
+import panelCss from '../../ui/panel.module.css'
 import { pollUntilTranslated } from '../../ui/translation-settle.js'
-import { deriveMcpStatusViewModel, MCP_FILTERS, type McpStatusFilter } from './mcp-status-view-model.js'
-import { mcpCardState, mcpDisplayName } from './state-helpers.js'
+import { nextConnectionRead } from './mcp-status-view-model.js'
+import { surfaceProviderCuts } from '../../ui/surface-facets.js'
+import { mcpConnectionNote, mcpDisplayName, mcpStateLabel } from './state-helpers.js'
 import { withBusyOperation } from '../../ui/busy-operation.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
 import { useTranslationRefresh } from '../../ui/translation-enabled.js'
-import { hintProps, hoverHint } from '../../ui/hover-hint.js'
 import { McpDetailModal } from './McpDetailModal.js'
 import { McpConfigModal } from './McpConfigModal.js'
 import { McpAddModal } from './McpAddModal.js'
 import css from './mcp-status.module.css'
-import rc from '../../ui/resource-card.module.css'
 
 interface McpStatusPanelProps {
   t: Translate
   credentials?: CredentialApi
 }
-
-type Filter = McpStatusFilter
 
 const EMPTY_STATUS: McpStatusPayload = {
   entries: [],
@@ -41,9 +37,6 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
   const [payload, setPayload] = useState<McpStatusPayload>(EMPTY_STATUS)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | undefined>(undefined)
-  const [filter, setFilter] = useState<Filter>('all')
-  const [search, setSearch] = useState('')
-  const [view, setView] = useWorkspaceView()
   const [selected, setSelected] = useState<McpStatusEntry | undefined>(undefined)
   const [editing, setEditing] = useState<McpStatusEntry>()
   const [confirmDelete, setConfirmDelete] = useState<PanelConfirmState>()
@@ -139,11 +132,14 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       // A deleted row must not stay open behind the list.
       setSelected(current => (current?.id === entry.id ? undefined : current))
     } catch (caught) {
+      // Close the dialog so the panel's own error line, with its retry, is
+      // visible: the failure would otherwise sit behind the dialog that asked.
       setError(clientErrorMessage(t, caught))
+      setSelected(current => (current?.id === entry.id ? undefined : current))
     }
   }
 
-  /** Deleting is irreversible, so the card asks through the shared confirmation. */
+  /** Deleting is irreversible, so the detail asks through the shared confirmation. */
   const askDelete = (entry: McpStatusEntry): void => {
     const name = mcpDisplayName(entry)
     setConfirmDelete({
@@ -155,12 +151,12 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
 
   // Written through the suite's override record, so the suite's own `mcp.json`
   // stays source-owned. Disabled servers are not mounted at all.
-  const toggle = (entry: McpStatusEntry): void => {
+  const toggle = (entry: McpStatusEntry, enabled: boolean): void => {
     const suiteId = entry.suiteId
     const serverKey = entry.serverKey
     if (suiteId === undefined || serverKey === undefined) return
     setError(undefined)
-    withBusyOperation(() => setMcpServerEnabled(suiteId, serverKey, entry.state === 'disabled'))
+    withBusyOperation(() => setMcpServerEnabled(suiteId, serverKey, enabled))
       .then(() => fetchMcpStatus())
       .then(setPayload)
       .catch(caught => {
@@ -177,16 +173,91 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
     }
   }, [])
 
-  const { activeEntries, filtered, filterCounts } = deriveMcpStatusViewModel(payload, filter, search)
-  // The filter tablist names this region, and the host derives its panel id
-  // (`<filterId>-<value>-panel`) from the same base the toolbar receives.
-  const filterId = 'mcp-status-filter'
-  const panelProps = {
-    role: 'tabpanel' as const,
-    id: `${filterId}-${filter}-panel`,
-    'aria-labelledby': `${filterId}-${filter}`
-  }
+  // A reconnecting row moves on its own, and the supervisor says when it will
+  // try again. Sleep until just after that attempt instead of polling: a minute
+  // of backoff costs one read, not forty. A row that names no time keeps a short
+  // interval, and a healthy or stopped row costs no reads at all.
+  const nextRead = nextConnectionRead(payload)
+  useEffect(() => {
+    if (nextRead === undefined) return
+    const timer = setTimeout(() => {
+      refresh()
+    }, nextRead)
+    return () => {
+      clearTimeout(timer)
+    }
+  }, [nextRead, payload])
 
+  // The countdown in that sentence has to move, or "45 秒后重试" would sit there
+  // reading 45 long after the attempt was due. One tick per second, only while a
+  // row is actually waiting.
+  const waiting = payload.entries.some(entry => entry.connection?.retryAt !== undefined && entry.connection.retryAt > Date.now())
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    if (!waiting) return
+    const timer = setInterval(() => setNow(Date.now()), 1_000)
+    return () => clearInterval(timer)
+  }, [waiting, payload])
+
+  // The renderer owns the toolbar, the filters, the search and the collection;
+  // this panel maps its rows onto the shared entry contract and keeps only the
+  // domain work (open, toggle, edit) and the dialogs.
+  const byId = new Map(payload.entries.map(entry => [entry.id, entry]))
+  /**
+   * This panel's rows, adapted onto the facts the preset manager reads too.
+   *
+   * The card itself is the shared builder's work: the same rail, the same failure sentence, the
+   * same switch verb on both surfaces. What stays here is what only this panel knows — the live
+   * word for each state, the retry the failed row carries, and the handlers.
+   */
+  const factsOf = (entry: McpStatusEntry): FaceRowFacts => {
+    // One sentence for the card and the detail band: the live supervisor's phase when the
+    // connection dropped, absent otherwise.
+    const connectionNote = mcpConnectionNote(t, entry, now)
+    const switchable = entry.suiteId !== undefined && entry.serverKey !== undefined && entry.state !== 'foreign'
+    return {
+      surface: 'mcp',
+      provider: entry.kind === 'plugin' ? 'suite' : 'user',
+      id: entry.id,
+      name: mcpDisplayName(entry),
+      ...(entry.name === mcpDisplayName(entry) ? {} : { hint: entry.name }),
+      mono: true,
+      monoBody: connectionNote === undefined,
+      tag: entry.kind === 'plugin' ? t('mcpPlugin') : t('mcpDirect'),
+      description: connectionNote ?? entry.endpoint ?? t('mcpObservedEndpoint'),
+      meta: entry.transport,
+      counts: [{ label: entry.tools.length === 1 ? t('mcpTool') : t('mcpTools'), count: entry.tools.length }],
+      keywords: [entry.name, entry.endpoint ?? '', entry.transport, entry.reason ?? '', ...(entry.credentialRefs ?? [])].join(' '),
+      showSwitch: switchable,
+      on: entry.state !== 'disabled',
+      live: {
+        state: entry.state,
+        ...(entry.code === undefined ? {} : { code: entry.code }),
+        ...(entry.reason === undefined ? {} : { reason: entry.reason }),
+        ...(entry.causes === undefined ? {} : { causes: entry.causes }),
+        ...(entry.mountMs === undefined ? {} : { mountMs: entry.mountMs })
+      },
+      liveWord: mcpStateLabel(t, entry.state)
+    }
+  }
+  const entries = payload.entries.map(entry => {
+    const switchable = entry.suiteId !== undefined && entry.serverKey !== undefined && entry.state !== 'foreign'
+    const disabled = entry.state === 'disabled'
+    return {
+      ...buildFaceEntry(t, factsOf(entry), 'settings'),
+      chip: true,
+      source: entry.kind === 'plugin' ? (entry.suiteId ?? entry.source ?? '—') : t('mcpDirect'),
+      // The row that failed carries the action that fixes it: the state word names the
+      // problem, and the retry used to live only in the row's dialog. The retry checks every
+      // managed service (its own hint says so), which is what the detail offers too.
+      ...(entry.state === 'failed' || entry.state === 'degraded'
+        ? { primary: { label: t('mcpRetryConnection'), title: t('mcpRetryPreservesCredentials'), onSelect: () => void retry(entry.id) } }
+        : {}),
+      canEdit: switchable,
+      ...(switchable ? {} : { hideToggle: true }),
+      ...(disabled ? {} : {})
+    }
+  })
   return h(
     'div',
     { className: css.surface },
@@ -196,50 +267,49 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       subtitle: t('mcpStatusSubtitle'),
       actions: h(PanelActions, { addLabel: t('panelAdd'), onAdd: () => setAdding(true), refreshLabel: t('refresh'), onRefresh: refresh, busy: loading })
     }),
-    h(SearchFilterToolbar, {
-      className: css.toolbar,
-      search,
+    // Which backend mounts these servers is a setting this page cannot change, but it
+    // decides whether a startup timeout or a tool filter is enforced at all. Saying it
+    // here keeps a reader from configuring a policy the backend silently ignores.
+    payload.backend === 'host' ? h('p', { className: panelCss.subtitle, 'data-mcp-backend': 'host' }, t('mcpHostToolsUnsupported')) : null,
+    // The last read's failure stays visible above the list: a stale row is
+    // still worth seeing, and the retry sits where the failure is.
+    error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
+    h(ResourceSurface, {
+      t,
+      entries,
+      capabilities: { toggle: true, counts: true },
       searchLabel: t('mcpSearch'),
       searchPlaceholder: t('mcpSearch'),
-      onSearchChange: setSearch,
-      filters: MCP_FILTERS.map(kind => ({
-        id: kind,
-        label: filterLabel(t, kind),
-        count: filterCounts[kind],
-        active: filter === kind,
-        onSelect: () => setFilter(kind),
-        hint: mcpFilterHint(t, kind)
-      })),
-      // The panel's own title names the filter segment for assistive tech.
-      filterId,
-      filterLabel: t('mcpStatusTitle'),
-      view,
+      // A failed read has no counts to offer: three tabs reading 0 would state
+      // the same false fact the empty text did.
+      // The shared provider facet: a failed connector is found by its rail and its state
+      // word, so the panel no longer hides rows behind a "needs attention" cut.
+      filters: surfaceProviderCuts('mcp', t, id => (byId.get(id)?.kind === 'plugin' ? 'suite' : 'user')),
+      beforeView: h(BilingualToggle, { t, showOriginal, onToggle: flipOriginal }),
       toListLabel: t('switchToList'),
       toGridLabel: t('switchToGrid'),
-      onViewChange: nextView => setView(nextView),
-      beforeView: h(BilingualToggle, { t, showOriginal, onToggle: flipOriginal })
+      // A read that failed has no rows because nothing was read, not because the
+      // connectors are gone: saying 没有匹配的连接器 would answer a question the
+      // reader never asked and hide the failure the alert above already reports.
+      emptyText: payload.entries.length === 0 && error !== undefined ? t('statusUnreadable') : loading && payload.entries.length === 0 ? t('loading') : t('mcpEmpty'),
+      onOpen: id => {
+        const row = byId.get(id)
+        if (row !== undefined) setSelected(row)
+      },
+      onToggle: (id, enabled) => {
+        const row = byId.get(id)
+        if (row !== undefined) toggle(row, enabled)
+      },
+      onEdit: id => {
+        const row = byId.get(id)
+        if (row !== undefined) setEditing(row)
+      },
+      isOn: id => byId.get(id)?.state !== 'disabled',
+      isToggleDisabled: id => {
+        const row = byId.get(id)
+        return row === undefined || row.suiteId === undefined || row.serverKey === undefined || row.state === 'foreign'
+      }
     }),
-    error !== undefined
-      ? h('div', { className: css.error, ...panelProps }, error, h(Button, { variant: 'ghost', size: 'sm', onClick: refresh }, t('mcpRetry')))
-      : loading && activeEntries.length === 0
-        ? h('div', { className: css.empty, ...panelProps }, t('loading'))
-        : filtered.length === 0
-          ? h('div', { className: css.empty, ...panelProps }, t('mcpEmpty'))
-          : h(
-              ResourceCollection,
-              { view, ...panelProps },
-              filtered.map(entry =>
-                h(McpCard, {
-                  key: entry.id,
-                  entry,
-                  t,
-                  onClick: () => setSelected(entry),
-                  onToggle: () => toggle(entry),
-                  onEdit: () => setEditing(entry),
-                  ...(deletable(entry) ? { onDelete: () => askDelete(entry) } : {})
-                })
-              )
-            ),
     adding
       ? h(McpAddModal, {
           t,
@@ -255,6 +325,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       ? null
       : h(McpDetailModal, {
           entry: selected,
+          now,
           t,
           backend: payload.backend ?? 'builtin',
           showOriginal: showOriginal || payloadLanguage !== language,
@@ -264,7 +335,10 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
           },
           onRetry: retry,
           onReauthorize: reauthorize,
-          onRefresh: observe
+          onRefresh: observe,
+          // Deleting belongs to the dialog the card opens: the card's click means
+          // "open", and the one irreversible action waits one step inside it.
+          ...(deletable(selected) ? { onDelete: () => askDelete(selected) } : {})
         }),
     // The editor is the dialog the add flow uses, opened from the card's own
     // edit action rather than from inside the detail report.
@@ -297,132 +371,8 @@ function deletable(entry: McpStatusEntry): boolean {
 }
 
 /**
- * One inventory card: the server name with its state tag on the identity row
- * and the enable switch on its trailing edge; the endpoint on the body row;
- * tool count and transport on the source row. The reason text, the state
- * label's long form, and the remaining actions (retry, reauthorize,
- * configuration) live in the detail dialog, so a wall of failing cards stays
- * scannable.
- */
-function McpCard({
-  entry,
-  t,
-  onClick,
-  onToggle,
-  onEdit,
-  onDelete
-}: {
-  entry: McpStatusEntry
-  t: Translate
-  onClick: () => void
-  onToggle: () => void
-  onEdit: () => void
-  onDelete?: () => void
-}): ReactNode {
-  const interactive = interactiveCardProps(onClick)
-  const toolCount = entry.tools.length === 1 ? t('mcpTool') : t('mcpTools')
-  // A foreign mount belongs to another MCP client, so this plugin cannot
-  // switch it; everything else it declared is its own to enable or disable.
-  const switchable = entry.suiteId !== undefined && entry.serverKey !== undefined && entry.state !== 'foreign'
-  const disabled = entry.state === 'disabled'
-  // The identity a reader recognizes; the runtime's full mount name stays in
-  // the tooltip on that same row.
-  const displayName = mcpDisplayName(entry)
-  return h(
-    ResourceCard,
-    {
-      state: mcpCardState(entry.state),
-      surface: 'mcp',
-      ...interactive
-    },
-    // The state rail on the card's left edge carries the state; a written label
-    // beside it would say the same thing twice.
-    h(CardIdentity, { text: displayName, hint: entry.name, mono: true, tag: entry.kind === 'plugin' ? t('mcpPlugin') : t('mcpDirect'), chip: true }),
-    h(
-      'div',
-      { className: rc.rowActions },
-      // The editor is the dialog the add flow uses; it sits just before the
-      // switch, where the row's actions end.
-      switchable
-        ? h(
-            'button',
-            {
-              type: 'button',
-              className: rc.iconBtn,
-              title: t('panelEdit'),
-              'aria-label': `${t('panelEdit')} ${displayName}`,
-              onClick: (event: { stopPropagation(): void }) => {
-                event.stopPropagation()
-                onEdit()
-              }
-            },
-            h(IconEditOutlineMedium)
-          )
-        : null,
-      // Deleting is destructive, so it reads in the danger hover and stays
-      // behind the same event stop the edit action uses.
-      onDelete === undefined
-        ? null
-        : h(
-            'button',
-            {
-              type: 'button',
-              className: `${rc.iconBtn} ${rc.iconBtnDanger}`,
-              title: t('mcpDelete'),
-              'aria-label': `${t('mcpDelete')} ${displayName}`,
-              onClick: (event: { stopPropagation(): void }) => {
-                event.stopPropagation()
-                onDelete()
-              }
-            },
-            h(IconTrashOutlineMedium)
-          ),
-      h(
-        'span',
-        { className: rc.switchWrap, onClick: (event: { stopPropagation(): void }) => event.stopPropagation() },
-        h(Switch, {
-          checked: !disabled,
-          disabled: !switchable,
-          label: disabled ? t('enable') : t('disable'),
-          title: disabled ? t('enable') : t('disable'),
-          onChange: onToggle
-        })
-      )
-    ),
-    // The card clips this line to one row, so it carries the endpoint as a hint.
-    hoverHint(entry.endpoint ?? t('mcpObservedEndpoint'), h('p', hintProps({ className: `${rc.rowBody} ${rc.monoLine}` }), entry.endpoint ?? t('mcpObservedEndpoint'))),
-    h(
-      'div',
-      { className: rc.rowFoot },
-      hoverHint(
-        entry.suiteId ?? entry.source ?? '',
-        h('span', hintProps({ className: rc.provenance }), entry.kind === 'plugin' ? (entry.suiteId ?? entry.source ?? '—') : t('mcpDirect'))
-      ),
-      h('span', { className: rc.separator }, '·'),
-      h('span', { className: rc.count }, h('span', { className: rc.countValue }, String(entry.tools.length)), ' ', toolCount),
-      h('span', { className: rc.separator }, '·'),
-      h('span', { className: rc.count }, entry.transport)
-    )
-  )
-}
-
-/**
  * The detail dialog owns every action and every long text: state, reason,
  * credentials, config, tools, and the retry control with its in-place result
  * echo. The state pill is dropped entirely — the dot and the reason box carry
  * that information without a second red stamp.
  */
-function filterLabel(t: Translate, kind: Filter): string {
-  if (kind === 'plugin') return t('mcpPlugin')
-  if (kind === 'direct') return t('mcpDirect')
-  if (kind === 'disabled') return t('panelFilterDisabled')
-  return t('mcpAll')
-}
-
-/** Hover/aria explanation for each MCP filter tab. */
-function mcpFilterHint(t: Translate, kind: Filter): string {
-  if (kind === 'plugin') return t('mcpFilterPluginHint')
-  if (kind === 'direct') return t('mcpFilterDirectHint')
-  if (kind === 'disabled') return t('mcpFilterDisabledHint')
-  return t('mcpFilterAllHint')
-}

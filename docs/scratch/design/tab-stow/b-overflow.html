@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>方案 B · 溢出折叠</title>
+    <style>
+      :root {
+        color-scheme: dark;
+      }
+      body {
+        margin: 0;
+        padding: 28px;
+        background: #1b1c1f;
+        color: #f9fafb;
+        font:
+          13px/1.5 -apple-system,
+          'Segoe UI',
+          'PingFang SC',
+          sans-serif;
+      }
+      h1 {
+        font-size: 15px;
+        font-weight: 600;
+        margin: 0 0 4px;
+      }
+      p.note {
+        color: #9aa0a6;
+        margin: 0 0 20px;
+        font-size: 12px;
+      }
+      .panel {
+        border: 1px solid #ffffff1f;
+        border-radius: 12px;
+        background: #0f1012;
+        padding: 14px;
+        margin-bottom: 16px;
+      }
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+      .rail {
+        display: flex;
+        align-items: center;
+        gap: 2px;
+        padding: 4px;
+        border-radius: 12px;
+        background: rgba(255, 255, 255, 0.08);
+        overflow-x: auto;
+      }
+      .tab {
+        flex: none;
+        border: 0;
+        border-radius: 9px;
+        padding: 6px 12px;
+        background: transparent;
+        color: #c9cdd2;
+        font: inherit;
+        white-space: nowrap;
+        cursor: pointer;
+      }
+      .tab:hover {
+        background: rgba(255, 255, 255, 0.08);
+        color: #f9fafb;
+      }
+      .tab[aria-selected='true'] {
+        background: #232324;
+        color: #f9fafb;
+        box-shadow: 0 1px 2px #0006;
+      }
+      .tab.ghost {
+        color: #6b7075;
+        font-style: normal;
+      }
+      .tab.ghost::before {
+        content: '·';
+        margin-right: 6px;
+        color: #4b4f54;
+      }
+      .divider {
+        flex: none;
+        width: 1px;
+        height: 20px;
+        background: #ffffff24;
+        margin: 0 6px;
+      }
+      .label {
+        flex: none;
+        color: #8b9096;
+        font-size: 11px;
+        letter-spacing: 0.02em;
+        margin: 0 6px 0 2px;
+      }
+      .icon {
+        flex: none;
+        width: 30px;
+        height: 28px;
+        border-radius: 8px;
+        border: 1px solid #ffffff1f;
+        background: #ffffff0d;
+        color: #d6d9dd;
+        cursor: pointer;
+      }
+      .count {
+        font-variant-numeric: tabular-nums;
+        font-size: 11px;
+        padding: 0 5px;
+        border-radius: 999px;
+        background: #ffffff14;
+      }
+      .hint {
+        color: #7c8187;
+        font-size: 12px;
+        margin-top: 10px;
+      }
+      kbd {
+        font:
+          11px ui-monospace,
+          monospace;
+        border: 1px solid #ffffff1f;
+        border-bottom-width: 2px;
+        border-radius: 5px;
+        padding: 1px 5px;
+        color: #c9cdd2;
+      }
+      .dragging {
+        opacity: 0.45;
+      }
+      .drop {
+        box-shadow: inset 2px 0 0 #6b9bff;
+      }
+      .pop {
+        position: absolute;
+        margin-top: 8px;
+        border: 1px solid #ffffff1f;
+        border-radius: 10px;
+        background: #17181b;
+        padding: 6px;
+        box-shadow: 0 12px 30px #0008;
+        min-width: 190px;
+      }
+      .pop label {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 6px 8px;
+        border-radius: 7px;
+        cursor: pointer;
+      }
+      .pop label:hover {
+        background: #ffffff0f;
+      }
+      .wrap {
+        position: relative;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>方案 B · 溢出折叠</h1>
+    <p class="note">行内只保留可见页签；收起的收进右侧“»”按钮，按钮带数量。点开是一张勾选清单，勾选即在原位置显示或收起。</p>
+    <div class="panel">
+      <div class="row">
+        <div class="wrap">
+          <div class="rail">
+            <button class="tab" aria-selected="true">市场</button>
+            <button class="tab">输出风格</button>
+            <button class="tab">技能</button>
+            <button class="tab">快捷指令</button>
+            <button class="tab">专家</button>
+            <button class="tab">连接器</button>
+          </div>
+          <button class="icon" style="margin-left: 8px" title="已收起的页签">»<span class="count">3</span></button>
+          <div class="pop">
+            <label><input type="checkbox" checked disabled /> 市场</label>
+            <label><input type="checkbox" checked disabled /> 输出风格</label>
+            <label><input type="checkbox" /> 规则</label>
+            <label><input type="checkbox" /> 语言引擎</label>
+            <label><input type="checkbox" /> 钩子</label>
+          </div>
+        </div>
+      </div>
+      <div class="hint">图里是展开状态。收起的页签不出现在行内，代价是要多点一次才能看到自己收起了什么。</div>
+    </div>
+    <div class="panel">
+      <div class="hint">收起 ≤ 2 个时按钮只显示“»”，3 个以上带数字；清单里每一项显示对应开关，取消即收起。</div>
+    </div>
+  </body>
+</html>

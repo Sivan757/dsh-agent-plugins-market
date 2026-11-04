@@ -58,6 +58,19 @@ async function mountOneCommand(): Promise<{ store: Awaited<ReturnType<typeof cre
   return { store, registered }
 }
 
+/** The measured slash-command metadata Claude Code sends around a command body. */
+const forwardedText = (name: string, body: string, input: string): string =>
+  [
+    '<command-message>' + name + '</command-message>',
+    '<command-name>/' + name + '</command-name>',
+    '<command-args>' + input + '</command-args>',
+    '',
+    '---',
+    body,
+    '',
+    'ARGUMENTS: ' + input
+  ].join('\n')
+
 describe('user command mounts', () => {
   it('forwards the authored body verbatim, with no plugin or source decorator', async () => {
     const { registered } = await mountOneCommand()
@@ -72,7 +85,8 @@ describe('user command mounts', () => {
     const forwarded = required(messages[0] as UserMessage | undefined, 'the user command to forward one follow-up')
     expect(forwarded.id).toMatch(/^\S+$/)
     expect(forwarded.role).toBe('user')
-    expect(forwarded.content).toEqual([{ type: 'text', text: 'Do the thing: now' }])
+    // The authored body, carried inside the measured command metadata.
+    expect(forwarded.content).toEqual([{ type: 'text', text: forwardedText('do-thing', 'Do the thing: now', 'now') }])
     expect(forwarded.source).toEqual({ kind: 'plugin-market', form: 'instructions' })
   })
 
@@ -105,7 +119,7 @@ describe('user command mounts', () => {
     const result = definition.handler({ agent: { followup: (message: unknown) => messages.push(message) }, rawInput: ' now' })
     expect(result).toEqual({ kind: 'success', text: '/git-commit 已转交模型执行' })
     const forwarded = required(messages[0] as UserMessage | undefined, 'the nested user command to forward one follow-up')
-    expect(forwarded.content).toEqual([{ type: 'text', text: 'Commit: now' }])
+    expect(forwarded.content).toEqual([{ type: 'text', text: forwardedText('git-commit', 'Commit: now', 'now') }])
   })
 
   it('renames the second of two commands that flatten to the same call name and diagnoses it', async () => {
@@ -145,7 +159,7 @@ describe('user command mounts', () => {
     const result = renamed.handler({ agent: { followup: (message: unknown) => messages.push(message) }, rawInput: ' now' })
     expect(result).toEqual({ kind: 'success', text: '/git-commit-1 已转交模型执行' })
     const forwarded = required(messages[0] as UserMessage | undefined, 'the renamed user command to forward one follow-up')
-    expect(forwarded.content).toEqual([{ type: 'text', text: 'Nested: now' }])
+    expect(forwarded.content).toEqual([{ type: 'text', text: forwardedText('git-commit-1', 'Nested: now', 'now') }])
   })
 
   it('releases a call name when its entry is removed, so a later entry reuses it', async () => {

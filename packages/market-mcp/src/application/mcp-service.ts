@@ -14,6 +14,7 @@ import type { ServerConfigPayload, ServerPolicyPayload } from '../../../market-c
 import type { DiscoveredSuite, Suite } from '../../../market-contracts/src/model/types.js'
 import type { McpBackend } from '../../../market-contracts/src/contracts/mcp.js'
 import { probeHostMcpClient } from './mcp/mcp-backend.js'
+import { proxyMismatchFor } from './mcp/proxy-hint.js'
 import { declaredMcpPolicy, deriveServerName, namespaceMcpPolicy, resolveMcpPolicy, type ResolvedMcpPolicy } from './mcp/mcp-config.js'
 import { prepareUserMcpServer, prepareUserMcpServerRemoval, loadUserMcpSuite, USER_MCP_SOURCE, USER_MCP_SUITE } from './mcp/mcp-direct-config.js'
 import type { McpMountDiagnostic } from '../../../market-contracts/src/contracts/mcp.js'
@@ -86,7 +87,11 @@ export class McpService {
     // preset selection. The builder needs the demand to name that cause instead
     // of reporting tools the switch never managed to stop.
     const demanded = this.ports.mcpDemandedMounts?.() ?? []
-    const payload = buildMcpStatus(suites, this.diagnostics, this.ports.mcpToolSnapshot(), await this.allOverrides(suites), localization, demanded)
+    // The supervisors' live phases travel beside the tool snapshot: a dropped
+    // connection keeps its tools registered while it is retried, so the
+    // snapshot alone cannot tell that row from a healthy one.
+    const connections = this.ports.mcpConnections?.() ?? []
+    const payload = buildMcpStatus(suites, this.diagnostics, this.ports.mcpToolSnapshot(), await this.allOverrides(suites), localization, demanded, connections)
     for (const entry of payload.entries)
       if (entry.suiteId === `${USER_MCP_SOURCE}/${USER_MCP_SUITE}`) {
         entry.kind = 'direct'
@@ -104,6 +109,10 @@ export class McpService {
         auth?.enabled !== false &&
         !declaresAuthHeader(entry.config) &&
         !['disabled', 'foreign', 'orphaned'].includes(entry.state)
+      // A failure this machine's own proxy configuration explains is worth naming:
+      // the reader otherwise spends the next hour on the service side.
+      const mismatch = proxyMismatchFor(entry.endpoint, { code: entry.code, reason: entry.reason, causes: entry.causes }, process.env)
+      if (mismatch !== undefined) entry.proxyMismatch = mismatch
     }
     return payload
   }
@@ -352,18 +361,6 @@ export class McpService {
   async backendInfo(): Promise<McpBackendInfo> {
     const [backend, hostClient, regionSetting] = await Promise.all([this.ports.mcpBackend(), probeHostMcpClient(), this.ports.downloadRegion()])
     return { backend, hostClient, downloadRegion: { setting: regionSetting, effective: resolveRegion(regionSetting, this.ports.localePreference()) } }
-  }
-
-  /**
-   * Switch the MCP mount backend and remount every suite server through it.
-   * A host-client switch takes effect only where the host package resolves;
-   * unresolvable or unsupported transports surface as per-server diagnostics.
-   */
-  async setBackend(backend: McpBackend): Promise<void> {
-    return this.context.enqueue(async () => {
-      await this.ports.setMcpBackend(backend)
-      await this.context.notifyChanged(true)
-    })
   }
 
   /**

@@ -20,13 +20,13 @@ runtime 的五个挂载注册表里有三个——MCP、LSP 与 hooks——按 s
 
 **依赖集合是显式声明的，而不是猜出来的。** `CatalogPorts` 列出全部宿主接缝，`resolveCatalogPorts` 在其下补齐默认值。延迟解析被刻意保留：settings 与 tools 服务在 `apply()` 之后才解析，因此这些闭包在调用时读取，而不是捕获当时的值。会抛错的默认实现从类体移到默认值对象里，组装点可以直接看到它。
 
-**挂载生命周期只有一份。** `src/runtime/mount-lifecycle.ts` 拥有串行过程队列、重试调度器与统一挂载句柄形态。各注册表保留自己的挂载语义，只提供自己的重试判据——MCP 除 foreign/duplicate 外都重试，LSP 对能力包缺失永不重试。
+**挂载生命周期只有一份。** `packages/market-runtime/src/runtime/core/mount-lifecycle.ts` 拥有串行过程队列、重试调度器与统一挂载句柄形态。各注册表保留自己的挂载语义，只提供自己的重试判据——MCP 除 foreign/duplicate 外都重试，LSP 对能力包缺失永不重试。
 
 **每个服务器的投影只有一份。** `effectiveMcpServers` 拥有 override 类型收窄、`applyOverride` 与凭证引用。它携带 `enabled` 而不是过滤，因为两个消费方需要相反的行为：状态清单要展示被 override 禁用的声明，挂载注册表要跳过它。这正是本次重构自己的审计判错的一处：第一版按字面套用「跳过禁用项」，把这些行从状态载荷里删掉了。测试全绿是因为当时没有任何用例覆盖它，因此这个坑是本次工作自己造出又在同一次工作里堵上的——新增用例固定的是新行为，不是既有行为。
 
 **组装根只做组装。** `apply()` 从 349 行降到 183 行：协调合并与凭证通知防抖移到 `reconcile-scheduler.ts`，settings 命名空间及其 watcher、项目布局同步、反馈工具开关移到 `settings-namespace.ts`，MCP 凭证记录键与写入它的 OAuth provider 共用 `mcp-auth-record.ts`。唯一一次 `settings.register` 及其刻意的失败隔离保持不变（[调度决策](2026-09-08-runtime-reconciliation-scheduling.zh.md)继续生效）。
 
-**边界变得可强制。** 状态编解码器移到 `src/runtime/state-store.ts`，`src/model/` 只剩记录，规则不再需要例外。两条失效的 dependency-cruiser node 规则由 `eslint.config.mjs` 的 `no-restricted-imports` 取代——它能看见这些导入——覆盖 `src/model`、`src/contracts` 与 `src/client`。dependency-cruiser 新增 `contracts-import-nothing`、`model-cannot-import-server-layers` 与 `application-cannot-import-client-routes-or-index`。
+**边界变得可强制。** 状态编解码器移到 `packages/market-catalog/src/application/state/state-store.ts`，`src/model/` 只剩记录，规则不再需要例外。两条失效的 dependency-cruiser node 规则由 `eslint.config.mjs` 的 `no-restricted-imports` 取代——它能看见这些导入——覆盖 `src/model`、`src/contracts` 与 `src/client`。dependency-cruiser 新增 `contracts-import-nothing`、`model-cannot-import-server-layers` 与 `application-cannot-import-client-routes-or-index`。
 
 结构之外一并清理：七个无消费者的 catalog 导出（含三个被废弃的清单读取器）、三个无调用方的 `Catalog` 成员（`subscribe` 及其监听集合、`enabledSuitesForCwd`、`suitesForDimension`）、一个重复定义的 `hasSuiteManifest`、重复的文件系统探测与五处手写的路径包含判断、69 个无处引用的 CSS 类与 56 个语言键、三个客户端 API 辅助函数、`PanelShell`/`PanelAction`，以及 `api.ts` 中十三份相同的 fetch 样板。第四个候选（`userRoot` getter）因测试读取而保留。
 

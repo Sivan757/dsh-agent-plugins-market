@@ -1,9 +1,18 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
-import { FAILURE_GUIDANCE_LABEL, failureGuidanceKey } from '../../../packages/market-ui/src/ui/failure-guidance.js'
+import { FAILURE_GUIDANCE_LABEL, failureCause, failureGuidanceKey } from '../../../packages/market-ui/src/ui/failure-guidance.js'
 import { en, zh } from '../../../packages/market-ui/src/locales.js'
 
 describe('failure guidance', () => {
+  it('gives a row the cause alone, and keeps the advice for the detail', () => {
+    // The card has one line: which row needs attention, not what to do about it.
+    expect(failureCause(zh.failureGuideTimeout)).toBe('连接超时')
+    expect(failureCause(en.failureGuideTimeout)).toBe('Connection timed out')
+    // A sentence with no separator is kept whole rather than guessed at.
+    expect(failureCause('mount failed')).toBe('mount failed')
+    expect(failureCause('：无原因')).toBe('：无原因')
+  })
+
   it('reads a recorded code before the wording', () => {
     expect(failureGuidanceKey({ code: 'missing-credential', reason: 'API_TOKEN is not set' })).toBe('credentials')
     expect(failureGuidanceKey({ code: 'credential-error', reason: 'credential lookup failed' })).toBe('credentials')

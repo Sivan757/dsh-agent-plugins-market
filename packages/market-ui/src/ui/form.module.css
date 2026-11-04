@@ -295,13 +295,6 @@
   flex: 0 0 26%;
 }
 
-.rowActions {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 2px;
-}
-
 /* Flat 24px icon action, the same geometry the cards use. */
 .iconBtn {
   display: inline-flex;
@@ -362,14 +355,6 @@
    heavier mark than the one the panel header uses. */
 .addIcon svg {
   display: block;
-}
-
-.inlineCheck {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--dsw-alias-label-primary);
-  font-size: 12px;
 }
 
 /* A group of related fields (a role's runtime configuration, an OAuth block). */
@@ -455,4 +440,55 @@
   .fieldset {
     grid-template-columns: minmax(0, 1fr);
   }
+}
+
+/* The intent row: one line above the fields it fills, used by the hook form and the AI
+   suggestion dialogs. The row stays quiet until it has something to say, so it does not
+   compete with the fields a person came to edit. */
+.aiField {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  gap: 8px;
+  align-items: center;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 8px;
+  background: var(--dsw-alias-bg-layer-2);
+}
+
+.aiNote {
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+}
+
+.aiError {
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+}
+
+/* The suggestion preview: a short list, because the point is to read what would be created. */
+.aiList {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 12px;
+  max-height: 180px;
+  overflow: auto;
+}
+
+/* The explanation block: a press, then prose. It sits inside a dialog's body beside the facts
+   it explains, so it reads as a continuation of the row rather than a separate tool. */
+.diagnoseBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.diagnoseAnswer {
+  margin: 0;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 1.6;
+  white-space: pre-wrap;
 }

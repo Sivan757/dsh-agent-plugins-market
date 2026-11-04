@@ -20,9 +20,16 @@ import {
 import type { ExtensionRouteService } from '../../extension-service.js'
 import { ExtensionSessionState, type ExtensionApplyReceipt } from './extension-session-state.js'
 import { ExtensionProgressReader } from './extension-progress.js'
+import { DEFAULT_INVENTORY_RETRY, inventoryRetryDelay, type InventoryRetryPolicy } from './inventory-retry.js'
 
 export interface ExtensionRuntimePorts {
   dataRoot: string
+  /**
+   * Schedule for re-reading one session's inventory after a postponed or failed
+   * refresh. Omitted keeps {@link DEFAULT_INVENTORY_RETRY}; the composition root
+   * resolves the configured values and passes them here.
+   */
+  inventoryRetry?: InventoryRetryPolicy
   inventory(agent: Agent): Promise<ExtensionResource[]>
   applySelection(agent: Agent, selection: ExtensionSelection): Promise<void | ExtensionApplyReceipt>
   /** Whether this service governs one agent at all; absent governs every agent. */
@@ -33,6 +40,14 @@ export interface ExtensionRuntimePorts {
   hooksOverview?(): Promise<ExtensionHooksOverview>
   /** Run one declared command hook as a dry run; the composition resolves the declaration and owns the shell. */
   hookRun?(input: ExtensionHookRunInput): Promise<ExtensionHookRunResult>
+  /**
+   * Select one output style for the session's workspace.
+   *
+   * An output style is a single choice rather than a set of switches, so it cannot ride
+   * the surface selection the way a capability does: a preset that names one needs this
+   * call to take effect. Absent leaves the style where it is.
+   */
+  applyOutputStyle?(agent: Agent, styleId: string): Promise<void>
 }
 function failure(code: string): Error {
   return Object.assign(new Error(code), { code })
@@ -63,11 +78,18 @@ export class ExtensionRuntime implements ExtensionRouteService {
   /** Per-agent read sequence: a slow earlier response must not overwrite a newer inventory. */
   private readonly reads = new Map<Agent, number>()
   private readonly targets = new Map<Agent, ExtensionSelection>()
+  /** Retries armed for an agent whose refresh could not finish yet. */
+  private readonly retries = new Map<Agent, ReturnType<typeof setTimeout>>()
+  private readonly retryAttempts = new Map<Agent, number>()
+  /** Agents already reported as being on the slow schedule. */
+  private readonly retryWarned = new Set<Agent>()
+  private readonly retry: InventoryRetryPolicy
   private readonly off: Array<() => void> = []
   constructor(
     private readonly ctx: Context,
     private readonly ports: ExtensionRuntimePorts
   ) {
+    this.retry = ports.inventoryRetry ?? DEFAULT_INVENTORY_RETRY
     this.store = new ExtensionPresetStore(ports.dataRoot)
     this.progress = new ExtensionProgressReader(ctx)
     this.state = new ExtensionSessionState(ctx, {
@@ -112,6 +134,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
         this.reads.delete(agent)
         this.registeredIds.delete(agent)
         this.appliedEpochs.delete(agent)
+        this.cancelRetry(agent)
       })
     )
   }
@@ -126,6 +149,18 @@ export class ExtensionRuntime implements ExtensionRouteService {
       return false
     }
   }
+  /**
+   * Why one agent's managed capabilities are denied right now, if they are.
+   *
+   * A stale agent and a withdrawn resource produce the same model-facing
+   * failure, so the status surface needs the difference: "still reading the
+   * catalog" is transient, "the resource is gone" is not.
+   * @param agent - the agent to describe.
+   * @returns the reason one of its capabilities is denied, or undefined.
+   */
+  denialReason(agent: Agent): 'extension-inventory-pending' | undefined {
+    return this.stale.has(agent) ? 'extension-inventory-pending' : undefined
+  }
   allows(agent: Agent, resourceId: string, suiteId?: string): boolean {
     if (this.stale.has(agent)) return false
     if (this.dirty.has(agent) && !this.registeredIds.get(agent)?.has(resourceId)) return false
@@ -139,6 +174,27 @@ export class ExtensionRuntime implements ExtensionRouteService {
   private availableIds(agent: Agent): Set<string> {
     return new Set((this.resources.get(agent) ?? []).filter(row => row.available && row.control !== 'global-only').map(row => row.id))
   }
+  /**
+   * The selection a default capture follows the catalog to.
+   *
+   * A selection that names no preset is a snapshot of ids, and a snapshot cannot contain a
+   * resource that did not exist when it was taken. The rows the catalog offers now join it,
+   * so a suite or a skill installed mid-session is granted, injected and shown without a
+   * manual preset switch. The committed rows stay: a row the inventory has not read yet is
+   * not a row the catalog withdrew.
+   *
+   * A preset selection is the preset's own list and never moves, and a capture taken from
+   * the pre-preset resource filters is frozen: those filters were the person's own switches.
+   */
+  private followingSelection(agent: Agent, selection: ExtensionSelection): ExtensionSelection {
+    if (selection.presetId !== null || selection.frozen === true) return selection
+    const resources = this.resources.get(agent) ?? []
+    const usable = (row: { available?: boolean; control?: string; globalEnabled?: boolean }): boolean =>
+      row.available !== false && row.control !== 'global-only' && row.globalEnabled !== false
+    const added = resources.filter(row => usable(row) && !selection.enabledIds.includes(row.id)).map(row => row.id)
+    return { ...selection, enabledIds: [...selection.enabledIds, ...added] }
+  }
+
   /** Registration alone may inspect a pending target; execution must call allows. */
   registrationAllows(agent: Agent, resourceId: string, suiteId?: string): boolean {
     if (this.stale.has(agent)) return false
@@ -187,20 +243,91 @@ export class ExtensionRuntime implements ExtensionRouteService {
         .map(agent => this.refreshAgent(agent))
     )
   }
+  /**
+   * Arm the next retry for an agent whose refresh could not complete.
+   *
+   * The fail-closed window is correct while a catalog read is pending, but it
+   * must not be permanent: `refreshAgent` bails for a session that is still
+   * attaching and for one whose inventory read failed, and nothing else would
+   * come back for an idle agent. The retry is what closes the window, and it
+   * keeps closing it, slowing to the resolved ceiling rather than stopping. A
+   * schedule that gave up would reintroduce the same permanent denial later.
+   */
+  private scheduleRetry(agent: Agent): void {
+    if (this.disposed || this.retries.has(agent) || !this.dirty.has(agent)) return
+    const attempt = this.retryAttempts.get(agent) ?? 0
+    this.retryAttempts.set(agent, attempt + 1)
+    const delay = inventoryRetryDelay(this.retry, attempt)
+    if (delay >= this.retry.maxMs) this.warnSlowRetry(agent, delay)
+    const timer = setTimeout(() => {
+      this.retries.delete(agent)
+      if (this.disposed || this.ctx.agents.get(agent.id) !== agent) return
+      void this.refreshAgent(agent).catch(error => this.ctx.logger?.warn('extension refresh retry: ' + String(error)))
+    }, delay)
+    timer.unref?.()
+    this.retries.set(agent, timer)
+  }
+
+  /**
+   * Say once, per agent, that its inventory read is now on the slow schedule.
+   *
+   * A person reading the log needs to know the retry is still armed and slow,
+   * not that it stopped. Repeating it every attempt would bury the first line.
+   */
+  private warnSlowRetry(agent: Agent, delayMs: number): void {
+    if (this.retryWarned.has(agent)) return
+    this.retryWarned.add(agent)
+    this.ctx.logger?.warn(
+      `[dsh-agent-plugins-market] session ${agent.id}: extension inventory is still unreadable; managed capabilities stay denied while it is retried every ${String(delayMs)}ms`
+    )
+  }
+
+  /** Drop a pending retry and its attempt budget. */
+  private cancelRetry(agent: Agent): void {
+    const timer = this.retries.get(agent)
+    if (timer !== undefined) clearTimeout(timer)
+    this.retries.delete(agent)
+    this.retryAttempts.delete(agent)
+    this.retryWarned.delete(agent)
+  }
+
   private async refreshAgent(agent: Agent): Promise<void> {
     if (this.disposed || !this.dirty.has(agent) || this.refreshing.has(agent)) return
+    /** The selection the catalog asked for, committed once the maintenance slot is free. */
+    let follow: ExtensionSelection | undefined
     const work = async (): Promise<void> => {
       const epoch = this.epoch
       await agent.runMaintenance(async signal => {
         const snapshot = this.state.status(agent)
-        if (!snapshot.ready || !snapshot.selection) return
+        // A session that is still attaching can neither be refreshed nor called
+        // ready. Leaving it dirty with no schedule is the permanent denial this
+        // retry exists to prevent.
+        if (!snapshot.ready || !snapshot.selection) {
+          this.scheduleRetry(agent)
+          return
+        }
         await this.refreshInventory(agent)
         signal.throwIfAborted()
-        if (this.stale.has(agent)) return
-        this.targets.set(agent, snapshot.selection)
+        if (this.stale.has(agent)) {
+          // The epoch moved during the read, so this answer may not publish.
+          // Another pass will follow, and this retry covers an idle agent.
+          this.scheduleRetry(agent)
+          return
+        }
+        // A default capture follows the catalog: the rows the catalog gained join it. The
+        // commit that follows grants them, injects them and shows them in one step, and it
+        // runs outside this maintenance block: a commit inside it would wait for the very
+        // maintenance it is running in.
+        const followed = this.followingSelection(agent, snapshot.selection)
+        if (followed.enabledIds.length !== snapshot.selection.enabledIds.length) {
+          follow = followed
+          return
+        }
+        const selection = snapshot.selection
+        this.targets.set(agent, selection)
         let receipt: void | ExtensionApplyReceipt = undefined
         try {
-          receipt = await this.ports.applySelection(agent, snapshot.selection)
+          receipt = await this.ports.applySelection(agent, selection)
           signal.throwIfAborted()
           if (epoch !== this.epoch) {
             const staleReceipt = receipt
@@ -221,6 +348,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
         }
         this.registeredIds.set(agent, this.availableIds(agent))
         this.dirty.delete(agent)
+        this.cancelRetry(agent)
         try {
           this.ports.committed?.(agent)
         } catch (error) {
@@ -246,6 +374,9 @@ export class ExtensionRuntime implements ExtensionRouteService {
         removeAbort()
         this.refreshing.delete(agent)
         if (!this.disposed && this.ctx.agents.get(agent.id) === agent) await this.refreshAgent(agent)
+        // A busy agent heals through whenIdle, but only once: if that refresh
+        // could not finish either, the retry is what comes back.
+        if (!this.disposed && this.dirty.has(agent)) this.scheduleRetry(agent)
       })
       this.refreshing.set(agent, deferred)
       void deferred.catch(error => this.ctx.logger.warn('extension refresh: ' + String(error)))
@@ -254,10 +385,26 @@ export class ExtensionRuntime implements ExtensionRouteService {
     const startedEpoch = this.epoch
     const pending = work().catch(error => {
       this.ctx.logger.warn('extension refresh: ' + String(error))
+      this.scheduleRetry(agent)
     })
     this.refreshing.set(agent, pending)
     await pending
     this.refreshing.delete(agent)
+    // The catalog asked for rows this selection did not name: commit the followed selection
+    // now that the maintenance slot is free, so the grant, the injection and the panel all
+    // move in one step.
+    if (follow !== undefined && !this.disposed) {
+      const followed = follow
+      const committed = this.state.read(agent)
+      if (committed !== undefined) {
+        try {
+          await this.state.change(agent, committed.revision, followed)
+        } catch (error) {
+          this.ctx.logger.warn('extension refresh: ' + String(error))
+          this.scheduleRetry(agent)
+        }
+      }
+    }
     if (!this.disposed && this.dirty.has(agent) && startedEpoch !== this.epoch) await this.refreshAgent(agent)
   }
 
@@ -297,7 +444,12 @@ export class ExtensionRuntime implements ExtensionRouteService {
     const resources = await this.refreshInventory(agent)
     const library = await this.store.read(workspace)
     const preset = source === 'legacy' ? undefined : library.presets.find(row => row.id === library.defaultPresetId)
-    if (preset) return captureExtensionSelection(preset, [])
+    if (preset) {
+      // A session that starts on the workspace default gets that preset's style too: the
+      // selection carries the id, but nothing else would turn it into a chosen style.
+      await this.applyStyleOf(agent, preset.enabledIds)
+      return captureExtensionSelection(preset, [])
+    }
     const legacy = source === 'legacy' ? await loadResourceFilters(this.ports.dataRoot, workspace) : undefined
     const available = resources.filter(
       row =>
@@ -306,21 +458,41 @@ export class ExtensionRuntime implements ExtensionRouteService {
         row.globalEnabled !== false &&
         // The legacy resource filter predates the hooks face, so it carries no
         // evidence for it; those rows select like any other when no filter ran.
-        (legacy === undefined || row.face === 'hooks' || (legacy.toggles[row.face] && !legacy.offEntries[row.face]?.includes(row.id)))
+        (legacy === undefined ||
+          row.face === 'hooks' ||
+          row.face === 'instructions' ||
+          row.face === 'outputStyles' ||
+          (legacy.toggles[row.face] && !legacy.offEntries[row.face]?.includes(row.id)))
     )
     // The guard set keeps every available id, the configuration parents
     // included: the child-keeps-parent check below must still see them. Only
     // the published selection drops a configuration parent, whose grant is
     // derived from the selected children at read time.
     const ids = new Set(available.map(row => row.id))
-    return captureExtensionSelection(
+    const captured = captureExtensionSelection(
       null,
       available.filter(row => row.suiteResourceId === undefined || ids.has(row.suiteResourceId)).map(row => row.id)
     )
+    // The pre-preset filters were this workspace's own switches: a later catalog change must
+    // not add to what they left on, or the session would silently outgrow the person's choice.
+    return legacy === undefined ? captured : { ...captured, frozen: true }
   }
   async window(sessionId: string): Promise<ExtensionWindowPayload> {
     const agent = this.agent(sessionId)
-    const [library, resources] = await Promise.all([this.store.read(extensionWorkspace(agent)), this.refreshInventory(agent)])
+    const library = await this.store.read(extensionWorkspace(agent))
+    // A failed inventory read is a reportable state, not a dead panel: the
+    // panel is the surface that has to say why the session's tools are gone, so
+    // it answers from the cached rows and names the pending read.
+    let resources: ExtensionResource[]
+    let readFailed = false
+    try {
+      resources = await this.refreshInventory(agent)
+    } catch (error) {
+      readFailed = true
+      resources = [...(this.resources.get(agent) ?? [])]
+      this.ctx.logger.warn('extension inventory read: ' + String(error))
+      this.scheduleRetry(agent)
+    }
     await this.state.whenSelectionSettled(agent)
     const status = this.state.status(agent)
     // Not ready is a reportable state, not a failed read: the payload carries
@@ -335,6 +507,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
       busy: agent.status !== 'idle',
       library,
       state: state ?? { revision: status.revision, selection: status.selection ?? captureExtensionSelection(null, []) },
+
       // The pending request rides the payload so the manager shows what is coming
       // without a banner and cannot snap back to the superseded selection.
       ...(intent === undefined ? {} : { intendedSelection: intent.selection, intendedRevision: intent.revision }),
@@ -342,17 +515,60 @@ export class ExtensionRuntime implements ExtensionRouteService {
       // client keeps across a promotion, which never moves backwards.
       selectionRevision: this.state.selectionRevision(agent),
       resources,
-      status
+      // A ready session can still be denied for a moment while its catalog read
+      // is in flight. The panel names that instead of reporting a missing tool.
+      status: readFailed || this.stale.has(agent) ? { ...status, inventoryPending: true } : status
     }
   }
-  /** Recovery is an explicit, revision-checked act; it never invents a selection. */
+  /**
+   * Recovery is an explicit, revision-checked act; it never invents a selection.
+   *
+   * Resolving does NOT mean the session's managed capabilities are live. It
+   * means the durable selection is restored and this service owns the rest:
+   *
+   * - the ready branch rejects with `extension-refresh-pending` when its own
+   *   refresh could not land, so a caller cannot mistake a still-denied session
+   *   for a recovered one,
+   * - the not-ready branch can resolve while the session is ready and every
+   *   managed capability is still denied, because the post-recovery inventory
+   *   read failed and the retry is armed. Read {@link allows} or
+   *   {@link denialReason} before treating a resolved recovery as usable,
+   * - either branch leaves a retry armed when work is still outstanding, so a
+   *   failed recovery is never an agent with work queued and nobody coming back.
+   * @param sessionId - the session to recover.
+   * @param revision - the compare-and-swap revision the caller last observed.
+   */
   async recover(sessionId: string, revision: number): Promise<void> {
     const agent = this.agent(sessionId)
     if (this.dirty.has(agent) && this.state.status(agent).ready) {
       if (this.state.read(agent)?.revision !== revision) throw failure('extension-session-conflict')
       await this.refreshAgent(agent)
       if (this.dirty.has(agent)) throw failure('extension-refresh-pending')
-    } else await this.state.recover(agent, revision)
+    } else {
+      // The not-ready branch may replay the selection, which reads the
+      // inventory, and it then re-reads again to publish. Either read can fail,
+      // and both must end the same way: the agent keeps or regains its durable
+      // selection, and a retry is armed. Leaving it dirty with nothing scheduled
+      // is the in-between state this method must never produce.
+      try {
+        await this.state.recover(agent, revision)
+      } catch (error) {
+        if (this.dirty.has(agent)) this.scheduleRetry(agent)
+        throw error
+      }
+      try {
+        await this.refreshInventory(agent)
+        if (this.dirty.has(agent) && !this.stale.has(agent)) await this.refreshAgent(agent)
+      } catch (error) {
+        // The recovered selection is durable and the session is ready, so the
+        // read failure is reported and the retry takes it from here. Rethrowing
+        // would tell the caller recovery failed when it did not.
+        this.ctx.logger.warn('extension inventory refresh after recovery: ' + String(error))
+      }
+      // Unconditional: a stale mark, a dirty mark, or a failed read all end in a
+      // scheduled attempt rather than a session nobody comes back for.
+      if (this.dirty.has(agent)) this.scheduleRetry(agent)
+    }
     await this.ports.ready?.(agent)
   }
   async create(sessionId: string, revision: number, input: ExtensionPresetInput): Promise<void> {
@@ -404,10 +620,37 @@ export class ExtensionRuntime implements ExtensionRouteService {
         resources.filter(row => row.control !== 'global-only' && row.available && row.globalEnabled !== false).map(row => row.id)
       )
     )
-    if (outcome.applied) await this.ports.ready?.(agent)
+    if (outcome.applied) {
+      if (preset !== undefined) await this.applyStyleOf(agent, preset.enabledIds)
+      await this.ports.ready?.(agent)
+    }
+  }
+
+  /**
+   * Select the output style a set of preset ids carries, when one does.
+   *
+   * The style rides the preset as an id, like a capability; the surface selection ignores
+   * it, so this call is what makes it real. A failure here must not fail the preset: every
+   * capability in it already applies, and the panel reports the style's own state.
+   *
+   * @param agent - the session whose workspace chooses the style.
+   * @param ids - the preset's selection.
+   */
+  private async applyStyleOf(agent: Agent, ids: readonly string[]): Promise<void> {
+    const styleId = ids.find(row => row.startsWith('outputStyles:'))?.slice('outputStyles:'.length)
+    if (styleId === undefined || this.ports.applyOutputStyle === undefined) return
+    try {
+      await this.ports.applyOutputStyle(agent, styleId)
+    } catch {
+      // Reported by the style surface itself; the preset still applies.
+    }
   }
   async dispose(): Promise<void> {
     this.disposed = true
+    for (const timer of this.retries.values()) clearTimeout(timer)
+    this.retries.clear()
+    this.retryAttempts.clear()
+    this.retryWarned.clear()
     this.lifetime.abort()
     await Promise.allSettled([...this.refreshing.values()])
     for (const off of this.off.splice(0)) off()

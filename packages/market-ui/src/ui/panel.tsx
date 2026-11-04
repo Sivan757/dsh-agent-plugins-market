@@ -1,11 +1,11 @@
 /**
- * Shared panel building blocks for the plugin workspace surfaces
- * (market / skills / commands / personas / MCP / LSP).
+ * Shared panel building blocks for the plugin workspace surfaces.
  *
- * Everything the six panels repeat lives here: the header, the trailing header
- * commands, the busy indicator, the entry editor modal, the danger-confirm
- * modal, and the source badge. The pieces are intentionally small and
- * prop-driven so a panel composes them instead of re-implementing the geometry.
+ * Everything a workspace panel repeats lives here: the header, the trailing
+ * header commands, the busy indicator, the entry editor modal, the
+ * danger-confirm modal, and the source badge. The pieces are intentionally
+ * small and prop-driven so a panel composes them instead of re-implementing the
+ * geometry.
  * @module client/ui/panel
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
@@ -21,7 +21,20 @@ import type { Translate } from '../i18n.js'
 import { clientErrorMessage } from './error-message.js'
 
 /** The trailing header commands have one position and one visual treatment. */
-export function PanelActions(props: { addLabel?: string; onAdd?: () => void; refreshLabel?: string; onRefresh?: () => void; busy?: boolean }): ReactNode {
+export function PanelActions(props: {
+  addLabel?: string
+  onAdd?: () => void
+  refreshLabel?: string
+  onRefresh?: () => void
+  /**
+   * One extra action, already shaped as a 24px icon button by the caller.
+   *
+   * It holds the surface's own AI action, which is a row-level idea rather than a shared one,
+   * so the shared component carries the slot and the caller carries the behaviour.
+   */
+  extra?: ReactNode
+  busy?: boolean
+}): ReactNode {
   // Flat 24px icon buttons, the same geometry as the actions inside a card: the
   // header holds two icons instead of a text button, so its width no longer
   // changes with the language. The labels move to `title` and `aria-label`.
@@ -41,7 +54,8 @@ export function PanelActions(props: { addLabel?: string; onAdd?: () => void; ref
           'button',
           { type: 'button', className: cardCss.iconBtn, disabled: props.busy, title: props.refreshLabel, 'aria-label': props.refreshLabel, onClick: props.onRefresh },
           h(IconRefreshOutlineMedium)
-        )
+        ),
+    props.extra
   )
 }
 
@@ -65,6 +79,23 @@ export function PanelHeader(props: { title?: string; subtitle?: string; actions?
       props.subtitle === undefined ? null : h('p', { className: css.subtitle }, props.subtitle)
     ),
     props.actions === undefined ? null : h('div', { className: css.headerActions }, props.actions)
+  )
+}
+
+/**
+ * One sentence for a panel that could not read its data, with the retry beside it.
+ *
+ * Every panel that reads something can fail to read it, and before this each one
+ * drew its own line: some as `role="alert"`, one as `role="status"`, some with a
+ * title and the raw error after it, some with a retry and some without. The words
+ * differ per panel because the cause does; everything around them does not.
+ */
+export function ReadFailed(props: { message: string; retryLabel: string; onRetry: () => void }): ReactNode {
+  return h(
+    'div',
+    { className: css.readFailed, role: 'alert', 'data-read-failed': '' },
+    h('span', { className: css.readFailedText }, props.message),
+    h('button', { type: 'button', className: css.readFailedRetry, onClick: props.onRetry }, props.retryLabel)
   )
 }
 
@@ -123,6 +154,12 @@ export function EntryEditorModal(props: {
   saveLabel?: string
   cancelLabel?: string
   renderFields?: (text: string, onChange: (text: string) => void) => ReactNode
+  /**
+   * A row above the document, used for the AI draft that fills it.
+   *
+   * A render prop like `renderFields`, because the draft replaces the editor's own draft
+   * text: a node rendered once could not write into it.
+   */
   onClose: () => void
   onSave: (state: PanelEditorState) => Promise<boolean>
 }): ReactNode {

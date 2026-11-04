@@ -28,6 +28,13 @@ export interface ExtensionToolOwnership {
 export interface ExtensionToolPolicy {
   ready(agent: Agent): boolean
   allows(agent: Agent, resourceId: string, suiteId?: string): boolean
+  /**
+   * Why managed capabilities are denied right now, when the cause is transient.
+   *
+   * A pending catalog read and a withdrawn resource deny identically, so the
+   * model-facing reason names the difference. Omitted keeps the withdrawal text.
+   */
+  denialReason?(agent: Agent): 'extension-inventory-pending' | undefined
 }
 
 export interface ExtensionToolGates {
@@ -39,6 +46,15 @@ export interface ExtensionToolGates {
 
 /** Keep error-code and identity prefixes stable; suffixes explain recovery without granting permission. */
 const DISABLED_SUFFIX = ' — unavailable in this session. Do not retry unchanged; if required, ask the user to check session readiness and enable this resource.'
+/**
+ * The suffix a session gets while its inventory is merely pending.
+ *
+ * The capability is not withdrawn, so telling the model to stop retrying and
+ * ask the user to enable the resource would be wrong advice: it comes back on
+ * its own once the catalog read lands. The stable code rides the text so the
+ * two causes are distinguishable wherever the reason is read.
+ */
+const PENDING_SUFFIX = ' — extension-inventory-pending: this resource is temporarily unavailable while the catalog is re-read. It returns automatically; retry after a moment.'
 const INVALID_FILE_PATH_SUFFIX = ' — pass the file_path string of the target file, for example "src/index.ts".'
 const NO_PROVIDER_SUFFIX = ' — no mounted LSP provider serves this extension. If required, ask the user to configure one.'
 const AMBIGUOUS_PROVIDER_SUFFIX =
@@ -87,11 +103,19 @@ export function attachExtensionToolGates(agent: Agent, ownership: ExtensionToolO
       refreshing = false
     }
   }
+  /** Why this session's managed capabilities are denied, when the cause is transient. */
+  const pending = (): boolean => {
+    try {
+      return policy.denialReason?.(agent) === 'extension-inventory-pending'
+    } catch {
+      return false
+    }
+  }
   const releaseGuard = tools.guard(exec => {
     if (exec.agent !== agent) return undefined
     const definition = tools.get(exec.name, agent)
     const owned = ownership.mcpTools().find(entry => entry.definition === definition)
-    if (owned !== undefined && !allows(owned)) return 'extension-resource-disabled: ' + owned.resourceId + DISABLED_SUFFIX
+    if (owned !== undefined && !allows(owned)) return 'extension-resource-disabled: ' + owned.resourceId + (pending() ? PENDING_SUFFIX : DISABLED_SUFFIX)
     if (exec.name !== 'lsp' || !ownership.ownsLspTool() || definition !== tools.get('lsp')) return undefined
     const args = exec.arguments
     if (typeof args !== 'object' || args === null || !('file_path' in args) || typeof args.file_path !== 'string')
@@ -101,7 +125,7 @@ export function attachExtensionToolGates(agent: Agent, ownership: ExtensionToolO
     if (providers.length === 0) return 'extension-lsp-route-unavailable: ' + extension + NO_PROVIDER_SUFFIX
     if (providers.length > 1) return 'extension-lsp-route-unavailable: ' + extension + AMBIGUOUS_PROVIDER_SUFFIX
     const provider = providers[0]!
-    return allows(provider) ? undefined : 'extension-resource-disabled: ' + provider.resourceId + DISABLED_SUFFIX
+    return allows(provider) ? undefined : 'extension-resource-disabled: ' + provider.resourceId + (pending() ? PENDING_SUFFIX : DISABLED_SUFFIX)
   })
   const releaseListener = agent.ctx.on('tools/change', refresh)
   try {

@@ -35,11 +35,20 @@ const api = vi.hoisted(() => {
     setLspServerEnabled: vi.fn(),
     migrateLspSeam: vi.fn(),
     postAction: vi.fn(),
-    fetchSuiteDetail: vi.fn()
+    fetchSuiteDetail: vi.fn(),
+    // The preset manager's tab row renders from the shared layout, so the module
+    // it reads has to answer the two routes the row is built from.
+    loadTabLayout: vi.fn(async () => ({
+      hidden: ['instructions', 'lsp', 'hooks'],
+      order: ['market', 'instructions', 'outputStyles', 'skills', 'commands', 'personas', 'mcp', 'lsp', 'hooks']
+    })),
+    saveTabLayout: vi.fn(),
+    saveTabOrder: vi.fn()
   }
 })
 vi.mock('../../../packages/market-ui/src/api.js', () => api)
 vi.mock('../../../packages/market-ui/src/features/market/market-resource.js', () => ({
+  peekOverview: () => ({ initial: overview, cached: true }),
   loadOverview: () => ({ initial: overview, revalidating: false, promise: Promise.resolve(overview) }),
   invalidateOverview: vi.fn(),
   startDescriptionRefresh: vi.fn(() => ({ stop: () => {} })),
@@ -255,7 +264,7 @@ describe('the panel text-view switch', () => {
 
     // The detail dialog opens on the panel's current view and carries the same
     // switch: flipping it there flips the panel's cards behind it too.
-    const card = host!.querySelector<HTMLElement>('[role="button"]')!
+    const card = host!.querySelector<HTMLElement>('[data-card-open]')!
     await act(async () => card.click())
     expect(document.body.textContent).toContain('搜索上游')
     await flip(document.body)
@@ -391,7 +400,7 @@ describe('the switch follows the auto-translate setting', () => {
       const translated = surface === 'market' ? '中文描述' : surface === 'mcp' ? '搜索上游' : '审查实现'
       const original = surface === 'market' ? 'English description' : surface === 'mcp' ? 'Search upstream' : 'Review implementation'
       await mount(surface === 'market' ? h(MarketSection, { t: zhT }) : surface === 'mcp' ? h(McpStatusPanel, { t: zhT }) : h(UserPanelSurface, { t: zhT, kind: surface }))
-      if (surface === 'mcp') await act(async () => host!.querySelector<HTMLElement>('[role="button"]')!.click())
+      if (surface === 'mcp') await act(async () => host!.querySelector<HTMLElement>('[data-card-open]')!.click())
       expect(document.body.textContent).toContain(translated)
       await set(false)
       expect(document.body.textContent).not.toContain(translated)

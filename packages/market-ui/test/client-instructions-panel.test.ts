@@ -126,38 +126,61 @@ afterEach(async () => {
   vi.clearAllMocks()
 })
 
-async function mount(payload: InstructionsPayload = PAYLOAD): Promise<void> {
+async function mount(payload: InstructionsPayload = PAYLOAD, sessionId?: string): Promise<void> {
   api.fetchInstructions.mockResolvedValue(payload)
   host = document.createElement('div')
   document.body.append(host)
   root = createRoot(host)
-  await act(async () => root!.render(h(InstructionsPanel, { t })))
+  await act(async () => root!.render(h(InstructionsPanel, { t, sessionId })))
   // The read settles after the first paint.
   await act(async () => {})
 }
 
-const rows = (): HTMLLIElement[] => [...(host?.querySelectorAll<HTMLLIElement>('li[data-instruction-status]') ?? [])]
-const paths = (): string[] => rows().map(row => row.querySelector('code')?.textContent ?? '')
-const statuses = (): string[] => rows().map(row => row.getAttribute('data-instruction-status') ?? '')
+const cards = (): HTMLElement[] => [...(host?.querySelectorAll<HTMLElement>('[data-resource-state]') ?? [])]
+const paths = (): string[] => cards().map(card => card.querySelector('span')?.textContent ?? '')
+const statuses = (): string[] => cards().map(card => card.getAttribute('data-resource-state') ?? '')
 
 describe('instructions panel', () => {
-  it('renders the chain in load order with a chip per status', async () => {
+  it('draws its toolbar and list box before the first read lands', async () => {
+    // Same reason as every other panel: the skeleton cannot be shorter than the
+    // settled surface, or switching to this tab moves everything below the header.
+    api.fetchInstructions.mockReturnValueOnce(new Promise(() => {}))
     await mount()
-    expect(paths()).toEqual(['$DSH_HOME/AGENTS.md', '$DSH_AGENTS_HOME/AGENTS.md', 'AGENTS.md', 'CLAUDE.md', 'apps/AGENTS.md', 'apps/site/AGENTS.md'])
-    expect(statuses()).toEqual(['loaded', 'duplicate', 'loaded', 'missing', 'missing', 'truncated'])
-    // A duplicate names the earlier candidate that carries the content.
-    await act(async () => rows()[1]!.querySelector('button')!.click())
-    expect(rows()[1]!.textContent).toContain('instructionsDuplicateOf')
+    expect(host!.querySelector('[data-panel-toolbar]')).not.toBeNull()
+    expect(host!.querySelector('[class*="results"]')).not.toBeNull()
+    expect(host!.textContent).toContain('loading')
   })
 
-  it('shows the rendered total against the budget', async () => {
+  it('lists every existing file in the chain, project half included, in load order', async () => {
     await mount()
-    const bar = host!.querySelector('[role="progressbar"]')
-    expect(bar?.getAttribute('aria-valuenow')).toBe('0')
-    expect(host!.textContent).toContain('instructionsBudgetUsage')
+    // The project rows used to be filtered out, which hid the files that actually live in a
+    // repository — and made 新建 unable to create one.
+    expect(paths()).toEqual(['$DSH_HOME/AGENTS.md', '$DSH_AGENTS_HOME/AGENTS.md', 'AGENTS.md', 'apps/site/AGENTS.md'])
+    expect(statuses()).toEqual(['active', 'active', 'active', 'active'])
+    expect(host!.textContent).toContain('instructionsGroupProject')
+    // No session is named, so the page says which directory it read. Without the
+    // line a reader whose project files are missing has no way to tell why.
+    expect(host!.querySelector('[data-instructions-session-hint]')?.textContent).toBe('instructionsSessionHint')
+  })
 
-    await mount({ ...PAYLOAD, total: 32768 })
-    expect(host!.querySelector('[role="progressbar"]')?.getAttribute('aria-valuenow')).toBe('50')
+  it('drops the scope line when a session names the directory', async () => {
+    await mount(PAYLOAD, 'session-1')
+    expect(host!.querySelector('[data-instructions-session-hint]')).toBeNull()
+  })
+
+  it('leaves the file rows out when the file does not exist', async () => {
+    await mount({
+      ...PAYLOAD,
+      rows: PAYLOAD.rows.map(row => (row.scope === 'agents-global' ? { ...row, exists: false, status: 'missing' as const, size: undefined, content: undefined } : row))
+    })
+    // A list of things that are not there cannot be seen, found, or used.
+    expect(paths()).toEqual(['$DSH_HOME/AGENTS.md', 'AGENTS.md', 'apps/site/AGENTS.md'])
+  })
+
+  it('shows neither a budget bar nor the injected text', async () => {
+    await mount()
+    expect(host!.querySelector('[role="progressbar"]')).toBeNull()
+    expect(host!.querySelector('[data-instructions-preview]')).toBeNull()
   })
 
   it('names the package when the profile does not provide it', async () => {
@@ -165,87 +188,127 @@ describe('instructions panel', () => {
     const state = host!.querySelector('[data-instructions-unavailable]')
     expect(state).not.toBeNull()
     expect(state!.textContent).toContain('@deepseek-ai/dsh-agent-instructions')
-    expect(rows()).toEqual([])
+    expect(cards()).toEqual([])
   })
 
-  it('renders a platform-separated display path verbatim', async () => {
-    // The host emits a project display path with the platform separator, so a
-    // Windows profile shows backslashes. The page must show what the host
-    // injects and never reformat it, or the row would name a file the prompt
-    // does not.
-    const windowsPath = 'apps\\site\\AGENTS.md'
-    const payload: InstructionsPayload = {
-      ...PAYLOAD,
-      rows: PAYLOAD.rows.map(row => (row.displayPath === 'apps/site/AGENTS.md' ? { ...row, displayPath: windowsPath, duplicateOf: undefined } : row)),
-      rendered: {
-        text: `Workspace instruction budget 120 bytes: truncated ${windowsPath} from 32 to 0 bytes`,
-        omitted: [],
-        truncated: [{ displayPath: windowsPath, originalBytes: 32, includedBytes: 0 }]
-      }
-    }
-    await mount(payload)
-
-    expect(paths()).toContain(windowsPath)
-    expect(paths()).not.toContain('apps/site/AGENTS.md')
-    // The preview carries the same spelling the host produced.
-    expect(host!.querySelector('[data-instructions-preview]')?.textContent).toContain(windowsPath)
-  })
-
-  it('previews the injected text and names the omitted and truncated files', async () => {
+  it('takes focus into its dialog and gives it back to the card on Escape', async () => {
+    // The connector panel pins this for the dialogs the host draws; this one is ours, and a
+    // reading-first page is exactly where a misplaced focus would be invisible.
     await mount()
-    const preview = host!.querySelector('[data-instructions-preview]')
-    expect(preview?.querySelector('pre')?.textContent).toBe(String(PAYLOAD.rendered.text))
-    expect(preview?.textContent).toContain('instructionsPreviewOmitted')
-    expect(preview?.textContent).toContain('instructionsPreviewTruncated')
+    const card = cards()[0]!.querySelector<HTMLElement>('[data-card-open]')!
+    card.focus()
+    await act(async () => card.click())
+    expect(document.querySelector('[role="dialog"]')!.contains(document.activeElement)).toBe(true)
+    await act(async () => {
+      document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+    })
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(document.activeElement).toBe(card)
   })
 
-  it('opens an existing file for editing and saves the draft', async () => {
+  it('opens a card for reading, and edits only when asked', async () => {
     await mount()
-    const edit = [...rows()[2]!.querySelectorAll('button')].find(button => button.textContent === 'panelEdit')
+    await act(async () => cards()[0]!.click())
+    // Reading first: the dialog shows the file, the path and the preview, and no editor.
+    expect(document.querySelector('[data-code-editor]')).toBeNull()
+    expect(document.querySelector('[data-instruction-preview]')?.textContent).toBe('# Global\n')
+    expect(document.body.textContent).toContain('instructionsDetailPath')
+    const edit = [...document.querySelectorAll('button')].find(button => button.textContent === 'instructionsEdit')
     await act(async () => edit!.click())
 
     const editor = document.querySelector<HTMLTextAreaElement>('[data-code-editor]')
     expect(editor).not.toBeNull()
-    expect(editor!.value).toBe('# Root\n')
-    // React tracks the DOM value itself, so the native setter is what a real
-    // keystroke goes through before the change event fires.
+    expect(editor!.value).toBe('# Global\n')
+    // React tracks the DOM value itself, so the native setter is what a real keystroke goes
+    // through before the change event fires.
     await act(async () => {
       const descriptor = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, 'value')
       // eslint-disable-next-line @typescript-eslint/unbound-method -- a property descriptor's accessor is invoked with the element as its receiver.
       const setValue = descriptor?.set
-      setValue?.call(editor, '# Root edited\n')
+      setValue?.call(editor, '# Global edited\n')
       editor!.dispatchEvent(new Event('input', { bubbles: true }))
     })
     const save = [...document.querySelectorAll('button')].find(button => button.textContent === 'save')
     await act(async () => save!.click())
     await act(async () => {})
 
-    expect(api.saveInstructionFile).toHaveBeenCalledWith({ scope: 'project', directory: '.', candidate: 'AGENTS.md', text: '# Root edited\n' }, undefined)
-    // The save re-reads the chain, which is how the row reflects the new bytes.
+    expect(api.saveInstructionFile).toHaveBeenCalledWith({ scope: 'user-global', directory: '.', candidate: 'AGENTS.md', text: '# Global edited\n' }, undefined)
+    // The save re-reads the files, which is how the card reflects the new bytes.
     expect(api.fetchInstructions).toHaveBeenCalledTimes(2)
   })
 
-  it('offers creation on a directory that has no file yet', async () => {
-    await mount()
-    const create = [...rows()[3]!.querySelectorAll('button')].find(button => button.textContent === 'instructionsCreate')
-    await act(async () => create!.click())
+  it('asks which candidate to create instead of picking one', async () => {
+    await mount({
+      ...PAYLOAD,
+      rows: PAYLOAD.rows.map(row => (row.scope === 'user-global' ? { ...row, exists: false, status: 'missing' as const, size: undefined, content: undefined } : row))
+    })
+    // The missing file is not listed, so creation starts from the header action — and the
+    // action lists every candidate the host would load, one menu item per file.
+    const add = [...host!.querySelectorAll('button')].find(button => button.getAttribute('aria-label') === 'instructionsCreate')
+    await act(async () => add!.click())
+    const item = [...document.querySelectorAll('[role="menuitem"], [role="menuitembutton"]')].find(node => (node.textContent ?? '').includes('$DSH_HOME/AGENTS.md'))
+    expect(item, 'the menu names the file to create').toBeDefined()
+    await act(async () => (item as HTMLElement).click())
     const editor = document.querySelector<HTMLTextAreaElement>('[data-code-editor]')
     expect(editor?.value).toBe('')
     const save = [...document.querySelectorAll('button')].find(button => button.textContent === 'save')
     await act(async () => save!.click())
     await act(async () => {})
-    expect(api.saveInstructionFile).toHaveBeenCalledWith({ scope: 'project', directory: '.', candidate: 'CLAUDE.md', text: '' }, undefined)
+    expect(api.saveInstructionFile).toHaveBeenCalledWith({ scope: 'user-global', directory: '.', candidate: 'AGENTS.md', text: '' }, undefined)
   })
 
   it('warns about the other names a deletion leaves behind', async () => {
     api.deleteInstructionFile.mockResolvedValue({ aliases: ['CLAUDE.md'], targetIsLink: false })
     await mount()
-    const remove = [...rows()[2]!.querySelectorAll('button')].find(button => button.textContent === 'panelDelete')
+    await act(async () => cards()[0]!.click())
+    // The destructive action sits inside the dialog the card opened.
+    const remove = [...document.querySelectorAll('button')].find(button => button.textContent === 'panelDelete')
     await act(async () => remove!.click())
     const confirm = [...document.querySelectorAll('button')].filter(button => button.textContent === 'panelDelete').at(-1)
     await act(async () => confirm!.click())
     await act(async () => {})
-    expect(api.deleteInstructionFile).toHaveBeenCalledWith({ scope: 'project', directory: '.', candidate: 'AGENTS.md' }, undefined)
+    expect(api.deleteInstructionFile).toHaveBeenCalledWith({ scope: 'user-global', directory: '.', candidate: 'AGENTS.md' }, undefined)
     expect(host!.textContent).toContain('CLAUDE.md')
+  })
+  it('searches the list, filters by state, and switches the layout', async () => {
+    await mount()
+    const field = host!.querySelector<HTMLInputElement>('[data-panel-toolbar] input')!
+    await act(async () => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- a property descriptor's accessor is invoked with the element as its receiver.
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(field, 'DSH_AGENTS')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(paths()).toEqual(['$DSH_AGENTS_HOME/AGENTS.md'])
+
+    await act(async () => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- a property descriptor's accessor is invoked with the element as its receiver.
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(field, '')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    // Two scope cuts, and no state cut: the card's own tag names each status, so every row
+    // stays reachable while browsing. The cuts answer "which half is this file in", not
+    // "which files loaded".
+    const cuts = [...host!.querySelectorAll('[data-panel-toolbar] [role="tab"]')].map(node => (node.textContent ?? '').trim())
+    // The shared facet's order: the checkout's half first, then the person's.
+    expect(cuts).toEqual(['filterAll 4', 'instructionsGroupProject 2', 'instructionsGroupGlobal 2'])
+
+    // The view switch re-lays the same collection out as a list.
+    const toList = host!.querySelector<HTMLButtonElement>('[data-panel-toolbar] button[aria-label="list"]')!
+    await act(async () => toList.click())
+    expect(host!.querySelector('[data-resource-view]')?.getAttribute('data-resource-view')).toBe('list')
+  })
+
+  it('gives every class it applies a rule in its own stylesheet', async () => {
+    // The loading line, the read failure and the unavailable card applied six
+    // class names that existed nowhere, so they rendered with browser defaults
+    // (an `h3` with its own margins) inside a panel that insets everything else.
+    const { readFileSync } = await import('node:fs')
+    const source = readFileSync('packages/market-ui/src/features/instructions/InstructionsPanel.tsx', 'utf8')
+    const styles = readFileSync('packages/market-ui/src/features/instructions/instructions.module.css', 'utf8')
+    const used = [...new Set([...source.matchAll(/css\.([A-Za-z0-9_]+)/g)].map(match => match[1]))]
+    const defined = new Set([...styles.matchAll(/^\.([A-Za-z0-9_]+)/gm)].map(match => match[1]))
+    expect(used.filter(name => !defined.has(name))).toEqual([])
   })
 })

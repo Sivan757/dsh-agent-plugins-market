@@ -165,7 +165,7 @@ it('edits global-off into a named library draft before explicit session selectio
   await click('Skills')
   const card = document.querySelector<HTMLElement>('article')!
   expect(card.getAttribute('data-resource-state')).toBe('disabled')
-  await act(async () => card.click())
+  await act(async () => card.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(posts).toHaveLength(0)
   expect(document.body.textContent).toContain('Unnamed preset')
   await click('Save preset')
@@ -188,7 +188,7 @@ it('coalesces same-id project cards and toggles the unnamed draft', async () => 
   await mount(false, [suite, { ...suite }, { ...skill, globalEnabled: true }])
   await open()
   const cards = () => [...document.querySelectorAll<HTMLElement>('article')]
-  await act(async () => cards()[0]!.click())
+  await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards().map(card => card.getAttribute('data-resource-state'))).toEqual(['disabled'])
   expect(document.body.textContent).toContain('Unnamed preset')
   await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
@@ -196,15 +196,13 @@ it('coalesces same-id project cards and toggles the unnamed draft', async () => 
   await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards().map(card => card.getAttribute('data-resource-state'))).toEqual(['disabled'])
   expect(posts).toHaveLength(0)
-  await click('Enabled 0')
-  expect(cards()).toHaveLength(0)
-  await click('All 1')
+  // The manager's filter strip is the workspace's provider facet, and this face has one
+  // provider, so there is no strip at all: the switched-on cut the manager used to draw is
+  // gone, and so is the "nothing is enabled" chip it produced.
+  expect([...document.querySelectorAll<HTMLElement>('[data-panel-toolbar] [role="tab"]')]).toHaveLength(0)
   expect(cards()).toHaveLength(1)
-  await act(async () => cards()[0]!.click())
+  await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards().map(card => card.getAttribute('data-resource-state'))).toEqual(['active'])
-  await click('Disabled 0')
-  expect(cards()).toHaveLength(0)
-  await click('All 1')
   await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards().map(card => card.getAttribute('data-resource-state'))).toEqual(['disabled'])
 })
@@ -213,7 +211,7 @@ it('does not retain stale duplicate cards after a filtered row is removed', asyn
   await open()
   await act(async () => typeInto(document.querySelector<HTMLInputElement>('input[aria-label="Search installed extensions"]')!, 'frontend'))
   const cards = () => [...document.querySelectorAll<HTMLElement>('article')]
-  await act(async () => cards()[0]!.click())
+  await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards()[0]!.getAttribute('data-resource-state')).toBe('disabled')
   await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards()[0]!.getAttribute('data-resource-state')).toBe('active')
@@ -236,7 +234,7 @@ it('requires confirmation before discarding a global library draft', async () =>
   await mount()
   await open()
   await click('Skills')
-  await act(async () => document.querySelector<HTMLElement>('article')!.click())
+  await act(async () => document.querySelector<HTMLElement>('article')!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   await act(async () => document.querySelector<HTMLButtonElement>('button[aria-label="Close"]')!.click())
   expect(document.body.textContent).toContain(en.epDiscardHint)
   await click('Cancel')
@@ -250,7 +248,7 @@ it('routes real detail toggles through the library draft without global mutation
   await mount()
   await open()
   await click('Skills')
-  await click('View details · security-audit')
+  await act(async () => document.querySelector<HTMLElement>('article')!.click())
   expect(detailProps?.checked).toBe(false)
   expect(detailProps?.disabled).toBe(false)
   await act(async () => detailProps!.onToggle!(true))
@@ -307,19 +305,19 @@ it('uses the same source, count and name classes as current settings cards', asy
   const card = document.querySelector('article')!
   const name = card.querySelector('.' + rc.default.name)!
   expect(name.classList.contains(rc.default.nameMono!)).toBe(false)
-  expect(card.querySelector('.' + rc.default.provenance)!.textContent).toBe('Source')
+  expect(card.textContent).toContain('Source')
   expect(card.querySelector('.' + rc.default.countValue)!.textContent).toBe('1')
   expect(card.querySelector('.' + rc.default.count)!.textContent).toContain(settingsEn.surfaceSkills)
   const labels = [...document.querySelectorAll('[role="tab"]')].slice(0, 6).map(node => node.textContent)
   expect(labels).toEqual([
     settingsEn.workspaceTabMarket,
     settingsEn.workspaceTabSkills,
-    settingsEn.workspaceTabCommands,
     settingsEn.workspaceTabPersonas,
+    settingsEn.workspaceTabCommands,
     settingsEn.workspaceTabMcp,
     settingsEn.workspaceTabLsp
   ])
-  expect(card.querySelector('.' + rc.default.switchWrap)).not.toBeNull()
+  expect(card.querySelector('[role="switch"]')).not.toBeNull()
   expect(document.querySelector('[role="group"] .' + source.default.srcTabMain)).not.toBeNull()
 })
 it('classifies project-scan rows into their surface tabs and renders no local tab', async () => {
@@ -360,11 +358,13 @@ it('classifies project-scan rows into their surface tabs and renders no local ta
   const faceTabs = [
     settingsEn.workspaceTabMarket,
     settingsEn.workspaceTabSkills,
-    settingsEn.workspaceTabCommands,
     settingsEn.workspaceTabPersonas,
+    settingsEn.workspaceTabCommands,
     settingsEn.workspaceTabMcp,
     settingsEn.workspaceTabLsp,
-    en.epHooksTab
+    settingsEn.workspaceTabInstructions,
+    settingsEn.workspaceTabOutputStyles,
+    settingsEn.workspaceTabHooks
   ]
   const faceTabLabels = () =>
     [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-market-panel"]'))!.querySelectorAll('[role="tab"]')
@@ -390,6 +390,14 @@ it('classifies project-scan rows into their surface tabs and renders no local ta
     expect(cardIds()).not.toContain(hooks.id)
   }
 })
+it('lists every face, whatever the workspace stows', () => {
+  // A preset covers every face, so "stowed in the workspace tab row" must not hide a face from
+  // the preset editor: this used to go through visibleTabs, which filtered stowed faces out.
+  const source = readFileSync('packages/market-ui/src/features/extension-presets/ResourceList.tsx', 'utf8')
+  expect(source).toContain('const orderedFaces = layout.order')
+  expect(source).not.toContain('visibleTabs(')
+})
+
 it('keeps frame geometry but delegates card layout and typography to shared styles', () => {
   const css = readFileSync('packages/market-ui/src/features/extension-presets/presets.module.css', 'utf8')
   expect(css).toContain('width: 800px')
@@ -420,7 +428,7 @@ const zh = { ...settingsZh, ...extensionPresetsZh } as Record<string, string>
 const tZh = (key: string) => zh[key] ?? key
 
 describe('user hooks configuration row', () => {
-  it('keeps the tab row on equal columns with ellipsized labels instead of a sideways scroll', async () => {
+  it('scrolls the face row instead of truncating a label', async () => {
     const toggle = vi.fn(),
       view = vi.fn()
     await mount()
@@ -429,22 +437,31 @@ describe('user hooks configuration row', () => {
         h(ResourceList, { resources: [suite, hooksRow], ids: [], disabled: false, t: tZh, showOriginal: false, onToggleShowOriginal: () => {}, onToggle: toggle, onView: view })
       )
     )
-    // The shared row policy: the host sizes the columns, and a label that does
-    // not fit ellipsizes inside its own share. Nothing scrolls sideways.
-    const sharedCss = readFileSync('packages/market-ui/src/ui/resource-tabs.module.css', 'utf8')
-    const rowRule = /\.row\s*\{[^}]*/.exec(sharedCss)?.[0] ?? ''
-    expect(rowRule).toMatch(/overflow:\s*hidden/)
-    expect(rowRule).toMatch(/min-width:\s*0/)
-    expect(sharedCss).not.toMatch(/overflow-x:\s*auto/)
-    expect(sharedCss).toMatch(/\.labelText\s*\{[^}]*text-overflow:\s*ellipsis/)
-    expect(sharedCss).toMatch(/\.labelText\s*\{[^}]*white-space:\s*nowrap/)
-    // Equal columns are the host's own inline grid, so the indicator geometry
-    // stays correct at any width.
-    const faceTablist = [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-market-panel"]'))!
-    expect(faceTablist.getAttribute('style') ?? '').toContain('minmax(0, 1fr)')
-    // The rendered row actually carries the module class the policy rides on.
-    const rowClass = (await import('../../../../packages/market-ui/src/ui/resource-tabs.module.css')).default.row
-    expect(document.querySelector('.' + rowClass)!.querySelector('[role="tablist"]')).not.toBeNull()
+    // The row is one scrollable rail: a face keeps its full label and the rail
+    // slides, which is what stops a ninth tab from being cut off at the edge.
+    const railCss = readFileSync('packages/market-ui/src/ui/tab-rail.module.css', 'utf8')
+    const railRule = /\.rail\s*\{[^}]*/.exec(railCss)?.[0] ?? ''
+    expect(railRule).toMatch(/overflow-x:\s*auto/)
+    expect(railRule).toMatch(/min-width:\s*0/)
+    const tabRule = /\.tab\s*\{[^}]*/.exec(railCss)?.[0] ?? ''
+    // Spare width is shared so a short row fills the strip; min-width keeps a label whole,
+    // which is what still stops a ninth tab from being cut off at the edge.
+    expect(tabRule).toMatch(/flex:\s*1\s+1\s+auto/)
+    expect(tabRule).toMatch(/min-width:\s*(fit-content|max-content)/)
+    expect(tabRule).toMatch(/white-space:\s*nowrap/)
+    // The face row is one tablist holding every face directly, and it is not the host's
+    // equal-column grid: no inline grid template is set on it.
+    const faceLists = [...document.querySelectorAll('[role="tablist"]')].filter(list => list.querySelectorAll('[role="tab"]').length === 9)
+    expect(faceLists).toHaveLength(1)
+    expect(faceLists[0]!.getAttribute('style') ?? '').not.toContain('minmax(0, 1fr)')
+    // The row carries the face tabs directly, so the tab list is the rail itself rather
+    // than a nested control inside another row. The stowed group is the one other child:
+    // a divider plus the tabs already moved past it.
+    const children = [...faceLists[0]!.children]
+    // One child is not a tab: the moving selection pill, drawn behind the labels. The row
+    // carries no group wrapper and no divider.
+    expect(children.every(child => child.getAttribute('role') === 'tab')).toBe(true)
+    expect(children.filter(child => child.getAttribute('role') === 'tab')).toHaveLength(9)
   })
 
   it('keeps the user-hooks configuration row out of every face tab in a localized build', async () => {
@@ -460,11 +477,13 @@ describe('user hooks configuration row', () => {
     const tabs = [
       tZh('workspaceTabMarket'),
       tZh('workspaceTabSkills'),
-      tZh('workspaceTabCommands'),
       tZh('workspaceTabPersonas'),
+      tZh('workspaceTabCommands'),
       tZh('workspaceTabMcp'),
       tZh('workspaceTabLsp'),
-      tZh('epHooksTab')
+      tZh('workspaceTabInstructions'),
+      tZh('workspaceTabOutputStyles'),
+      tZh('workspaceTabHooks')
     ]
     const faceTablist = [...document.querySelectorAll('[role="tablist"]')].find(list => list.querySelector('[aria-controls$="-market-panel"]'))!
     expect([...faceTablist.querySelectorAll('[role="tab"]')].map(node => node.textContent)).toEqual(tabs)
@@ -594,13 +613,15 @@ describe('hooks tab', () => {
     expect([...faceTablist.querySelectorAll('[role="tab"]')].map(node => node.textContent)).toEqual([
       settingsEn.workspaceTabMarket,
       settingsEn.workspaceTabSkills,
-      settingsEn.workspaceTabCommands,
       settingsEn.workspaceTabPersonas,
+      settingsEn.workspaceTabCommands,
       settingsEn.workspaceTabMcp,
       settingsEn.workspaceTabLsp,
-      en.epHooksTab
+      settingsEn.workspaceTabInstructions,
+      settingsEn.workspaceTabOutputStyles,
+      settingsEn.workspaceTabHooks
     ])
-    await click(en.epHooksTab)
+    await click(settingsEn.workspaceTabHooks)
     // No secondary event row remains: every declaration lists at once, and each
     // card names its own stage.
     expect([...document.querySelectorAll('[role="tablist"]')].filter(list => list.querySelector('[aria-controls$="-PreToolUse-panel"]'))).toHaveLength(0)
@@ -656,16 +677,19 @@ describe('hooks tab', () => {
         })
       )
     )
-    await click(en.epHooksTab)
+    await click(settingsEn.workspaceTabHooks)
     const cardOf = (id: string) => document.querySelector<HTMLElement>('article[data-resource-id="' + id + '"]')!
     // A supported event keeps its own switch; the selection is the only difference.
     expect(cardOf('hooks:@user-hooks/user-hooks/PreToolUse/0').querySelector('[role="switch"]')).not.toBeNull()
     expect(cardOf('hooks:@user-hooks/user-hooks/Stop/0').querySelector('[role="switch"]')).not.toBeNull()
-    // A partial or registered-only event is read-only and its card says why.
-    for (const id of ['hooks:@user-hooks/user-hooks/Notification/0', 'hooks:@user-hooks/user-hooks/SessionEnd/declared']) {
+    // A partial or registered-only event is read-only, and its card states the reason inline.
+    for (const [id, reason] of [
+      ['hooks:@user-hooks/user-hooks/Notification/0', 'epHookEventPartial'],
+      ['hooks:@user-hooks/user-hooks/SessionEnd/declared', 'epHookEventUnsupported']
+    ] as const) {
       const card = cardOf(id)
       expect(card.querySelector('[role="switch"]')).toBeNull()
-      expect([...card.querySelectorAll('span')].some(node => node.getAttribute('data-tone') === 'quiet')).toBe(true)
+      expect(card.textContent).toContain(t(reason))
     }
   })
 
@@ -711,30 +735,19 @@ describe('hooks tab', () => {
         })
       )
     )
-    await click(tZh('epHooksTab'))
+    await click(tZh('workspaceTabHooks'))
     // Both read-only rows list at once, each with its own reason tag.
     expect(document.querySelectorAll('article')).toHaveLength(2)
     const cardOf = (id: string) => document.querySelector<HTMLElement>('article[data-resource-id="' + id + '"]')!
-    const hover = async (card: HTMLElement): Promise<void> => {
-      const tag = [...card.querySelectorAll('span')].find(node => node.getAttribute('data-tone') === 'quiet')!
-      await act(async () => {
-        tag.dispatchEvent(new MouseEvent('mouseover', { bubbles: true }))
-      })
-      await act(async () => {
-        await new Promise(resolve => setTimeout(resolve, 10))
-      })
-    }
     const partial = cardOf('hooks:@user-hooks/user-hooks/Notification/0')
     expect(partial.querySelector('[role="switch"]')).toBeNull()
-    await hover(partial)
-    expect(document.body.textContent).toContain(tZh('epHookEventPartial'))
+    expect(partial.textContent).toContain(tZh('epHookEventPartial'))
     const registered = cardOf('hooks:@user-hooks/user-hooks/SessionEnd/declared')
     expect(registered.querySelector('[role="switch"]')).toBeNull()
-    await hover(registered)
-    expect(document.body.textContent).toContain(tZh('epHookEventUnsupported'))
+    expect(registered.textContent).toContain(tZh('epHookEventUnsupported'))
   })
 
-  it('keeps the seven one-line face tabs on the shared tab-row policy', async () => {
+  it('keeps every one-line face tab on the shared scrolling rail', async () => {
     const toggle = vi.fn(),
       view = vi.fn()
     await mount()
@@ -752,18 +765,15 @@ describe('hooks tab', () => {
         })
       )
     )
-    const rowClass = (await import('../../../../packages/market-ui/src/ui/resource-tabs.module.css')).default.row
-    // Seven primary faces on one shared component with one one-line,
-    // non-scrolling policy. The secondary event row is gone.
-    const faceRow = document.querySelector('.' + rowClass)!
-    expect(faceRow.querySelectorAll('[role="tab"]')).toHaveLength(7)
-    await click(en.epHooksTab)
-    expect([...document.querySelectorAll('.' + rowClass)]).toHaveLength(1)
-    // One line each, and never a sideways scroll: the shared truncation rule is
-    // the only thing that gives on a narrow frame.
-    const sharedCss = readFileSync('packages/market-ui/src/ui/resource-tabs.module.css', 'utf8')
-    expect(sharedCss).toMatch(/\.labelText\s*\{[^}]*white-space:\s*nowrap/)
-    expect(sharedCss).toMatch(/\.labelText\s*\{[^}]*text-overflow:\s*ellipsis/)
-    expect(sharedCss).not.toMatch(/overflow-x:\s*auto/)
+    // Seven primary faces on one rail. The secondary event row is gone.
+    const faceLists = () => [...document.querySelectorAll('[role="tablist"]')].filter(list => list.querySelectorAll('[role="tab"]').length === 9)
+    expect(faceLists()).toHaveLength(1)
+    await click(settingsEn.workspaceTabHooks)
+    expect(faceLists()).toHaveLength(1)
+    // One line each, and the rail scrolls rather than shrinking a label: a face
+    // keeps its width, which is what makes every entry readable at any frame width.
+    const railCss = readFileSync('packages/market-ui/src/ui/tab-rail.module.css', 'utf8')
+    expect(railCss).toMatch(/\.tab\s*\{[^}]*white-space:\s*nowrap/)
+    expect(railCss).toMatch(/\.rail\s*\{[^}]*overflow-x:\s*auto/)
   })
 })

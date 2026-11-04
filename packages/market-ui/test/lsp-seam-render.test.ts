@@ -117,6 +117,38 @@ describe('LSP legacy seam banner', () => {
   })
 })
 
+describe('LSP failed row actions', () => {
+  it('offers restart on the row that did not mount, and only there', async () => {
+    // The connectors list taught this shape: the state word names the problem and the
+    // action that fixes it sits beside it, instead of behind the row's dialog.
+    const api = await import('../../../packages/market-ui/src/api.js')
+    const row = {
+      id: 'src/ts/typescript',
+      serverKey: 'typescript',
+      suiteId: 'src/ts',
+      suiteName: 'TS Suite',
+      sourceId: 'src',
+      kind: 'plugin' as const,
+      command: 'typescript-language-server',
+      args: ['--stdio'],
+      extensions: { '.ts': 'typescript' },
+      state: 'mounted' as const
+    }
+    vi.mocked(api.fetchLspStatus).mockResolvedValue({
+      ...clean,
+      entries: [
+        { ...row, state: 'failed', reason: 'spawn ENOENT' },
+        { ...row, id: 'src/ts/other', serverKey: 'other' }
+      ]
+    })
+    const el = await mountPanel()
+    const cards = [...el.querySelectorAll('article[data-resource-state]')]
+    const labelled = (card: Element): string[] => [...card.querySelectorAll('button')].map(node => (node.textContent ?? '').trim())
+    expect(labelled(cards[0]!).join(' ')).toContain('lspRestart')
+    expect(labelled(cards[1]!).join(' ')).not.toContain('lspRestart')
+  })
+})
+
 describe('LSP card actions', () => {
   it('opens the editor from the card and leaves the report without one', async () => {
     const api = await import('../../../packages/market-ui/src/api.js')
@@ -133,7 +165,7 @@ describe('LSP card actions', () => {
     expect(edit).not.toBeNull()
 
     // The report itself carries no edit entry.
-    const card = [...el.querySelectorAll('[role="button"]')].find(node => (node.textContent ?? '').startsWith('typescript'))
+    const card = [...el.querySelectorAll('[data-card-open]')].find(node => (node.textContent ?? '').startsWith('typescript'))
     await act(async () => {
       card!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
       await new Promise(resolve => setTimeout(resolve, 0))
@@ -145,5 +177,14 @@ describe('LSP card actions', () => {
       await new Promise(resolve => setTimeout(resolve, 0))
     })
     expect(document.body.textContent).toContain('lspEditTitle')
+  })
+
+  it('offers the same three conditions every other list offers', async () => {
+    // The face used to render no toolbar at all, so the cut strip every other list carries was
+    // simply absent here. It draws the shared pair now, at any count.
+    const el = await mountPanel()
+    const tabs = [...el.querySelectorAll('[data-panel-toolbar] [role="tab"]')].map(tab => (tab.textContent ?? '').trim())
+    expect(tabs[0]).toBe('filterAll 1')
+    expect(tabs).toHaveLength(3)
   })
 })

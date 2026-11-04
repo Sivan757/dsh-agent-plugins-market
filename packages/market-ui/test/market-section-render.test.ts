@@ -48,6 +48,9 @@ vi.mock('../../../packages/market-ui/src/api.js', () => ({
 }))
 
 vi.mock('../../../packages/market-ui/src/features/market/market-resource.js', () => ({
+  // Render seeds from the cached answer without starting a request; the mount
+  // effect is the only reader. A double must answer both.
+  peekOverview: vi.fn(() => ({ initial: overviewPayload, cached: true })),
   loadOverview: vi.fn(() => ({
     initial: overviewPayload,
     revalidating: false,
@@ -173,6 +176,50 @@ describe('MarketSection rendering', () => {
     const bodyText = document.body.textContent ?? ''
     expect(bodyText).toContain('installConfirmLocalTree')
     expect(bodyText).not.toContain('f0e9fdf066c1')
+  })
+
+  it('paints three edges: running, installed but off, and not installed at all', async () => {
+    // An uninstalled suite used to wear the same grey "off" edge as a suite the
+    // reader had switched off, so a market of 971 uninstalled suites read as a
+    // wall of disabled ones. The three facts now have three chromes.
+    const base = overviewPayload.suites[0]!
+    await stubOverview({
+      ...overviewPayload,
+      suites: [
+        { ...base, suiteId: 'running', name: 'Running Suite', installed: true, enabled: true },
+        { ...base, suiteId: 'switched-off', name: 'Off Suite', installed: true, enabled: false },
+        { ...base, suiteId: 'absent', name: 'Absent Suite', installed: false, enabled: false }
+      ]
+    })
+    const el = await mountSection()
+    const stateOf = (name: string): string | null => {
+      const card = [...el.querySelectorAll<HTMLElement>('article')].find(node => (node.textContent ?? '').includes(name))
+      return card?.getAttribute('data-resource-state') ?? null
+    }
+    expect(stateOf('Running Suite')).toBe('active')
+    expect(stateOf('Off Suite')).toBe('disabled')
+    expect(stateOf('Absent Suite')).toBe('absent')
+    // Colour is not a state for everyone: each card says its state in words too.
+    const stateWords = (name: string): string | null => {
+      const card = [...el.querySelectorAll<HTMLElement>('article')].find(node => (node.textContent ?? '').includes(name))!
+      return card.querySelector('[class*="srOnly"]')?.textContent ?? null
+    }
+    expect(stateWords('Running Suite')).toBe('enabledLabel')
+    expect(stateWords('Off Suite')).toBe('disabledLabel')
+    expect(stateWords('Absent Suite')).toBe('notInstalledLabel')
+  })
+
+  it('gives each source pill its label width, capped, so two long ids stay distinguishable', async () => {
+    // Equal-width cells truncated `claude-code-plugins-plus-skills` and
+    // `claude-code-workflows` to the same stump; an id is how a reader picks a
+    // source, so the pill takes its label's width up to a cap.
+    const { readFileSync } = await import('node:fs')
+    const css = readFileSync('packages/market-ui/src/ui/source-strip.module.css', 'utf8')
+    const rowRule = /\.sourceTabsRow \{[^}]*\}/.exec(css)?.[0] ?? ''
+    expect(rowRule).toMatch(/display: flex/)
+    expect(rowRule).toMatch(/flex-wrap: wrap/)
+    expect(css).not.toMatch(/minmax\(118px/)
+    expect(css).toMatch(/max-width: 220px/)
   })
 
   it('renders the selected source chip with reachable edit and delete controls', async () => {

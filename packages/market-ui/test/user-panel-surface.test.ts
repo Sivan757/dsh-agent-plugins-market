@@ -96,7 +96,7 @@ describe('unified Markdown resource panel', () => {
     api.updateUserPanelEntry.mockResolvedValue(undefined)
     await mountPanel()
     expect(api.fetchModelCatalog).not.toHaveBeenCalled()
-    await click('panelEditTitle')
+    await click('panelEdit reviewer')
     const select = async (index: number, value: string) => {
       await act(async () => {
         const input = host.querySelectorAll('select')[index]
@@ -129,7 +129,7 @@ describe('unified Markdown resource panel', () => {
     api.updateUserPanelEntry.mockResolvedValue(undefined)
     await mountPanel()
     // The pencil on a plugin persona card opens the structured routing form.
-    await click('panelEditTitle')
+    await click('panelEdit reviewer')
     const dialog = () => host.querySelector('[role="dialog"]')?.textContent ?? ''
     expect(dialog()).toContain('personaRuntimeConfig')
     // The suite owns the document: no raw Markdown surface, only the routing
@@ -154,11 +154,11 @@ describe('unified Markdown resource panel', () => {
     await act(async () => host.querySelector<HTMLButtonElement>('button[aria-label="switchToList"]')!.click())
     await click('panelSourcePlugin')
     // An agent persona card carries the pencil: it opens the routing editor.
-    expect(host.querySelector('button[aria-label="panelEditTitle"]')).not.toBeNull()
+    expect(host.querySelector('button[aria-label^="panelEdit "]')).not.toBeNull()
     await click('panelSourceUser')
     // The pencil opens the filtered entry's own document; its path is a detail
     // read-out, not an editor field, so the editor never repeats it.
-    await click('panelEditTitle')
+    await click('panelEdit reviewer')
     const dialog = host.querySelector('[role="dialog"]')?.textContent ?? ''
     expect(dialog).toContain('Review code')
     expect(dialog).not.toContain('/user/reviewer.md')
@@ -194,24 +194,34 @@ describe('unified Markdown resource panel', () => {
     // path the panel addresses the document by.
     expect([...host.querySelectorAll('span')].some(span => span.textContent === 'git-commit')).toBe(true)
 
-    const card = host.querySelector<HTMLElement>('[role="button"]')
+    const card = host.querySelector<HTMLElement>('[data-card-open]')
     expect(card).not.toBeNull()
     await act(async () => card!.click())
     expect(host.querySelector('[role="dialog"] h2')?.textContent).toBe('git-commit')
   })
 
-  it('offers edit and delete only on user-authored entries', async () => {
+  it('offers the document edit on user and persona cards, and the delete only in a user entry detail', async () => {
     api.fetchUserPanel.mockResolvedValue([plugin, user])
     await mountPanel()
-    const [pluginCard, userCard] = [...host.querySelectorAll<HTMLElement>('[role="button"]')]
-    // Suite-owned files uninstall with their suite and their content stays
-    // suite-authored, so there is no delete affordance at all — not even a
-    // disabled one. The persona's pencil edits routing only; the next test
-    // covers the document surface it leaves out.
+    // The cards themselves: the controls beside the opener are siblings of it.
+    const [pluginCard, userCard] = [...host.querySelectorAll<HTMLElement>('article')]
+    // The card's click means "open": no destructive action sits on either card.
     expect(pluginCard?.querySelector('button[aria-label="panelDelete"]')).toBeNull()
-    expect(pluginCard?.querySelector('button[aria-label="panelEditTitle"]')).not.toBeNull()
-    expect(userCard?.querySelector('button[aria-label="panelDelete"]')).not.toBeNull()
-    expect(userCard?.querySelector('button[aria-label="panelEditTitle"]')).not.toBeNull()
+    expect(userCard?.querySelector('button[aria-label="panelDelete"]')).toBeNull()
+    // The persona's pencil edits routing only; a user entry's pencil edits its own
+    // document. The next test covers the document surface a persona leaves out.
+    expect(pluginCard?.querySelector('button[aria-label^="panelEdit "]')).not.toBeNull()
+    expect(userCard?.querySelector('button[aria-label^="panelEdit "]')).not.toBeNull()
+    // Suite-owned files uninstall with their suite, so their detail carries no
+    // delete; a user entry's detail is where that one action lives.
+    await act(async () => pluginCard!.querySelector<HTMLElement>('[data-card-open]')!.click())
+    expect(host.querySelector('[role="dialog"] button[aria-label="panelDelete"]')).toBeNull()
+    await act(async () => root.unmount())
+    host.remove()
+    await mountPanel()
+    const [, userCardAgain] = [...host.querySelectorAll<HTMLElement>('article')]
+    await act(async () => userCardAgain!.querySelector<HTMLElement>('[data-card-open]')!.click())
+    expect(host.querySelector('[role="dialog"] button[aria-label="panelDelete"]')).not.toBeNull()
   })
 
   it('gives plugin skill and command cards no edit affordance', async () => {
@@ -226,7 +236,7 @@ describe('unified Markdown resource panel', () => {
       document.body.append(host)
       root = createRoot(host)
       await act(async () => root.render(h(UserPanelSurface, { t, kind })))
-      expect(host.querySelector('button[aria-label="panelEditTitle"]'), kind).toBeNull()
+      expect(host.querySelector('button[aria-label^="panelEdit "]'), kind).toBeNull()
       expect(host.querySelector('button[aria-label="panelDelete"]'), kind).toBeNull()
     }
   })
@@ -234,7 +244,7 @@ describe('unified Markdown resource panel', () => {
   it('shows persona routing frontmatter as its own rows in the detail', async () => {
     api.fetchUserPanel.mockResolvedValue([{ ...plugin, metadata: { model: 'inherit', provider: 'vendor', reasoning_effort: 'high', tools: ['Read'] } }])
     await mountPanel()
-    const card = host.querySelector<HTMLElement>('[role="button"]')
+    const card = host.querySelector<HTMLElement>('[data-card-open]')
     await act(async () => card!.click())
     const dialog = host.querySelector('[role="dialog"]')!.textContent ?? ''
     // The same three words the routing editor labels these fields with.
@@ -255,7 +265,7 @@ describe('unified Markdown resource panel', () => {
   it('states the route a persona inherits when it declares none of its own', async () => {
     api.fetchUserPanel.mockResolvedValue([{ ...plugin, metadata: {} }])
     await mountPanel()
-    const card = host.querySelector<HTMLElement>('[role="button"]')
+    const card = host.querySelector<HTMLElement>('[data-card-open]')
     await act(async () => card!.click())
     const dialog = host.querySelector('[role="dialog"]')!.textContent ?? ''
     // A missing row cannot answer "what will this agent run on", so the three
@@ -341,7 +351,7 @@ describe('unified Markdown resource panel', () => {
     expect(text).toContain('Review code')
     expect(control().getAttribute('aria-checked')).toBe('false')
     expect(host.querySelector('button[aria-label="panelDelete"]')).toBeNull()
-    if (kind !== 'agents') expect(host.querySelector('button[aria-label="panelEditTitle"]')).toBeNull()
+    if (kind !== 'agents') expect(host.querySelector('button[aria-label^="panelEdit "]')).toBeNull()
     await act(async () => control().click())
     const restored = api.updateUserPanelEntry.mock.calls[1]?.[2] as string
     expect(restored).toContain(kind === 'skills' ? 'disable-model-invocation: false' : 'disabled: false')
@@ -353,7 +363,7 @@ describe('unified Markdown resource panel', () => {
     api.fetchUserPanel.mockResolvedValue([user])
     api.fetchUserPanelEntry.mockResolvedValue({ ...user, rawText: '---\ndescription: Review implementation\n---\nFRESHDOCBODY' })
     await mountPanel()
-    const card = host.querySelector<HTMLElement>('[role="button"]')
+    const card = host.querySelector<HTMLElement>('[data-card-open]')
     await act(async () => card!.click())
     // The dialog opens on the document, so that read rides the open rather than
     // a second click. The list read still carries no document of its own.

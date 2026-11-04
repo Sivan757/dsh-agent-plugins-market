@@ -65,6 +65,26 @@ export const FAILURE_GUIDANCE_LABEL: Record<FailureGuidanceKey, LocaleKey> = {
   duplicateMount: 'mcpDuplicateHint'
 }
 
+/**
+ * The cause alone, for a row that has one line to spare.
+ *
+ * Every guidance sentence opens with the cause and then says what to do about
+ * it ("连接超时：确认服务可达；…"). A card shows the cause, because the list is
+ * scanned to find which row needs attention, and the detail still carries the
+ * whole sentence. A locale that writes no separator keeps the sentence and lets
+ * the row ellipsize it.
+ *
+ * @param sentence - the classified guidance sentence.
+ * @returns the clause before the first separator, or the whole sentence.
+ */
+export function failureCause(sentence: string): string {
+  const separator = sentence.includes('：') ? '：' : sentence.includes(': ') ? ': ' : undefined
+  if (separator === undefined) return sentence
+  const cause = sentence.slice(0, sentence.indexOf(separator)).trim()
+  // A sentence that opens with the separator yields nothing useful; keep it whole.
+  return cause === '' ? sentence : cause
+}
+
 /** One row's failure: its code, its summary line, and the messages under it. */
 export interface FailureDiagnostic {
   code?: string | undefined

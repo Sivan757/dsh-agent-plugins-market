@@ -8,6 +8,17 @@ import { z } from 'zod'
 import { optionalService } from '../core/context.js'
 import { parseExtensionIds, type ExtensionSelection } from '../../../../market-contracts/src/contracts/extension-presets.js'
 
+/**
+ * The content these bookkeeping messages carry: nothing.
+ *
+ * Each of them exists so the session records a durable event, and each is
+ * removed from the inbox before a request. Their content is therefore never read
+ * by a model, and a sentence there would be text a model could act on if the
+ * filter ever missed. The empty block list is the smallest truthful carrier: the
+ * source kind rides the message, and no content reaches a request.
+ */
+const NO_MODEL_CONTENT: readonly never[] = []
+
 export const EXTENSION_SESSION_SOURCE = 'market-extension-selection'
 const selectionSchema = z
   .object({
@@ -15,7 +26,9 @@ const selectionSchema = z
     presetName: z.string().min(1).max(80).nullable(),
     presetRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).nullable(),
     modified: z.boolean(),
-    enabledIds: z.array(z.string()).transform(ids => parseExtensionIds(ids))
+    enabledIds: z.array(z.string()).transform(ids => parseExtensionIds(ids)),
+    /** See ExtensionSelection.frozen. */
+    frozen: z.boolean().optional()
   })
   .strict()
   .refine(value => (value.presetId === null) === (value.presetName === null) && (value.presetId === null) === (value.presetRevision === null))
@@ -790,7 +803,7 @@ export class ExtensionSessionState {
   private async persistIntent(agent: Agent, intent: Intent): Promise<void> {
     const message = createUserMessage({
       source: { kind: EXTENSION_INTENT_SOURCE, form: 'context', intent },
-      content: [{ type: 'text', text: 'Session extension selection request.' }]
+      content: NO_MODEL_CONTENT
     })
     agent.inject(message)
     // The insertion is durable evidence; no pending message must prevent the host's turn-stopping boundary.
@@ -840,7 +853,7 @@ export class ExtensionSessionState {
     agent.steer(
       createUserMessage({
         source: { kind: EXTENSION_SESSION_WAKE_SOURCE, form: 'context' },
-        content: [{ type: 'text', text: 'Session extension readiness restored.' }]
+        content: NO_MODEL_CONTENT
       })
     )
   }
@@ -863,7 +876,7 @@ export class ExtensionSessionState {
     agent.inject(
       createUserMessage({
         source: { kind: EXTENSION_SESSION_SOURCE, form: 'context', binding: structuredClone(binding) },
-        content: [{ type: 'text', text: 'Session extension selection metadata.' }]
+        content: NO_MODEL_CONTENT
       })
     )
     this.checkpoints.get(agent)!.latest = binding

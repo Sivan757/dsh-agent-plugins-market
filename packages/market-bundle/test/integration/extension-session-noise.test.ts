@@ -22,7 +22,12 @@ import { LlmAdapter, createUserMessage, type GenerateOptions, type StreamChunk }
 import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persistence.js'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import { captureExtensionSelection } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
-import { ExtensionSessionState, EXTENSION_SESSION_SOURCE } from '../../../../packages/market-runtime/src/runtime/host/extension-session-state.js'
+import {
+  EXTENSION_INTENT_SOURCE,
+  EXTENSION_SESSION_SOURCE,
+  EXTENSION_SESSION_WAKE_SOURCE,
+  ExtensionSessionState
+} from '../../../../packages/market-runtime/src/runtime/host/extension-session-state.js'
 import { removeTempRoot } from './helpers/temp-root.js'
 
 class TestQuery extends SessionQueryEngine {
@@ -55,6 +60,30 @@ const PLACEHOLDER = 'Session extension selection metadata.'
 const userMessage = (text: string) => createUserMessage({ source: { kind: 'user' }, content: [{ type: 'text', text }] })
 /** Every text block the model actually received, across all recorded requests. */
 const requestText = (adapter: RecordingAdapter): string => JSON.stringify(adapter.requests.map(request => request.messages))
+/**
+ * Every durable message the three bookkeeping sources left behind.
+ *
+ * They exist to record an event and are removed before a request, so the safest
+ * shape is a message a model could read as nothing at all: an empty block list.
+ * A sentence here would be text a model acts on if the filter ever missed.
+ */
+function bookkeepingMessages(agent: Agent): Array<{ kind: string; blocks: number }> {
+  const seen: Array<{ kind: string; blocks: number }> = []
+  const wanted = new Set<string>([EXTENSION_SESSION_SOURCE, EXTENSION_SESSION_WAKE_SOURCE, EXTENSION_INTENT_SOURCE])
+  for (const event of agent.session.snapshotEvents()) {
+    // Every injection and steer reaches the durable log as an inbox splice; a
+    // committed one also lands on the surface. Both carry the same content, so
+    // both are inspected.
+    const inserted = event.type === 'agent/inbox/spliced' ? event.data.inserted : event.type === 'user/message' ? [event.data] : []
+    for (const message of inserted) {
+      const kind = message.source.kind
+      if (!wanted.has(kind)) continue
+      seen.push({ kind, blocks: message.content.length })
+    }
+  }
+  return seen
+}
+
 /** The durable envelopes carried by inbox splices, in log order. */
 function splicedBindings(agent: Agent): Array<{ ownerId: string; revision: number; phase: string }> {
   const bindings: Array<{ ownerId: string; revision: number; phase: string }> = []
@@ -229,4 +258,23 @@ it('parks a user turn instead of discarding it while the session is unavailable'
   // The reject path still parks the claimed batch: nothing was answered or dropped.
   expect(agent.inbox.nextStep.concat(agent.inbox.nextTurn).map(message => message.source.kind)).toContain('user')
   expect(f.adapter.requests).toHaveLength(0)
+})
+
+it('gives every bookkeeping message no content a model could read', async () => {
+  const f = await setup()
+  await f.service.start()
+  const agent = await f.create('bookkeeping')
+  agent.followup(userMessage('Review the diff.'))
+  await agent.whenIdle()
+  const messages = bookkeepingMessages(agent)
+  // The selection envelope was recorded, so the durable evidence survives.
+  expect(messages.length).toBeGreaterThan(0)
+  expect(messages.every(entry => entry.kind === EXTENSION_SESSION_SOURCE)).toBe(true)
+  // And none of them carries a block, so no sentence can reach a request.
+  expect(messages.every(entry => entry.blocks === 0)).toBe(true)
+  const seen = requestText(f.adapter)
+  expect(seen).toContain('Review the diff.')
+  for (const sentence of ['Session extension selection metadata.', 'Session extension selection request.', 'Session extension readiness restored.']) {
+    expect(seen).not.toContain(sentence)
+  }
 })

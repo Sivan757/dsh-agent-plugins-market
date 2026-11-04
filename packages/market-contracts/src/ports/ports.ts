@@ -14,8 +14,9 @@ import type { MenuRowSource } from '../contracts/market.js'
 export type { McpBackendInfo } from '../contracts/market.js'
 import type { DownloadRegionSetting } from '../contracts/settings.js'
 import type { McpBackend } from '../contracts/mcp.js'
-import type { McpDemandedMount } from '../contracts/mcp-status.js'
+import type { McpConnectionObservation, McpDemandedMount } from '../contracts/mcp-status.js'
 import type { LspMountDiagnostic } from '../contracts/lsp.js'
+import type { LspCallObservation } from '../contracts/lsp-status.js'
 import type { DocumentTranslation, TranslationFields, TranslationProvider, TranslationSurfaceKind } from '../contracts/translation.js'
 
 /**
@@ -85,6 +86,15 @@ export interface LspMountStatusSource {
   diagnosticsSnapshot(): Map<string, LspMountDiagnostic>
   hasLiveMounts(): boolean
   disabledServers?(): Set<string>
+  /** The latest `lsp` call outcome per provider id, when the registry observes them. */
+  observationSnapshot?(): ReadonlyMap<string, LspCallObservation>
+  /**
+   * The suite keys whose mount is live right now, when the registry can tell
+   * them apart. A row reads its own suite's liveness; without this the builder
+   * falls back to the registry-wide flag, which lets a row borrow a sibling's
+   * health.
+   */
+  liveKeys?(): ReadonlySet<string>
 }
 
 /** A new source: its location, optional branch, and acquisition kind. */
@@ -157,12 +167,26 @@ export interface CatalogPorts {
    * session layer demands nothing, and the status reads exactly as before.
    */
   mcpDemandedMounts?: (() => readonly McpDemandedMount[]) | undefined
+  /**
+   * Live connection phases, one per supervised MCP server.
+   *
+   * A server that connected once and then dropped keeps its tools registered
+   * while the supervisor retries, so the tool snapshot alone cannot tell a
+   * healthy row from a dead one. Optional: a composition with no bridge leaves
+   * every row without a connection phase, which is exactly the old reading.
+   */
+  mcpConnections?: (() => readonly McpConnectionObservation[]) | undefined
   /** Latest LSP mount diagnostics. */
   lspStatusSource: LspMountStatusSource
+  /**
+   * Flags an LSP mount for an explicit rebuild on the next reconcile: the one
+   * named row's mount, or every live mount when no id is given. Optional: a
+   * composition without an LSP registry rebuilds nothing, and the panel's
+   * restart action then reports whatever state it finds.
+   */
+  lspRestart?: ((id?: string) => void) | undefined
   /** The persisted MCP mount backend choice. */
   mcpBackend(): Promise<McpBackend>
-  /** Persists an MCP mount backend choice. */
-  setMcpBackend(backend: McpBackend): Promise<void>
   /** The persisted download-region setting. */
   downloadRegion(): Promise<DownloadRegionSetting>
   /** The host locale preference ('zh' default when unset). */
@@ -209,15 +233,14 @@ export const defaultCatalogPorts: CatalogPorts = {
   mcpRemountAll: () => {},
   mcpServerOwner: () => undefined,
   mcpDemandedMounts: () => [],
+  mcpConnections: () => [],
   lspStatusSource: { diagnosticsSnapshot: () => new Map(), hasLiveMounts: () => false },
+  lspRestart: () => {},
   mcpBackend: async () => 'builtin',
   localePreference: () => 'zh',
   menuRowIdentities: async () => [],
   translationProviders: [],
   translationProviderIdentity: () => 'none',
-  setMcpBackend: async () => {
-    throw new Error('the settings service is not mounted')
-  },
   downloadRegion: async () => 'auto'
 }
 

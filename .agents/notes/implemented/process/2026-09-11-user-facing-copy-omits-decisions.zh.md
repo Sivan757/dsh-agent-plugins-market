@@ -10,7 +10,7 @@ Status: implemented
 
 面向用户的文档与注释只说明用户能得到什么、可以做什么。它们不呈现决策信息——内部选择的理由、被否决的方案、放弃了什么——也不携带无人索要的提示。覆盖范围包括中英文 README、`docs/`、`docs-site/`、`packages/market-ui/src/locales.ts` 中的面板文案以及代码注释。理由存放在面向开发者的 Agent Notes 与 ADR 中。
 
-首次落地删除了 `packages/market-ui/src/locales.ts` 两张语言表中的 `personaToolsHint`，以及 `src/client/features/personas/RoleMetadataFields.tsx` 中渲染它的段落。
+首次落地删除了 `packages/market-ui/src/locales.ts` 两张语言表中的 `personaToolsHint`，以及 `packages/market-ui/src/ui/RoleMetadataFields.tsx` 中渲染它的段落。
 
 ## 边界
 

@@ -6,9 +6,9 @@
  * mutation lost the race. This file owns `tab-layout/<workspace hash>.json` and
  * nothing else.
  *
- * The read is tolerant the way every plugin state file is: an absent, empty,
- * unparsable, or hand-edited document resolves to "nothing stowed", never to a
- * throw that would block the workspace.
+ * The read is tolerant the way every plugin state file is: an absent, empty, or
+ * hand-edited document resolves to the default stow list, never to a throw that
+ * would block the workspace.
  * @module application/state/tab-layout
  */
 import { createHash } from 'node:crypto'
@@ -16,7 +16,14 @@ import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
 import { readJsonFile, writeJsonDocument } from '../../../../market-catalog/src/index.js'
-import { emptyTabLayout, resolveHiddenTabs, TAB_LAYOUT_VERSION, type TabLayoutWire } from '../../../../market-contracts/src/contracts/tab-layout.js'
+import {
+  defaultTabLayout,
+  LEGACY_DISPLAY_ORDERS,
+  resolveHiddenTabs,
+  resolveTabOrder,
+  TAB_LAYOUT_VERSION,
+  type TabLayoutWire
+} from '../../../../market-contracts/src/contracts/tab-layout.js'
 
 /** One workspace's stowed tabs as this store keeps them. */
 export type TabLayout = TabLayoutWire
@@ -40,10 +47,12 @@ export function tabLayoutPath(dataRoot: string, workspace: string): string {
 /**
  * Read one workspace's layout.
  *
- * An unusable document reads as nothing stowed: the tab row is then complete,
- * which is the safe direction for a layout nobody can see. The clamp that keeps
- * one tab visible lives in `resolveHiddenTabs`, so a hand-written file cannot
- * empty the row either.
+ * A workspace with no document, or one that cannot be parsed, gets
+ * {@link defaultTabLayout}: the same starting row a fresh workspace gets, which
+ * keeps three rarely used surfaces out of the way. That is not a silent loss of
+ * a person's choice, because a choice is written on the first edit and an
+ * unparsable document carries none. The clamp that keeps one tab visible lives
+ * in `resolveHiddenTabs`, so a hand-written file cannot empty the row either.
  * @param dataRoot - the plugin data root.
  * @param workspace - the workspace the layout belongs to.
  * @returns the resolved layout.
@@ -57,11 +66,29 @@ export async function loadTabLayout(dataRoot: string, workspace: string): Promis
     // reads as nothing stowed so the workspace opens, and the next write
     // replaces the file. Every other failure stays fatal, because a permission
     // problem must surface instead of quietly showing every tab.
-    if (error instanceof SyntaxError) return emptyTabLayout()
+    if (error instanceof SyntaxError) return defaultTabLayout()
     throw error
   }
-  if (typeof value !== 'object' || value === null) return emptyTabLayout()
-  return { hidden: resolveHiddenTabs((value as Record<string, unknown>)['hidden']) }
+  // A document counts only when it carries a stow list. Anything else — a bare
+  // array, a record with no `hidden`, a `hidden` of the wrong type — is a
+  // document this release cannot read, which is the same fact as having none:
+  // nobody expressed an opinion about the row.
+  if (typeof value !== 'object' || value === null || Array.isArray(value)) return defaultTabLayout()
+  const hidden = (value as Record<string, unknown>)['hidden']
+  if (!Array.isArray(hidden)) return defaultTabLayout()
+  // A document from before the display order changed names a sequence this release no
+  // longer starts from; its stow list is read and its order is taken from the display
+  // order, which is what a reader of that file saw at the time.
+  const version = (value as Record<string, unknown>)['version']
+  const stored = resolveTabOrder((value as Record<string, unknown>)['order'])
+  // Version 2 changed the display order itself. A stored order that still equals the
+  // sequence version 1 shipped with is the default nobody edited, so it moves to the new
+  // one; an order someone arranged by hand is theirs and survives the migration.
+  const untouched = LEGACY_DISPLAY_ORDERS.some(legacy => stored.join() === legacy.join())
+  if (typeof version === 'number' && version < TAB_LAYOUT_VERSION && untouched) return { hidden: resolveHiddenTabs(hidden), order: resolveTabOrder(undefined) }
+  // A document written before ordering carries no `order`; it renders in display
+  // order, which is exactly what that document meant when it was written.
+  return { hidden: resolveHiddenTabs(hidden), order: stored }
 }
 
 /**
@@ -81,8 +108,11 @@ export async function mutateTabLayout(dataRoot: string, workspace: string, mutat
   const path = tabLayoutPath(dataRoot, workspace)
   await mkdir(dirname(path), { recursive: true, mode: 0o700 })
   return withFileLock(path, async () => {
-    const next = { hidden: resolveHiddenTabs(mutate(await loadTabLayout(dataRoot, workspace)).hidden) }
-    await writeJsonDocument(path, { version: TAB_LAYOUT_VERSION, workspace, hidden: next.hidden })
+    const changed = mutate(await loadTabLayout(dataRoot, workspace))
+    // Both halves go through their resolver, so a hand-written file or a caller
+    // cannot store a partial row or displace the pinned tab.
+    const next: TabLayoutWire = { hidden: resolveHiddenTabs(changed.hidden), order: resolveTabOrder(changed.order) }
+    await writeJsonDocument(path, { version: TAB_LAYOUT_VERSION, workspace, hidden: next.hidden, order: next.order })
     return next
   })
 }
@@ -96,5 +126,17 @@ export async function mutateTabLayout(dataRoot: string, workspace: string, mutat
  */
 export async function saveTabLayout(dataRoot: string, workspace: string, hidden: readonly string[]): Promise<TabLayout> {
   const requested = [...hidden]
-  return mutateTabLayout(dataRoot, workspace, () => ({ hidden: requested }))
+  return mutateTabLayout(dataRoot, workspace, current => ({ hidden: requested, order: current.order }))
+}
+
+/**
+ * Replace one workspace's row order as one write, keeping its stow list.
+ * @param dataRoot - the plugin data root.
+ * @param workspace - the workspace the layout belongs to.
+ * @param order - the requested order; it is completed and clamped before it is stored.
+ * @returns the committed layout.
+ */
+export async function saveTabOrder(dataRoot: string, workspace: string, order: readonly string[]): Promise<TabLayout> {
+  const requested = [...order]
+  return mutateTabLayout(dataRoot, workspace, current => ({ hidden: current.hidden, order: resolveTabOrder(requested) }))
 }

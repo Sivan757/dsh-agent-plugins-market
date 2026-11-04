@@ -41,8 +41,13 @@ async function mount(): Promise<void> {
   await act(async () => root!.render(h(PluginWorkspace, { t })))
 }
 
-/** The tab at its display position (market, instructions, skills, commands, personas, mcp, lsp, hooks). */
+/**
+ * The tab at its display position in the default row. Three surfaces start
+ * stowed (rules, language engine, hooks), so the visible order is market,
+ * outputStyles, skills, commands, personas, mcp.
+ */
 const tab = (index: number): HTMLButtonElement | null => host?.querySelectorAll<HTMLButtonElement>('[role="tab"]')[index] ?? null
+const tabByKey = (key: string): HTMLButtonElement | null => host?.querySelector<HTMLButtonElement>('#agent-plugins-tab-' + key) ?? null
 const activePanelTab = (): Element | null => host?.querySelector('[role="tabpanel"] [data-tab]') ?? null
 
 describe('PluginWorkspace tab row', () => {
@@ -50,8 +55,13 @@ describe('PluginWorkspace tab row', () => {
     await mount()
     const tablist = host!.querySelector('[role="tablist"]')
     expect(tablist).not.toBeNull()
-    expect(tablist!.getAttribute('aria-label')).toBe('workspaceTabMarket')
-    expect(host!.querySelectorAll('[role="tab"]').length).toBe(8)
+    // The rail is this settings page's section list, so it names the page. Naming
+    // it after one tab meant it announced "市场" from every other tab, and its
+    // step buttons read "市场 · 向后一个" wherever the reader was.
+    expect(tablist!.getAttribute('aria-label')).toBe('nav')
+    // Six of the nine surfaces are visible; the default stow list holds the other
+    // three, which stay reachable from the row's own entry.
+    expect(host!.querySelectorAll('[role="tab"]').length).toBe(9)
     // Exactly one tab stop: the selected tab only.
     expect(tab(0)?.getAttribute('aria-selected')).toBe('true')
     expect(host!.querySelectorAll('[role="tab"][tabindex="0"]').length).toBe(1)
@@ -61,16 +71,22 @@ describe('PluginWorkspace tab row', () => {
     expect(panel?.getAttribute('aria-labelledby')).toBe('agent-plugins-tab-market')
     expect(activePanelTab()?.getAttribute('data-tab')).toBe('market')
 
-    await act(async () => tab(5)!.click())
+    await act(async () => tabByKey('mcp')!.click())
     expect(activePanelTab()?.getAttribute('data-tab')).toBe('mcp')
   })
 
   it('consumes a pasted deep-link hash and leaves the host URL alone on click', async () => {
     await mount()
-    await act(async () => tab(6)!.click())
+    // The language engine tab starts stowed, and a deep link still selects it:
+    // the reveal is derived from the selection, never written back.
+    await act(async () => {
+      window.location.hash = '#/agent-plugins/lsp'
+      window.dispatchEvent(new Event('hashchange'))
+    })
+    expect(activePanelTab()?.getAttribute('data-tab')).toBe('lsp')
+    expect(tabByKey('lsp')).not.toBeNull()
     // Switching tabs is local state: the plugin never writes the host page's URL.
     expect(window.location.hash).toBe('')
-    expect(activePanelTab()?.getAttribute('data-tab')).toBe('lsp')
 
     await act(async () => {
       window.location.hash = '#/agent-plugins/skills'

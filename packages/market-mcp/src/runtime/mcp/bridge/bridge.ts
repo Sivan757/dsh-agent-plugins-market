@@ -24,6 +24,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { scopeOf } from '@deepseek-ai/dsh-scope'
 import { registerOwnedBridgeTool } from './tool-ownership.js'
 import { resolveReconnectPolicy, startConnection } from './connection.js'
+import { forgetMcpConnection, recordMcpConnection } from '../mcp-connection-registry.js'
 import { validateConfig } from '../../../application/mcp/mcp-bridge-config.js'
 import type { Config } from '../../../application/mcp/mcp-bridge-config.js'
 import { resolveDeclaredCommand } from '../../../../../market-runtime/src/index.js'
@@ -140,10 +141,13 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   // no-persistence configuration.
   const host = toToolHost(ctx, resolvedConfig.serverName)
   const credentials = optionalService(ctx, 'credentials')
-  const connection = startConnection(host, resolvedConfig, reconnect, credentials)
+  const connection = startConnection(host, resolvedConfig, reconnect, credentials, undefined, recordMcpConnection)
 
   ctx.effect(() => {
-    return () => connection.dispose()
+    return () => {
+      forgetMcpConnection(resolvedConfig.serverName)
+      return connection.dispose()
+    }
   }, 'market-mcp-client.connection')
 
   // Block plugin activation on the initial connection + tool discovery so

@@ -9,7 +9,8 @@ import { MARKETPLACE_PATHS, PLUGIN_LAYOUTS, MANIFEST_ALIASES } from '../../../..
 import { readMarketplaces } from '../../../../packages/market-catalog/src/scanning/manifests.js'
 import { readCommands } from '../../../../packages/market-runtime/src/runtime/surfaces/commands-mounts.js'
 import { buildSuiteDetail } from '../../../../packages/market-bundle/src/application/details.js'
-import { mountSuiteInstructions, suiteInstructions } from '../../../../packages/market-runtime/src/runtime/surfaces/project-runtime.js'
+import { suiteInstructions } from '../../../../packages/market-runtime/src/runtime/surfaces/project-runtime.js'
+import { agentInstructionSection } from '../../../../packages/market-runtime/src/runtime/host/scoped-contributors.js'
 import { SuiteSkillProvider } from '../../../../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
 import { withDefaultSurfaces } from './helpers/projected-suite.js'
 import { isRecord } from '../../../../packages/market-catalog/src/scanning/component-files.js'
@@ -162,7 +163,7 @@ describe('README repository layout compatibility (offline snapshots)', () => {
     expect((await provider.get(candidate, {}))?.content).toContain('Kimi Code tool mapping')
     expect((await suiteInstructions([withDefaultSurfaces({ ...suite, enabled: false })])).text).toBe('')
   })
-  it('Kimi startup instructions mount and withdraw through the scoped host interface without a cwd', async () => {
+  it('Kimi startup instructions reach one attributed section and withdraw with the suite', async () => {
     const data = await snapshot(
       required(
         samples.find(sample => sample.dialect === 'kimi'),
@@ -173,46 +174,21 @@ describe('README repository layout compatibility (offline snapshots)', () => {
     const [scanned] = (await scanSource(root, 'kimi', 'user')).suites
     const suite = required(scanned, 'the kimi fixture to yield one suite')
     suite.enabled = true
-    let text = () => ''
-    let removed = false
-    const cleanups: Array<() => Promise<void>> = []
-    const agent = {
-      session: { header: {} },
-      ctx: {
-        inject: (_services: string[], callback: (scope: unknown) => void) => {
-          callback({
-            systemPrompt: {
-              section: (section: { text(): string }) => {
-                // Keep the host method attached to its receiver: the runtime calls it detached later.
-                text = () => section.text()
-                return () => {
-                  removed = true
-                }
-              }
-            },
-            effect: (setup: () => () => Promise<void>) => {
-              cleanups.push(setup())
-            }
-          })
-          return {
-            dispose: async () => {
-              await Promise.all(cleanups.map(cleanup => cleanup()))
-            }
-          }
-        }
-      }
-    }
-    const runtime = mountSuiteInstructions(
-      { agents: { list: () => [agent] }, on: () => () => {} } as never,
-      { enabledUserSuites: async () => (suite.enabled ? [withDefaultSurfaces(suite)] : []) } as never
-    )
-    await runtime.refresh()
-    expect(text()).toContain('Kimi Code tool mapping')
-    suite.enabled = false
-    await runtime.refresh()
-    expect(text()).toBe('')
-    await runtime.dispose()
-    expect(removed).toBe(true)
+    // The real production path: the reader collects a suite's instruction text,
+    // and the section renderer is the one shape every enabled suite goes through.
+    const enabled = withDefaultSurfaces(suite)
+    const read = await suiteInstructions([enabled])
+    expect(read.errors).toEqual([])
+    expect(read.text).toContain('Kimi Code tool mapping')
+    const section = agentInstructionSection([{ parent: 'market:kimi/superpowers', label: enabled.manifest.name, kind: 'plugin suite', text: read.text }])
+    expect(section.startsWith('## Agent plugin instructions')).toBe(true)
+    expect(section).toContain('Instructions from: ' + enabled.manifest.name + ' (plugin suite):')
+    expect(section).toContain('Kimi Code tool mapping')
+    // Withdrawal: a suite that contributes nothing renders no section at all, so
+    // the assembled prompt drops the text rather than leaving an empty heading.
+    const withdrawn = await suiteInstructions([withDefaultSurfaces({ ...suite, enabled: false })])
+    expect(withdrawn.text).toBe('')
+    expect(agentInstructionSection(withdrawn.text === '' ? [] : [{ parent: 'p', label: 'p', kind: 'plugin suite', text: withdrawn.text }])).toBe('')
   })
   it.each(samples)('$dialect: its own declaration works without higher-priority layouts', async sample => {
     const data = await snapshot(sample)

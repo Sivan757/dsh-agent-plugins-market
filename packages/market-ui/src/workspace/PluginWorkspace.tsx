@@ -1,20 +1,19 @@
 /**
- * The plugin workspace: one page, seven top tabs.
+ * The plugin workspace: one page, one top tab row.
  *
- * The market, skills, commands, agent personas, MCP services, LSP servers,
- * and hooks panels all render inside this shell, so the settings sidebar
- * keeps a single "Agent Plugins" entry and users switch surfaces with the tab
- * row. Each tab's content scrolls inside its own region (never the settings
- * column), which removes the scrollbar show/hide jitter when tabs with
- * different content heights swap.
+ * One panel per key in `WORKSPACE_TAB_KEYS` renders inside this shell, so the
+ * settings sidebar keeps a single "Agent Plugins" entry and users switch
+ * surfaces with the tab row. Each tab's content scrolls inside its own region
+ * (never the settings column), which removes the scrollbar show/hide jitter when
+ * tabs with different content heights swap.
  * @module client/PluginWorkspace
  */
-import { createElement as h, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { SettingsSizedDetails } from '../ui/DetailModal.js'
-import { ResourceTabs } from '../ui/ResourceTabs.js'
-import { TabStowControl } from './TabStowControl.js'
-import { loadTabLayout, saveTabLayout } from '../api.js'
-import { resolveHiddenTabs, visibleTabs, WORKSPACE_TAB_KEYS, type WorkspaceTabKey } from '../../../market-contracts/src/contracts/tab-layout.js'
+import { TabRail } from '../ui/TabRail.js'
+import { useTabLayout, type TabLayoutMessages } from './tab-layout-store.js'
+import { WORKSPACE_TAB_KEYS, visibleTabs, type TabLayoutWire, type WorkspaceTabKey } from '../../../market-contracts/src/contracts/tab-layout.js'
+import { WORKSPACE_TAB_META } from './tab-meta.js'
 import type { Translate } from '../i18n.js'
 import type { ExtensionTranslate } from '../features/extension-presets/types.js'
 import type { CredentialApi } from '../credentials.js'
@@ -23,6 +22,7 @@ import { McpStatusPanel } from '../features/mcp/StatusPanel.js'
 import { LspStatusPanel } from '../features/lsp/LspStatusPanel.js'
 import { HooksStatusPanel } from '../features/hooks/StatusPanel.js'
 import { InstructionsPanel } from '../features/instructions/InstructionsPanel.js'
+import { OutputStylesPanel } from '../features/output-styles/OutputStylesPanel.js'
 import { UserPanelSurface } from '../ui/UserPanelSurface.js'
 import css from './workspace.module.css'
 
@@ -53,12 +53,15 @@ export const TAB_ORDER: ReadonlyArray<WorkspaceTab> = WORKSPACE_TAB_KEYS
  * deep link can select a stowed tab, and the panel below must always have its
  * own tab in the row. The reveal is derived from the layout and the selection,
  * never written back, so following a link cannot change what is saved.
+ * The order is the layout's own: every producer builds it through
+ * `resolveTabOrder`, which appends every missing key, so it is always the whole
+ * row and never needs a fallback.
  * @param layout - the resolved stow list.
  * @param active - the tab the panel shows.
  * @returns the visible tabs in display order.
  */
-function rowTabs(layout: { hidden: string[] }, active: WorkspaceTab): WorkspaceTab[] {
-  return visibleTabs(TAB_ORDER, layout, active)
+function rowTabs(layout: TabLayoutWire, active: WorkspaceTab): WorkspaceTab[] {
+  return visibleTabs(layout.order, layout, active)
 }
 
 export interface PluginWorkspaceProps {
@@ -70,7 +73,7 @@ export interface PluginWorkspaceProps {
   mode?: 'settings' | 'page'
 }
 
-/** One page with six top tabs; state is local so switching is instant. */
+/** One page, one tab row per `WORKSPACE_TAB_KEYS`; state is local so switching is instant. */
 export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }: PluginWorkspaceProps): ReactNode {
   const [active, setActive] = useState<WorkspaceTab>('market')
 
@@ -103,78 +106,82 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
     return () => window.removeEventListener('hashchange', applyHash)
   }, [])
 
-  const labelKeys: Record<WorkspaceTab, string> = {
-    market: t('workspaceTabMarket'),
-    instructions: t('workspaceTabInstructions'),
-    skills: t('workspaceTabSkills'),
-    commands: t('workspaceTabCommands'),
-    personas: t('workspaceTabPersonas'),
-    mcp: t('workspaceTabMcp'),
-    lsp: t('workspaceTabLsp'),
-    hooks: t('workspaceTabHooks')
-  }
+  // One metadata table names every tab, shared with the preset manager and the
+  // install confirmation, so a tab never gets renamed in one place and not another.
+  const labelKeys: Record<WorkspaceTab, string> = Object.fromEntries(WORKSPACE_TAB_KEYS.map(key => [key, t(WORKSPACE_TAB_META[key].label)])) as Record<WorkspaceTab, string>
 
-  // The stow list is read once and then owned here: the row, the menu and the
-  // dialog all render from this value, so a write cannot leave the row and the
-  // panel disagreeing about which tabs exist.
-  const [layout, setLayout] = useState<{ hidden: string[] }>({ hidden: [] })
-  const [layoutError, setLayoutError] = useState<string | undefined>(undefined)
-  const [stowing, setStowing] = useState(false)
-  /** The last layout the server confirmed, so a failed write can put it back. */
-  const confirmed = useRef<{ hidden: string[] }>({ hidden: [] })
-
-  useEffect(() => {
-    let live = true
-    void loadTabLayout()
-      .then(stored => {
-        if (!live) return
-        confirmed.current = stored
-        setLayout(stored)
-      })
-      .catch((error: unknown) => {
-        // A failed read costs the user their layout, never the workspace: every
-        // tab stays visible and the reason appears where the controls are.
-        if (live) setLayoutError(t('tabLayoutLoadFailed', { error: messageOf(error) }))
-      })
-    return () => {
-      live = false
-    }
-  }, [t])
-
-  /**
-   * Apply a stow list now and persist it behind the row.
-   *
-   * The row paints first because the change is the user's own click, and a
-   * local file write is fast enough that waiting would only make it feel late.
-   * A failed write puts the confirmed layout back and says why, so the row
-   * never shows a layout the server does not have.
-   */
-  const stow = useCallback(
-    (next: readonly string[]) => {
-      const resolved = { hidden: resolveHiddenTabs(next) }
-      // Stowing the tab the panel shows would leave a panel whose tab is not
-      // rendered, so the selection moves to the first tab that stays. This
-      // reads the stow list alone rather than the row, so it does not depend on
-      // which tab is pinned or where the pinned tab sits in the order.
-      if (resolved.hidden.includes(active)) setActive(TAB_ORDER.find(tab => !resolved.hidden.includes(tab)) ?? 'market')
-      setLayout(resolved)
-      setStowing(true)
-      setLayoutError(undefined)
-      void saveTabLayout(resolved.hidden)
-        .then(committed => {
-          confirmed.current = committed
-          setLayout(committed)
-        })
-        .catch((error: unknown) => {
-          setLayout(confirmed.current)
-          setLayoutError(t('tabLayoutWriteFailed', { error: messageOf(error) }))
-        })
-        .finally(() => setStowing(false))
-    },
-    [active, t]
+  // The layout is shared with the preset manager, which opens inside this screen,
+  // so both rows render from one store: a reorder or a stow in either is visible
+  // in the other immediately. The store starts from the same default the server
+  // answers, so the first paint is the row the workspace really has.
+  const layoutMessages = useMemo<TabLayoutMessages>(
+    () => ({
+      load: (error: unknown) => t('tabLayoutLoadFailed', { error: messageOf(error) }),
+      write: (error: unknown) => t('tabLayoutWriteFailed', { error: messageOf(error) })
+    }),
+    [t]
   )
+  const { state: layoutState, move: applyTabMoveTo } = useTabLayout(layoutMessages)
+  const layout = layoutState.layout
 
   const shown = rowTabs(layout, active)
+
+  /**
+   * Move one tab and persist the new order.
+   *
+   * Same shape as stowing: the row paints at once, the write follows, and a
+   * failed write restores the confirmed order with a reason. Sorting never
+   * touches the stow list, so a tab put away keeps its place for later.
+   * @param from - the index of the tab being moved, in the rendered row.
+   * @param to - the index it should land on, in the rendered row.
+   */
+  const reorder = useCallback(
+    (from: number, to: number) => {
+      // The row renders every tab in the stored order, so the gesture's indices are positions
+      // in that same list; reading them against a filtered list would move another tab.
+      const moving = layout.order[from]
+      const landing = layout.order[to]
+      if (moving === undefined || landing === undefined) return
+      applyTabMoveTo(moving, landing)
+    },
+    [applyTabMoveTo, layout.order]
+  )
+
+  /**
+   * Move a focused tab with the keyboard.
+   *
+   * The mouse gesture in the manager is one way to sort; this is the same
+   * operation without a pointer, and it is what makes sorting reachable for a
+   * keyboard or screen-reader user. Alt is required so a plain arrow keeps the
+   * host's own tab walk.
+   */
+  const onKeyDown = useCallback(
+    (event: { key: string; altKey: boolean; target: EventTarget | null; preventDefault: () => void }) => {
+      if (!event.altKey || (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight')) return
+      const target = event.target as { closest?: (selector: string) => Element | null } | null
+      const tab = target?.closest?.('[role="tab"]') ?? null
+      if (tab === null) return
+      // The host mints each tab's id from the value, so the id is the reliable
+      // way back to the tab a caller moved; a data attribute is only a fallback.
+      const raw = tab.getAttribute('data-value') ?? (tab.getAttribute('id') ?? '').replace('agent-plugins-tab-', '')
+      const from = shown.indexOf(raw as WorkspaceTab)
+      if (from < 0) return
+      event.preventDefault()
+      const to = from + (event.key === 'ArrowLeft' ? -1 : 1)
+      if (to <= 0 || to >= shown.length) return
+      reorder(from, to)
+    },
+    [reorder, shown]
+  )
+
+  const rowRef = useRef<HTMLDivElement | null>(null)
+  useEffect(() => {
+    const node = rowRef.current
+    if (node === null) return
+    const listener = (event: Event): void => onKeyDown(event as unknown as Parameters<typeof onKeyDown>[0])
+    node.addEventListener('keydown', listener)
+    return () => node.removeEventListener('keydown', listener)
+  }, [onKeyDown])
 
   return h(
     'div',
@@ -185,24 +192,33 @@ export function PluginWorkspace({ t, credentials, mode = 'settings', sessionId }
     // stay caller-owned: every tab names one shared panel id, and the active
     // section renders inside it below. The row is built from TAB_ORDER, so the
     // stowed tabs are simply the ones it leaves out.
-    h(ResourceTabs<WorkspaceTab>, {
-      label: labelKeys.market,
-      value: active,
-      // Switching tabs is local state only; the URL stays the host's.
-      onChange: setActive,
-      items: shown.map(tab => ({ value: tab, text: labelKeys[tab], id: `agent-plugins-tab-${tab}`, panelId: 'agent-plugins-panel' })),
-      // The trigger renders outside the tablist, so the host's roving tab stop
-      // and walk keys stay exactly what they were.
-      trailing: h(TabStowControl, {
-        t,
-        tabs: TAB_ORDER.map(tab => ({ key: tab, label: labelKeys[tab] })),
-        hidden: layout.hidden,
-        busy: stowing,
-        error: layoutError,
-        onSelect: tab => setActive(tab as WorkspaceTab),
-        onStow: stow
+    // display: contents on the wrapper keeps the host's own row layout: the
+    // element exists only to carry the Alt+arrow listener, and it adds no box.
+    h(
+      'div',
+      { ref: rowRef, className: css.rowKeys },
+      h(TabRail<WorkspaceTab>, {
+        // The rail is the section list of this settings page, so it names the
+        // page: it used to borrow the market tab's own label, which meant the
+        // tablist announced "市场" while the reader was on 连接器 and its step
+        // buttons read "市场 · 向后一个".
+        label: t('nav'),
+        // The step buttons name their direction in the reader's language: the
+        // rail carries no translator of its own.
+        stepPreviousLabel: t('tabStepPrevious'),
+        stepNextLabel: t('tabStepNext'),
+        value: active,
+        // Switching tabs is local state only; the URL stays the host's.
+        onChange: setActive,
+        // Every tab, in the stored order: the row is a record of the workspace, and a tab
+        // the user is not looking at is still a tab they can reach with one click.
+        items: layout.order.map(tab => ({ value: tab, text: labelKeys[tab], id: `agent-plugins-tab-${tab}`, panelId: 'agent-plugins-panel' })),
+        // Dragging moves one tab to another's position: the same write the Alt+arrow
+        // gesture makes, so both paths persist one order.
+        onReorder: reorder
       })
-    }),
+    ),
+    layoutState.error === undefined ? null : h('div', { className: css.tabNotice, role: 'status' }, layoutState.error),
     // Every detail dialog these panels open inherits the fixed settings-sized
     // frame, the same chrome the preset manager's details use.
     h(
@@ -233,6 +249,8 @@ function renderTab(tab: WorkspaceTab, t: Translate, credentials: CredentialApi |
       return h(MarketSection, { t, mode })
     case 'instructions':
       return h(InstructionsPanel, { t, sessionId })
+    case 'outputStyles':
+      return h(OutputStylesPanel, { t, sessionId })
     case 'skills':
       return h(UserPanelSurface, { t, kind: 'skills' })
     case 'commands':

@@ -21,12 +21,11 @@ export { ExtensionRuntime, extensionWorkspace } from './runtime/host/extension-r
 export { attachExtensionToolGates } from './runtime/host/extension-tool-gates.js'
 export type { ExtensionLspProvider, ExtensionMcpTool, ExtensionToolGates } from './runtime/host/extension-tool-gates.js'
 export { ScopedExtensionContributors } from './runtime/host/scoped-contributors.js'
-export { projectExtensionSuites, suiteOwnsResourceId } from './application/extension-suite-selection.js'
+export { projectExtensionSuites } from './application/extension-suite-selection.js'
 export { ResourceFilterService } from './runtime/host/resource-filter-service.js'
 export { shellSeamOf } from './runtime/surfaces/dynamic-context.js'
 export {
   HOOK_RUN_DEFAULT_TIMEOUT_SEC,
-  HOOK_RUN_FAILED,
   HOOK_RUN_MAX_OUTPUT_CHARS,
   HOOK_RUN_MAX_TIMEOUT_MS,
   HOOK_RUN_NO_COMMAND,
@@ -34,10 +33,9 @@ export {
   HOOK_RUN_UNKNOWN_DECLARATION,
   hookRunFailure,
   hookRunShellOf,
-  hookRunStdin,
   runHookDryRun
 } from './runtime/surfaces/hook-dry-run.js'
-export type { HookDryRunOptions, HookRunShell, HookRunShellRequest, HookRunShellResult } from './runtime/surfaces/hook-dry-run.js'
+export type { HookRunShell, HookRunShellRequest, HookRunShellResult } from './runtime/surfaces/hook-dry-run.js'
 export { LOCALE_SETTINGS_ENTRY, bindHostLocale, readHostLocalePreference, readLocalePreference, setHostLocaleSource } from './runtime/host/host-locale.js'
 export type { HostLocaleKey, HostTranslate, LocaleSettingsSource } from './runtime/host/host-locale.js'
 export { UserPanelSkillProvider, createUserPanelStores } from './runtime/panels/user-panels.js'
@@ -52,5 +50,13 @@ export { causeMessages } from './runtime/host/failure-detail.js'
 export { resolveDeclaredCommand } from './runtime/host/shell-path.js'
 export { optionalService } from './runtime/core/context.js'
 export { TabLayoutService } from './runtime/host/tab-layout-service.js'
+export { OutputStyleService } from './runtime/host/output-style-service.js'
+export type { OutputStyleSuitePort } from './runtime/host/output-style-service.js'
+export { mountOutputStyleSection } from './runtime/host/output-style-section.js'
+export { renderOutputStyleSection } from './runtime/host/output-style-render.js'
+export { loadOutputStyle, mutateOutputStyle, outputStylePath, saveOutputStyleSelection } from './application/state/output-style.js'
+export { userStylePath, writeUserStyle } from './application/output-styles.js'
+export type { SuiteStyleEntry } from './application/output-styles.js'
+export { DEFAULT_INVENTORY_RETRY, INVENTORY_RETRY_BASE_MS, INVENTORY_RETRY_MAX_MS, inventoryRetryDelay, resolveInventoryRetry } from './runtime/host/inventory-retry.js'
+export type { InventoryRetryPolicy } from './runtime/host/inventory-retry.js'
 export { loadTabLayout, mutateTabLayout, saveTabLayout, tabLayoutPath } from './application/state/tab-layout.js'
-export type { TabLayout } from './application/state/tab-layout.js'

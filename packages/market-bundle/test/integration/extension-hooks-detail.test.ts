@@ -105,6 +105,7 @@ function marketService(catalog: Catalog): MarketService {
     setLspServerEnabled: async () => {},
     migrateLegacyLspSeam: async profile => ({ profile, patchPath: '', backupPath: '', restartRequired: false }),
     retryMounts: async () => {},
+    restartLspServers: async () => {},
     reauthorizeMcpServer: async () => {},
     mcpReauthorizeAvailable: () => true,
     mcpBackendInfo: async () => ({
@@ -112,7 +113,6 @@ function marketService(catalog: Catalog): MarketService {
       hostClient: { available: true, version: '' },
       downloadRegion: { setting: 'auto' as const, effective: 'global' as const }
     }),
-    setMcpBackend: async () => {},
     menuRowFaces: async () => [],
     notifyPanelsChanged: async () => {}
   }

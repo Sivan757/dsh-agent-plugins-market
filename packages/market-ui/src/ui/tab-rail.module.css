@@ -1,0 +1,193 @@
+/**
+ * The tab rail: one row of tabs, the host's chip look, and a step button per clipped side.
+ *
+ * The selected tab carries the raised background itself; there is no separate moving pill
+ * and no group chrome. A clipped edge fades, which says "there is more" without a border
+ * or a label, and each step button moves exactly one tab.
+ */
+
+/* The row is the rail plus two overlays that live inside its border. */
+.wrap {
+  position: relative;
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  /* No flex-grow: the row is a strip, so a column parent must not stretch it vertically. */
+  flex: none;
+}
+
+.rail {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: center;
+  gap: 2px;
+  min-width: 0;
+  padding: 4px;
+  border: 1px solid var(--dsw-alias-border-l1);
+  border-radius: 10px;
+  background: var(--dsw-alias-interactive-bg-hover);
+  overflow-x: auto;
+  overflow-y: hidden;
+  flex-wrap: nowrap;
+  scrollbar-width: none;
+  scroll-behavior: smooth;
+}
+
+.rail::-webkit-scrollbar {
+  display: none;
+}
+
+/* The clipped edge dissolves through the row's own mask (see TabRail's edgeMask),
+   so no colour is involved and the fade follows the panel's surface in either theme. */
+
+/* Tall and narrow, no plate behind it: the chevron alone floats over the tabs. It exists
+   only while its side is clipped, so it stays visible at rest — a row that runs past the
+   edge has to say so before the pointer finds it — and reads fully on hover or focus. */
+.stepLeft,
+.stepRight {
+  position: absolute;
+  top: 50%;
+  z-index: 2;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  height: 26px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  cursor: pointer;
+  transform: translateY(-50%);
+  transition:
+    opacity 140ms ease,
+    color 140ms ease;
+}
+
+.stepLeft {
+  left: 8px;
+}
+
+.stepRight {
+  right: 8px;
+}
+
+.stepLeft:focus-visible,
+.stepRight:focus-visible {
+  color: var(--dsw-alias-state-business-primary);
+}
+
+.stepLeft:hover,
+.stepRight:hover {
+  color: var(--dsw-alias-label-primary);
+}
+
+.tab {
+  position: relative;
+  /* Spare width is shared, so a short row of tabs fills the strip it sits in instead of
+     stopping half way; min-width keeps the labels unwrapped, and the rail keeps scrolling
+     when the row genuinely overflows. */
+  flex: 1 1 auto;
+  min-width: fit-content;
+  text-align: center;
+  border: 0;
+  border-radius: 8px;
+  padding: 5px 10px;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 18px;
+  white-space: nowrap;
+  cursor: grab;
+  transition:
+    color 140ms ease,
+    background-color 140ms ease,
+    box-shadow 160ms ease,
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* Colour only on hover: a row that moves under the pointer makes aiming at a neighbour
+   harder. The drag gestures below are the one place movement is the point. */
+.tab:hover {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+
+.tab:active {
+  background: var(--dsw-alias-interactive-bg-active);
+}
+
+.tabActive {
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-1);
+}
+
+/* The hold in progress: a ring fills over the hold duration, so the user can see that
+   something is happening and that letting go early cancels it. */
+.tabPressing::after {
+  content: '';
+  position: absolute;
+  left: 6px;
+  right: 6px;
+  bottom: 2px;
+  height: 2px;
+  border-radius: 1px;
+  background: var(--dsw-alias-state-business-primary);
+  transform-origin: left center;
+  animation: hold-fill 280ms linear forwards;
+}
+
+@keyframes hold-fill {
+  from {
+    transform: scaleX(0);
+  }
+  to {
+    transform: scaleX(1);
+  }
+}
+
+/* Picked up: the tab lifts, casts a shadow and stops looking like a label. Movement
+   itself comes from the inline transform the gesture writes. */
+.tabDragging {
+  z-index: 3;
+  color: var(--dsw-alias-label-primary);
+  background: var(--dsw-alias-bg-layer-2);
+  box-shadow:
+    0 2px 6px rgb(0 0 0 / 28%),
+    0 12px 28px rgb(0 0 0 / 22%);
+  cursor: grabbing;
+  transition: box-shadow 140ms ease;
+}
+
+.tabLanding {
+  box-shadow: inset 2px 0 0 var(--dsw-alias-state-business-primary);
+}
+
+.tabHolding {
+  touch-action: none;
+}
+
+/* A keyboard ring of our own, so the platform's default outline does not read as a
+   stray blue border on a dark row. */
+.tab:focus-visible {
+  outline: 2px solid var(--dsw-alias-state-business-primary);
+  outline-offset: 1px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rail {
+    scroll-behavior: auto;
+  }
+
+  .tab,
+  .stepLeft,
+  .stepRight {
+    transition: none;
+  }
+
+  .tabDragging {
+    transition: none;
+  }
+}

@@ -2,6 +2,8 @@
 
 Status: implemented
 
+Revised by [the card rows and the switch that never hides](../bug-fix/2026-10-30-card-rows-and-the-switch-that-never-hides.md): the action cluster stays in the identity row at every width, so the enable switch is visible at rest.
+
 ## Problem
 
 The workspace redesign was reviewed against its screenshots rather than against the prototype's own implementation, so everything a static image cannot show went unchecked: hover reveal, the action cluster's reserved width, transitions, the source strip's overlay layering, and reduced motion. Reviewing the prototype source turned up one defect that had been invisible the whole time:
@@ -16,7 +18,7 @@ The workspace redesign was reviewed against its screenshots rather than against 
 
 - **The market page declares the container its rules already assumed.** `market.module.css .market` gains `container-type: inline-size`, so the settings column rather than the viewport decides the layout, on the market page as on the others.
 - **Card geometry is the prototype's, expressed where it actually applies.** The base grid is `auto-fill minmax(280px, 1fr)` with 122px rows for a wide container; the narrow branch forces two `minmax(0, 1fr)` columns, a 4px gap, and content-sized rows. The description is capped at two lines without reserving them, so a one-line card is a shorter card and the grid row is as tall as its tallest tile.
-- **The action cluster is one group and hides as one group.** In the narrow grid it leaves the flow, sits at the identity row's trailing edge, and the identity row reserves a fixed 88px (46px for the switch-only MCP and LSP cards) so the cluster's width never depends on the switch state. The whole cluster fades in on hover or `:focus-within` — switch and primary CTA included. Above the breakpoint only the secondary icons fade, which is the prototype's own two-tier rule.
+- **The action cluster is one group, in flow at every width.** It sits at the identity row's trailing edge and the row measures it, so no fixed reserve has to track the number of controls. Above and below the breakpoint only the secondary icons fade on hover or `:focus-within`; the switch and the primary CTA stay visible, because the switch is the entry's state rather than an occasional action.
 - **The source row names its source in both views.** Provenance is no longer grid-hidden; it ellipsizes before the counts do, because the counts are what the row is scanned for.
 - **MCP and LSP cards carry a real enable switch.** MCP routes through a new `set-mcp-server-enabled` route into `McpService.setServerEnabled`, which splits the source-qualified suite id and writes an `enabled` override — the suite's `mcp.json` stays source-owned, and a refresh cannot clobber the choice. LSP uses the `lsp-servers/enabled` route that already existed. Both panels also gain the `已禁用` filter (with the rows kept in the payload instead of filtered away), so a switched-off service is reachable and its count matches what clicking it shows.
 - **A switch states enablement, not health.** An erroring or degraded row is still enabled: the rail and the state tag already report the failure, and turning the toggle off is exactly how a user stops a service that will not start.
@@ -30,7 +32,7 @@ The workspace redesign was reviewed against its screenshots rather than against 
 
 - **Keep the 260px track and the 10px gap and skip the container.** Rejected: those values existed to work around the missing container, and they cost the grid its provenance line and its content-sized rows. Declaring the container fixes the cause and lets the prototype's numbers apply.
 - **Make the whole workspace a single container in `ui/ResourceCard` instead of on `.market`.** Rejected: `ResourceCollection` is a descendant, not an ancestor, of the grid it styles; the container has to sit above the surface root, and the market's root is the only one not already composing `.shell`.
-- **Hide only the icons and let the switch stay visible at every width.** Rejected: it reads as a half-cluster, and it is not what the prototype draws. The switch is an action like the others.
+- **Hide only the icons and let the switch stay visible at every width.** Rejected at the time as a half-cluster; [the card rows note](../bug-fix/2026-10-30-card-rows-and-the-switch-that-never-hides.md) later reversed this, because a switch that hides at rest leaves the entry's state unreadable.
 - **Have the MCP switch mirror `state === 'connected'`.** Rejected: that conflates enablement with connectivity, and it makes the control wrong in the one case it matters — a failing service could not be switched off, because flipping the switch would ask to enable an already-enabled server.
 - **Reuse the existing `set-mcp-override` route from the client and split the qualified suite id in the browser.** Rejected: the qualified-id format is the server's, and duplicating its separator in the client is how the two drift. The new route mirrors `lsp-servers/enabled`, which already takes a composite id.
 - **Drop the `已禁用` rows from the payload the way the MCP view model did.** Rejected: then the count on the tab and the rows behind it come from different code. One predicate now produces both.

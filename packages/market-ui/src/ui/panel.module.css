@@ -29,8 +29,12 @@
 
 /* A description-only header holds one 20px line; the 46px floor above is sized
    for a title plus its description and would leave a band of dead space. */
+/* A description-only header holds one 20px line, so the 46px floor a title needs is
+   dropped — but not the button row's own height: a panel whose header carries a text
+   button grew 4px taller than one with icon buttons, and its toolbar sat 4px lower than
+   every other tab's. The floor here is the tallest action, so all compact headers match. */
 .headerCompact {
-  min-height: 0;
+  min-height: 28px;
 }
 
 .headerText {
@@ -60,18 +64,6 @@
   flex-direction: row;
   gap: 6px;
   align-items: center;
-}
-
-/* The scroll region: every panel scrolls inside its own body, never the
-   full settings column, so switching tabs cannot shift the layout. */
-.body {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 12px;
-  overflow-y: auto;
-  scrollbar-gutter: stable;
 }
 
 /* ---- BusyIndicator ---------------------------------------------------- */
@@ -149,12 +141,6 @@
   justify-content: flex-end;
 }
 
-.editorError {
-  margin-right: auto;
-  color: var(--dsw-alias-state-error-primary, rgb(200, 30, 30));
-  font-size: 12px;
-}
-
 .confirmCheck {
   display: flex;
   flex-direction: row;
@@ -171,19 +157,47 @@
   text-align: center;
 }
 
-@container (max-width: 540px) {
-  .entryGrid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .entryRow {
-    flex-wrap: wrap;
-  }
-  .entryActions {
-    margin-left: auto;
-  }
-  .entryMain {
-    flex-basis: 100%;
-  }
+/* One quiet status line for every panel: what the last action did. */
+.notice {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--dsw-alias-interactive-bg-hover, #f3f4f6);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+/* One failure line for every panel: the message, then the retry beside it. */
+.readFailed {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+  color: var(--dsw-alias-state-error-primary, #dc2626);
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+.readFailedText {
+  min-width: 0;
+}
+
+.readFailedRetry {
+  flex: none;
+  margin-left: auto;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--dsw-alias-brand-primary, #4f6ef7);
+  font: inherit;
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.readFailedRetry:focus-visible {
+  outline: 2px solid var(--dsw-alias-brand-primary, #4f6ef7);
+  outline-offset: 2px;
 }
 
 /* ---- shared detail-dialog content ------------------------------------- */
@@ -217,7 +231,7 @@
   overflow-wrap: anywhere;
   color: var(--dsw-alias-label-secondary);
   font:
-    12px/18px ui-monospace,
+    11.5px/18px ui-monospace,
     Menlo,
     Consolas,
     monospace;
@@ -249,13 +263,14 @@
   line-height: 16px;
 }
 
+/* A detail grid holds values a reader came to read: a path, a command, a byte count.
+   Truncating a path turns the field into a puzzle, and the dialog has the room — so
+   these wrap instead of ending in an ellipsis. */
 .kvValue {
   margin: 3px 0 0;
-  overflow: hidden;
   font-size: 12.5px;
   line-height: 18px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
 }
 
 .monoBlock {

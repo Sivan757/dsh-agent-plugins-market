@@ -9,14 +9,17 @@
  * by the store.
  * @module routes-tab-layout
  */
+import { isTrustedMutation } from './request-trust.js'
+import { routeFailurePayload, type RouteLogger } from './route-errors.js'
+import { readJsonBody, sendJson } from './route-http.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { MARKET_ROUTES } from '../../market-contracts/src/contracts/market.js'
 import { PINNED_TAB_KEY, WORKSPACE_TAB_KEYS, type TabLayoutWire } from '../../market-contracts/src/contracts/tab-layout.js'
 
-const MAX_BODY_BYTES = 64 * 1024
-
 interface WebHost {
   webServer: { register(route: { kind: 'exact'; path: string; handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void> }): () => void }
+  /** Receives a failure's full detail, including the paths the browser never sees. */
+  logger?: RouteLogger
 }
 
 /** What the tab-layout routes need from the composition root. */
@@ -25,6 +28,8 @@ export interface TabLayoutRouteService {
   currentLayout(): TabLayoutWire
   /** Replace the stow list and resolve with the committed layout. */
   setHidden(hidden: unknown): Promise<TabLayoutWire>
+  /** Replace the row order and resolve with the committed layout. */
+  setOrder(order: unknown): Promise<TabLayoutWire>
 }
 
 /**
@@ -52,7 +57,7 @@ export function mountTabLayoutRoutes(hostCtx: unknown, service: TabLayoutRouteSe
       kind: 'exact',
       path: MARKET_ROUTES.setTabLayout,
       handler: (request, response) => {
-        if (!sameOrigin(request)) {
+        if (!isTrustedMutation(request)) {
           sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
           return
         }
@@ -64,9 +69,35 @@ export function mountTabLayoutRoutes(hostCtx: unknown, service: TabLayoutRouteSe
           }
           try {
             const layout = await service.setHidden(requestedHidden(body as Record<string, unknown>))
-            sendJson(response, 200, { ok: true, hidden: layout.hidden })
+            sendJson(response, 200, { ok: true, hidden: layout.hidden, order: layout.order })
           } catch (error) {
-            sendJson(response, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+            sendJson(response, 400, routeFailurePayload(error, 'POST ' + MARKET_ROUTES.setTabLayout, host.logger))
+          }
+        })()
+      }
+    })
+  )
+
+  disposers.push(
+    host.webServer.register({
+      kind: 'exact',
+      path: MARKET_ROUTES.setTabOrder,
+      handler: (request, response) => {
+        if (!isTrustedMutation(request)) {
+          sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
+          return
+        }
+        void (async () => {
+          const body = await readJsonBody(request)
+          if (body === undefined) {
+            sendJson(response, 400, { ok: false, error: 'invalid JSON body' })
+            return
+          }
+          try {
+            const layout = await service.setOrder(requestedOrder(body as Record<string, unknown>))
+            sendJson(response, 200, { ok: true, hidden: layout.hidden, order: layout.order })
+          } catch (error) {
+            sendJson(response, 400, routeFailurePayload(error, 'POST ' + MARKET_ROUTES.setTabOrder, host.logger))
           }
         })()
       }
@@ -76,6 +107,30 @@ export function mountTabLayoutRoutes(hostCtx: unknown, service: TabLayoutRouteSe
   return () => {
     for (const dispose of disposers) dispose()
   }
+}
+
+/**
+ * Read the requested row order out of one body, refusing what it cannot honour.
+ *
+ * An unknown key is a client this build does not know, and a repeated key is a
+ * client that built the array wrong; both would silently produce a row the
+ * caller did not ask for. The pinned tab may appear (clients send the whole
+ * order) but may not be moved away from the front.
+ * @param body - the parsed request body.
+ * @returns the requested keys, in the caller's order.
+ */
+function requestedOrder(body: Record<string, unknown>): string[] {
+  const order = body['order']
+  if (!Array.isArray(order)) throw new Error('order must be an array of tab keys')
+  const requested: string[] = []
+  for (const key of order) {
+    if (typeof key !== 'string') throw new Error('order must be an array of tab keys')
+    if (!(WORKSPACE_TAB_KEYS as readonly string[]).includes(key)) throw new Error(`unknown tab key "${key}"`)
+    if (requested.includes(key)) throw new Error(`tab key "${key}" appears twice`)
+    requested.push(key)
+  }
+  if (requested.length > 0 && requested[0] !== PINNED_TAB_KEY) throw new Error(`the "${PINNED_TAB_KEY}" tab stays first`)
+  return requested
 }
 
 /**
@@ -100,46 +155,4 @@ function requestedHidden(body: Record<string, unknown>): string[] {
     requested.push(key)
   }
   return requested
-}
-
-function sameOrigin(request: IncomingMessage): boolean {
-  const origin = request.headers['origin']
-  if (origin === undefined) return true
-  try {
-    return new URL(origin).host === request.headers['host']
-  } catch {
-    return false
-  }
-}
-
-/** Parses the request body; `undefined` for an oversized, unparsable, or failed read. */
-function readJsonBody(request: IncomingMessage): Promise<unknown> {
-  return new Promise(resolve => {
-    let size = 0
-    const chunks: Buffer[] = []
-    request.on('data', (chunk: Buffer) => {
-      size += chunk.length
-      if (size > MAX_BODY_BYTES) {
-        resolve(undefined)
-        request.destroy()
-        return
-      }
-      chunks.push(chunk)
-    })
-    request.on('end', () => {
-      if (size > MAX_BODY_BYTES) return
-      try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')))
-      } catch {
-        resolve(undefined)
-      }
-    })
-    request.on('error', () => resolve(undefined))
-  })
-}
-
-function sendJson(response: ServerResponse, status: number, payload: unknown): void {
-  const body = JSON.stringify(payload)
-  response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body) })
-  response.end(body)
 }

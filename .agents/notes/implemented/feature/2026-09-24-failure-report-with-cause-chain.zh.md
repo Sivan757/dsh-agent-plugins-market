@@ -12,7 +12,7 @@ MCP 服务详情直接把挂载流程记下的诊断原文印在弹窗里。那�
 
 ## Decision
 
-- **运行时记录原因链。** `src/runtime/failure-detail.ts` 从挂载错误出发沿 `cause` 向下走，抹掉 URL 里的凭据、去重、遇到指回自身的链条就停下，最多保留四条消息。两条挂载流程都把它们作为 `causes` 记在诊断上，两个状态构建器把记录的 `code` 与 `causes` 一起送到接口：`src/contracts/` 里的 `McpStatusEntry` 与 `LspStatusEntry` 都增加该字段，`LspStatusEntry` 同时补上它从未报告过的 `code`。
+- **运行时记录原因链。** `packages/market-runtime/src/runtime/host/failure-detail.ts` 从挂载错误出发沿 `cause` 向下走，抹掉 URL 里的凭据、去重、遇到指回自身的链条就停下，最多保留四条消息。两条挂载流程都把它们作为 `causes` 记在诊断上，两个状态构建器把记录的 `code` 与 `causes` 一起送到接口：`src/contracts/` 里的 `McpStatusEntry` 与 `LspStatusEntry` 都增加该字段，`LspStatusEntry` 同时补上它从未报告过的 `code`。
 - **状态构建器自己写的原因也有了代码。** `disabled by override`、`modified by override` 与 `MCP tools remain after this plugin surface was disabled` 分别带上 `disabled-override`、`modified-override`、`orphaned-tools`，面板据此本地化，不再在中文控件旁边印一句英文。
 - **失败报告只有一个实现。** `packages/market-ui/src/ui/StatusBand.tsx`——本记录当时交付的 `FailureReport.tsx` 已并入详情弹窗的状态容器——渲染一条 3px 状态边条（只有卡片同样标为错误的状态才用错误色）、按失败类型选出的那一句话、该状态唯一的恢复操作，以及收在 `aria-expanded` 折叠项里的诊断原文，折叠项标题是「诊断详情」/ `Diagnostic details`。MCP 与 LSP 详情弹窗都用它，连信息性的状态也走同一条路径，因此只有一份区块、一套 token。
 - **分类先看记录的代码，再看措辞。** `packages/market-ui/src/ui/failure-guidance.ts` 取代 `src/client/features/mcp-status/diagnostic-guidance.ts`：有代码就由代码决定；走措辞的那条路把摘要行与它下面的消息合在一起匹配；`mount-failed` 里认不出的形状退到那句适用于所有启动失败的话，而不是什么都不给。

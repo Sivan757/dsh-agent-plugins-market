@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createElement as h } from 'react'
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
+import type { McpStatusPayload } from '../../../packages/market-contracts/src/contracts/mcp-status.js'
 
 const statusPayload = vi.hoisted(() => ({
   entries: [
@@ -180,6 +181,120 @@ async function mountPanel(credentials?: CredentialApi): Promise<HTMLDivElement> 
   return host
 }
 
+/** Keyboard reach: a detail dialog takes focus, and Escape gives it back to the card. */
+describe('detail dialog focus', () => {
+  it('moves focus into the dialog and returns it to the opening card on Escape', async () => {
+    const api = await import('../../../packages/market-ui/src/api.js')
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
+    const el = await mountPanel()
+    const card = el.querySelector<HTMLElement>('[data-card-open]')!
+    card.focus()
+    await act(async () => {
+      card.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    const dialog = document.querySelector('[role="dialog"]')!
+    expect(dialog.contains(document.activeElement)).toBe(true)
+    await act(async () => {
+      document.activeElement!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
+    expect(document.activeElement).toBe(card)
+  })
+})
+
+/** The duration a slow failure reports, so the number is not only in a log. */
+describe('MCP mount duration', () => {
+  it('names how long the last attempt took, in the detail and in the copied block', async () => {
+    const written: string[] = []
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      value: {
+        writeText: (text: string) => {
+          written.push(text)
+          return Promise.resolve()
+        }
+      },
+      configurable: true
+    })
+    const api = await import('../../../packages/market-ui/src/api.js')
+    // One row, written literally: the hoisted fixture is untyped, and a spread of it
+    // widens every field to optional.
+    const slowPayload: McpStatusPayload = {
+      entries: [
+        {
+          id: 'plugin:demo/service',
+          name: 'demo__service',
+          kind: 'plugin',
+          state: 'failed',
+          code: 'mount-failed',
+          source: 'Demo Suite',
+          suiteId: 'demo',
+          serverKey: 'service',
+          transport: 'stdio',
+          endpoint: 'node server.js',
+          reason: 'connection refused',
+          tools: [],
+          mountMs: 12_600
+        }
+      ],
+      observedAt: '',
+      totals: { all: 1, connected: 0, degraded: 0, failed: 1, needsCredentials: 0, orphaned: 0, disabled: 0, foreign: 0 },
+      directObservationOnly: true
+    }
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(slowPayload)
+    const el = await mountPanel()
+    await act(async () => {
+      el.querySelector('[data-resource-surface="mcp"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(document.body.textContent).toContain('mcpMountDurationLabel')
+    const button = [...document.querySelectorAll('button')].find(node => node.textContent === 'copyDiagnostics')!
+    await act(async () => {
+      button.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(written[0]).toContain('mountMs: 12600')
+  })
+})
+
+/** The copyable block a reader hands to someone who can look at the service. */
+describe('MCP diagnostics copy', () => {
+  it('copies the state, the endpoint, the transport and the reason as one block', async () => {
+    const written: string[] = []
+    Object.defineProperty(globalThis.navigator, 'clipboard', {
+      value: {
+        writeText: (text: string) => {
+          written.push(text)
+          return Promise.resolve()
+        }
+      },
+      configurable: true
+    })
+    const api = await import('../../../packages/market-ui/src/api.js')
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
+    const el = await mountPanel()
+    await act(async () => {
+      el.querySelector('[data-resource-surface="mcp"]')!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    const button = [...document.querySelectorAll('button')].find(node => node.textContent === 'copyDiagnostics')
+    expect(button).toBeDefined()
+    await act(async () => {
+      button!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(written).toHaveLength(1)
+    const lines = (written[0] ?? '').split('\n')
+    expect(lines[0]).toContain('mcpSection')
+    expect(lines).toContain('state: mcpFailed')
+    expect(lines).toContain('endpoint: node server.js')
+    expect(lines).toContain('transport: stdio')
+    expect(lines).toContain('reason: connection refused')
+    expect(document.body.textContent).toContain('diagnosticsCopied')
+  })
+})
+
 describe('MCP status actions', () => {
   it('keeps credentials out of the report and reads them for the editor', async () => {
     const describeCredentials = vi.fn().mockResolvedValue({ result: { ok: true, value: { credentials: { API_TOKEN: { configured: false, writable: true } } } } })
@@ -231,6 +346,49 @@ describe('MCP status actions', () => {
     expect(describeCredentials).toHaveBeenCalledWith({ refs: ['API_TOKEN'] })
   })
 
+  it('does not claim there are no connectors when the read itself failed', async () => {
+    // A failed read has no rows because nothing was read. "没有匹配的连接器"
+    // answers a question the reader never asked and buries the alert above it.
+    const api = await import('../../../packages/market-ui/src/api.js')
+    vi.mocked(api.fetchMcpStatus).mockRejectedValueOnce(new Error('host down'))
+    const el = await mountPanel()
+    expect(el.textContent).toContain('statusUnreadable')
+    expect(el.textContent).not.toContain('mcpEmpty')
+    // The three conditions stay (they are a fixed grammar across faces); the honest fact is
+    // the empty text, which says the read failed rather than that nothing matches.
+    expect(el.textContent).toContain('filterAll')
+  })
+
+  it('says on the card why a connector failed, keeping the advice in the detail', async () => {
+    // The list is scanned to find the row that needs attention, so the cause is
+    // on the card; 「确认服务可达…」 and the retry stay one click away.
+    const api = await import('../../../packages/market-ui/src/api.js')
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
+    const el = await mountPanel()
+    const card = el.querySelector('[data-resource-state="error"]')!
+    // The refusal shape ('connection refused') is what the row states, in the
+    // warning tag the shared card draws; the advice after the colon is not here.
+    const warning = card.querySelector('[class*="warnWrap"]')
+    expect(warning?.textContent).toBe('failureGuideRefused')
+    expect(card.textContent).not.toContain('failureGuideTimeout')
+  })
+
+  it('offers retry on the failed row itself, before anything is opened', async () => {
+    // The state word names the problem and the action that fixes it sits beside it: the
+    // retry used to live only inside the row's dialog.
+    const api = await import('../../../packages/market-ui/src/api.js')
+    vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
+    const el = await mountPanel()
+    const card = el.querySelector('[data-resource-state="error"]')!
+    const retry = [...card.querySelectorAll('button')].find(node => (node.textContent ?? '').includes('mcpRetryConnection'))
+    expect(retry).toBeDefined()
+    await act(async () => {
+      retry!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(api.retryMcpMounts).toHaveBeenCalled()
+  })
+
   it('offers retry in the status band and echoes the outcome in place', async () => {
     const api = await import('../../../packages/market-ui/src/api.js')
     vi.mocked(api.fetchMcpStatus).mockResolvedValueOnce(failedPayload)
@@ -242,7 +400,10 @@ describe('MCP status actions', () => {
       await new Promise(resolve => setTimeout(resolve, 0))
     })
 
-    const retry = [...document.body.querySelectorAll('button')].find(button => button.textContent?.includes('mcpRetryConnection'))
+    // The card carries the same action now, so the band's button is the one inside the
+    // dialog this click opened.
+    const dialog = document.querySelector('[role="dialog"]')!
+    const retry = [...dialog.querySelectorAll('button')].find(button => button.textContent?.includes('mcpRetryConnection'))
     expect(retry).toBeDefined()
 
     // A failed retry echoes the action failure in place, and the button stays
@@ -350,30 +511,40 @@ describe('MCP delete actions', () => {
     return mountPanel()
   }
 
-  it('offers the card delete only for a user-owned declaration', async () => {
-    // A suite declares its servers in its own `mcp.json`, so its card offers the
-    // editor but never a delete.
+  it('offers the delete only inside the detail of a user-owned declaration', async () => {
+    // A suite declares its servers in its own `mcp.json`, so its detail offers
+    // the editor but never a delete.
     const pluginPanel = await mountPanel()
-    expect(pluginPanel.querySelector('[aria-label="panelEdit service"]')).not.toBeNull()
-    expect(pluginPanel.querySelector('[aria-label^="mcpDelete"]')).toBeNull()
+    await openCard(pluginPanel)
+    expect(byText('mcpDelete')).toBeUndefined()
     await act(async () => root?.unmount())
     document.body.replaceChildren()
 
     const direct = await mountDirect()
-    expect(direct.querySelector('[aria-label="mcpDelete kuboard"]')).not.toBeNull()
+    await openCard(direct)
+    expect(byText('mcpDelete')).not.toBeUndefined()
   })
 
-  it('confirms a card delete, then removes the declaration and re-reads the list', async () => {
+  it('keeps the card free of a destructive action', async () => {
+    // The card's click means "open": the one irreversible action waits one step
+    // inside the dialog, behind the shared confirmation.
+    const el = await mountDirect()
+    expect(el.querySelector('[aria-label^="mcpDelete"]')).toBeNull()
+    await openCard(el)
+    expect(byText('mcpDelete')).not.toBeUndefined()
+  })
+
+  it('confirms a delete from the detail, then removes the declaration and re-reads the list', async () => {
     const api = await import('../../../packages/market-ui/src/api.js')
     const el = await mountDirect()
+    await openCard(el)
     await act(async () => {
-      el.querySelector<HTMLButtonElement>('[aria-label="mcpDelete kuboard"]')!.click()
+      byText('mcpDelete')!.click()
       await new Promise(resolve => setTimeout(resolve, 0))
     })
-    // The card opens the shared danger confirmation rather than deleting on one
-    // click, and that is not the detail dialog.
+    // The confirmation is the shared danger dialog, and nothing is removed on
+    // the first click.
     expect(document.body.textContent).toContain('mcpDeleteTitle')
-    expect(document.body.textContent).not.toContain('overviewSection')
     expect(api.removeMcpServer).not.toHaveBeenCalled()
     const reads = vi.mocked(api.fetchMcpStatus).mock.calls.length
     await act(async () => {
@@ -385,23 +556,14 @@ describe('MCP delete actions', () => {
     expect(document.querySelector('[role="dialog"]')).toBeNull()
   })
 
-  it('keeps the detail dialog free of a delete action', async () => {
-    // Deleting belongs to the card's action row: the detail dialog reports the
-    // service and offers recovery, so a destructive button in its footer would
-    // sit beside the read-only facts it describes.
-    const el = await mountDirect()
-    await openCard(el)
-    expect(document.querySelector('[role="dialog"]')).not.toBeNull()
-    expect(byText('mcpDelete')).toBeUndefined()
-  })
-
   it('reports a failed delete in the panel without dropping the row', async () => {
     const api = await import('../../../packages/market-ui/src/api.js')
     const el = await mountDirect()
     const reads = vi.mocked(api.fetchMcpStatus).mock.calls.length
     vi.mocked(api.removeMcpServer).mockRejectedValueOnce(new Error('cannot remove kuboard'))
+    await openCard(el)
     await act(async () => {
-      el.querySelector<HTMLButtonElement>('[aria-label="mcpDelete kuboard"]')!.click()
+      byText('mcpDelete')!.click()
       await new Promise(resolve => setTimeout(resolve, 0))
     })
     await act(async () => {
@@ -410,7 +572,9 @@ describe('MCP delete actions', () => {
     })
     // The failure is the panel's one error line, and nothing is re-read: the
     // declaration is still there, so the next refresh reports it as it stands.
+    // The dialog closes, because the error has to be visible where the retry is.
     expect(document.body.textContent).toContain('cannot remove kuboard')
+    expect(document.querySelector('[role="dialog"]')).toBeNull()
     expect(vi.mocked(api.fetchMcpStatus).mock.calls.length).toBe(reads)
   })
 })

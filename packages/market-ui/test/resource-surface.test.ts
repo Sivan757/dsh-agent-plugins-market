@@ -1,0 +1,220 @@
+// @vitest-environment jsdom
+
+/**
+ * The one resource list's interaction contract.
+ *
+ * Every surface renders through this component, so the meaning of a click is decided
+ * here and nowhere else: a card opens its entry, a switch toggles it, and the two never
+ * share a hit area.
+ */
+import { afterEach, describe, expect, it, vi } from 'vitest'
+import { createElement as h } from 'react'
+import { act } from 'react'
+import { createRoot, type Root } from 'react-dom/client'
+
+globalThis.IS_REACT_ACT_ENVIRONMENT = true
+
+import { ResourceSurface } from '../src/ui/ResourceSurface.js'
+import type { Translate } from '../src/i18n.js'
+
+const t: Translate = (key, params) => (params === undefined ? String(key) : [String(key), ...Object.values(params).map(value => String(value))].join(' '))
+
+const entries = [
+  { id: 'a', name: 'alpha', tag: '用户', tagId: 'user', description: 'First entry', meta: 'meta-a' },
+  { id: 'b', name: 'beta', tag: '插件', tagId: 'suite', description: 'Second entry', meta: 'meta-b' }
+]
+
+let root: Root | undefined
+let host: HTMLDivElement | undefined
+
+afterEach(async () => {
+  await act(async () => root?.unmount())
+  host?.remove()
+  root = undefined
+  host = undefined
+})
+
+async function mount(props: Partial<Parameters<typeof ResourceSurface>[0]> = {}): Promise<void> {
+  host = document.createElement('div')
+  document.body.append(host)
+  root = createRoot(host)
+  await act(async () => {
+    root!.render(
+      h(ResourceSurface, {
+        t,
+        entries,
+        emptyText: 'nothing here',
+        onOpen: () => {},
+        ...props
+      })
+    )
+  })
+}
+
+const cards = (): HTMLElement[] => [...(host?.querySelectorAll<HTMLElement>('[data-resource-id]') ?? [])]
+const cardOf = (id: string): HTMLElement => cards().find(card => card.getAttribute('data-resource-id') === id)!
+
+describe('empty states', () => {
+  it("keeps the panel's own sentence for a list that really is empty", async () => {
+    await mount({ entries: [] })
+    expect(host!.textContent).toContain('nothing here')
+    expect(host!.textContent).not.toContain('resultsNoMatch')
+  })
+
+  it('says a search matched nothing, not that the collection is empty', async () => {
+    // A search that matches nothing is a fact about a list that has rows; the panel's empty
+    // sentence answers "there is nothing here", which is a different fact.
+    await mount({ searchLabel: 'search' })
+    const field = host!.querySelector<HTMLInputElement>('input')!
+    await act(async () => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- a property descriptor's accessor is invoked with the element as its receiver.
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(field, 'zzqqxx')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(host!.textContent).toContain('resultsNoMatch')
+    expect(host!.textContent).not.toContain('nothing here')
+    // The live region says the same fact, with the inventory size as its denominator.
+    expect(host!.querySelector('[data-resource-status]')!.textContent).toContain('resultsNone')
+  })
+})
+
+describe('resource surface contract', () => {
+  it('opens the entry when its card is clicked', async () => {
+    const onOpen = vi.fn()
+    const onToggle = vi.fn()
+    await mount({ capabilities: { toggle: true }, onOpen, onToggle, isOn: () => false })
+    await act(async () => cardOf('a').click())
+    expect(onOpen).toHaveBeenCalledWith('a')
+    // A click on the card is never a toggle.
+    expect(onToggle).not.toHaveBeenCalled()
+  })
+
+  it('toggles from the switch without opening the entry', async () => {
+    const onOpen = vi.fn()
+    const onToggle = vi.fn()
+    await mount({ capabilities: { toggle: true }, onOpen, onToggle, isOn: () => false })
+    const toggle = cardOf('a').querySelector<HTMLElement>('[role="switch"]')!
+    await act(async () => toggle.click())
+    expect(onToggle).toHaveBeenCalledWith('a', true)
+    expect(onOpen).not.toHaveBeenCalled()
+  })
+
+  it('carries no pressed state on the card itself', async () => {
+    await mount({ capabilities: { toggle: true }, onToggle: () => {}, isOn: () => true })
+    // The card is a dialog opener, not a switch: the pressed state belongs to the switch.
+    expect(cardOf('a').getAttribute('aria-pressed')).toBeNull()
+    // The switch exists as its own control; the card carries no pressed state at all.
+    expect(cardOf('a').querySelector('[role="switch"]')).not.toBeNull()
+  })
+
+  it('filters and searches the same collection', async () => {
+    await mount({
+      searchLabel: 'search',
+      searchPlaceholder: 'search',
+      filters: [{ id: 'suite', label: 'plugins', match: entry => entry.tagId === 'suite' }]
+    })
+    const field = host!.querySelector<HTMLInputElement>('[data-panel-toolbar] input')!
+    await act(async () => {
+      // eslint-disable-next-line @typescript-eslint/unbound-method -- a property descriptor's accessor is invoked with the element as its receiver.
+      const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')?.set
+      setter?.call(field, 'beta')
+      field.dispatchEvent(new Event('input', { bubbles: true }))
+    })
+    expect(cards().map(card => card.getAttribute('data-resource-id'))).toEqual(['b'])
+    // A screen reader cannot see the list shrink: the status line says so, and
+    // its total is what the search matched rather than the whole inventory.
+    const status = host!.querySelector('[data-resource-status]')!
+    expect(status.getAttribute('role')).toBe('status')
+    expect(status.getAttribute('aria-live')).toBe('polite')
+    expect(status.textContent).toBe('resultsStatus 1 1')
+  })
+
+  it('weighs its primary action by the view: quiet in the grid, filled in the list', async () => {
+    // A thousand-card market with a filled button on every card competes with
+    // the content; one row per action can carry the filled weight.
+    await mount({
+      entries: [{ id: 'p', name: 'installable', primary: { label: 'install-now', onSelect: () => {} } }],
+      searchLabel: 'search',
+      toListLabel: 'switch to list',
+      toGridLabel: 'switch to grid'
+    })
+    const primary = (): HTMLButtonElement => [...host!.querySelectorAll<HTMLButtonElement>('button')].find(node => (node.textContent ?? '').includes('install-now'))!
+    expect(primary().className).toContain('ghost')
+    const toggle = host!.querySelector<HTMLButtonElement>('[aria-label="switch to list"]')!
+    await act(async () => toggle.click())
+    expect(primary().className).not.toContain('ghost')
+    expect(primary().className).toContain('primary')
+  })
+
+  it('draws the one card anatomy, with every slot in its own row', async () => {
+    await mount({ capabilities: { toggle: true, counts: true }, onToggle: () => {}, isOn: () => true, onEdit: () => {} })
+    const card = cardOf('a')
+    // Identity, actions, body, foot: the card is a grid with named areas, so a slot
+    // without a row would be auto-placed into the first free cell — beside the name.
+    expect([...card.querySelectorAll('[data-card-row]')].map(row => row.getAttribute('data-card-row'))).toEqual(['id', 'actions', 'body', 'foot'])
+    expect(card.querySelector('[data-card-row="body"]')?.textContent).toBe('First entry')
+    expect(card.querySelector('[data-card-row="foot"]')?.textContent).toContain('meta-a')
+    // The switch ends the action cluster, and it is the only control there when
+    // the surface offers no editor.
+    const actions = card.querySelector('[data-card-row="actions"]')!
+    expect(actions.querySelector('[role="switch"]')).not.toBeNull()
+  })
+
+  it('lets a control inside the card answer its own Enter instead of opening the entry', async () => {
+    // The card is a role="button", so a key event aimed at a nested control used
+    // to bubble up, have its own activation cancelled and open the detail: the
+    // edit button and every icon action were unreachable from the keyboard.
+    const onOpen = vi.fn()
+    const onEdit = vi.fn()
+    await mount({ onOpen, onEdit, capabilities: { toggle: true }, onToggle: () => {}, isOn: () => true })
+    const edit = cardOf('a').querySelector<HTMLButtonElement>('button[aria-label="panelEdit alpha"]')!
+    expect(edit).not.toBeNull()
+    await act(async () => edit.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true })))
+    expect(onOpen).not.toHaveBeenCalled()
+    // The click the browser would synthesize for that Enter still reaches the button.
+    await act(async () => edit.click())
+    expect(onEdit).toHaveBeenCalledWith('a')
+  })
+
+  it('says the state in words, because the rail is colour only', async () => {
+    await mount({ entries: [{ id: 'a', name: 'alpha', state: 'absent', stateLabel: 'not installed' }] })
+    const hidden = cardOf('a').querySelector<HTMLElement>('[class*="srOnly"]')
+    expect(hidden?.textContent).toBe('not installed')
+  })
+
+  it('names each switch by its verb and its row', async () => {
+    // "Disable" alone said nothing about which of a thousand rows it disables.
+    await mount({ capabilities: { toggle: true }, onToggle: () => {}, isOn: () => true, entries: [{ id: 'a', name: 'alpha', toggleLabel: 'disable' }] })
+    expect(cardOf('a').querySelector('[role="switch"]')?.getAttribute('aria-label')).toBe('disable alpha')
+  })
+
+  it('omits the rows an entry has nothing to fill', async () => {
+    await mount({ entries: [{ id: 'bare', name: 'bare' }] })
+    const card = cardOf('bare')
+    expect([...card.querySelectorAll('[data-card-row]')].map(row => row.getAttribute('data-card-row'))).toEqual(['id'])
+  })
+
+  it('opens the entry from the keyboard through the name button, not the card', async () => {
+    // The card holds a switch, an editor and icon actions, so it cannot itself be
+    // a button: ARIA would flatten those controls out of the tree. The name is
+    // the card's control, the card is a region that a pointer may click anywhere.
+    const onOpen = vi.fn()
+    await mount({ onOpen })
+    const all = cards()
+    // A list item, not a button, and not a tab stop of its own.
+    expect(all[0]!.getAttribute('role')).toBe('listitem')
+    expect(all[0]!.tabIndex).toBe(-1)
+    const openers = all.map(card => card.querySelector<HTMLButtonElement>('[data-card-open]')!)
+    expect(openers[1]!.tagName).toBe('BUTTON')
+    await act(async () => openers[1]!.click())
+    expect(onOpen).toHaveBeenLastCalledWith('b')
+    // A pointer anywhere on the card still opens it.
+    await act(async () => all[0]!.click())
+    expect(onOpen).toHaveBeenLastCalledWith('a')
+    // A mutation click on the region does not double-fire what the opener did.
+    onOpen.mockClear()
+    await act(async () => openers[0]!.click())
+    expect(onOpen).toHaveBeenCalledTimes(1)
+  })
+})

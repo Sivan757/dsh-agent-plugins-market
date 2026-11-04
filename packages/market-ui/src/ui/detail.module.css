@@ -4,6 +4,11 @@
   box-sizing: border-box;
   max-width: calc(100vw - 48px);
   max-height: calc(100dvh - 48px);
+  /* A dialog is portaled to the body, so no panel container is an ancestor: a
+     container query written for the panel can never match inside one. Declaring
+     the dialog itself as the container lets its contents follow its own width
+     instead of the window's. */
+  container-type: inline-size;
 }
 
 .dialog[role='dialog'].sizeSm {
@@ -127,24 +132,6 @@
 }
 /* The control row above a service editor's body: two one-line identity fields
    (the name and, for MCP, the transport) side by side. */
-.pair {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-}
-.row {
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  min-width: 0;
-}
-.row input {
-  flex: 1;
-  width: 0;
-}
-.row button {
-  flex: none;
-}
 @media (max-width: 640px) {
   .dialog[role='dialog'] {
     width: calc(100vw - 16px);

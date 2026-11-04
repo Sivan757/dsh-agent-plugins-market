@@ -12,7 +12,7 @@
  * Direct user-configured rows follow the same model under the sentinel suite
  * id `direct` (mirroring mcp-status's `plugin`/`direct` split).
  */
-import type { LspStatusCode, LspStatusEntry, LspStatusPayload, LspStatusState } from '../../../../market-contracts/src/contracts/lsp-status.js'
+import type { LspCallObservation, LspStatusCode, LspStatusEntry, LspStatusPayload, LspStatusState } from '../../../../market-contracts/src/contracts/lsp-status.js'
 import type { LspMountDiagnostic } from '../../../../market-contracts/src/contracts/lsp.js'
 import { qualifiedSuiteId } from '../../../../market-catalog/src/index.js'
 import type { Localization } from '../../../../market-contracts/src/ports/ports.js'
@@ -21,12 +21,13 @@ import type { LspServerSpec, Suite } from '../../../../market-contracts/src/mode
 /** Sentinel suite id for user-configured (non-suite) LSP servers. */
 export const DIRECT_LSP_SUITE_ID = 'direct'
 
-/** The subset of LspMountRegistry the aggregator consumes (structural, for tests). */
-export interface LspMountStatusSource {
-  diagnosticsSnapshot(): Map<string, LspMountDiagnostic>
-  hasLiveMounts(): boolean
-  disabledServers?(): Set<string>
-}
+/**
+ * The subset of LspMountRegistry the aggregator consumes (structural, for
+ * tests). It is the shared port: the registry publishes call observations
+ * through the same surface the status rows read, so the two cannot drift.
+ */
+export type { LspMountStatusSource } from '../../../../market-contracts/src/ports/ports.js'
+import type { LspMountStatusSource } from '../../../../market-contracts/src/ports/ports.js'
 
 /** The direct servers table the aggregator merges in (structural, for tests). */
 export interface LspDirectServersSource {
@@ -35,12 +36,13 @@ export interface LspDirectServersSource {
 }
 
 /** The fields one diagnostic contributes to its status row. */
-function diagnosticReport(diagnostic: LspMountDiagnostic | undefined): { reason?: string; code?: LspStatusCode; causes?: string[] } {
+function diagnosticReport(diagnostic: LspMountDiagnostic | undefined): { reason?: string; code?: LspStatusCode; causes?: string[]; mountMs?: number } {
   if (diagnostic === undefined) return {}
   return {
     reason: diagnostic.reason,
     ...(diagnostic.code === undefined ? {} : { code: diagnostic.code }),
-    ...(diagnostic.causes === undefined ? {} : { causes: diagnostic.causes })
+    ...(diagnostic.causes === undefined ? {} : { causes: diagnostic.causes }),
+    ...(diagnostic.mountMs === undefined ? {} : { mountMs: diagnostic.mountMs })
   }
 }
 
@@ -52,7 +54,7 @@ function deriveState(
   disabled: boolean,
   diagnostic: LspMountDiagnostic | undefined,
   anyLive: boolean
-): { state: LspStatusState; reason?: string; code?: LspStatusCode; causes?: string[]; retryable?: boolean } {
+): { state: LspStatusState; reason?: string; code?: LspStatusCode; causes?: string[]; mountMs?: number; retryable?: boolean } {
   if (disabled) return { state: 'disabled' }
   const reported = diagnosticReport(diagnostic)
   if (diagnostic?.code === 'host-missing') return { state: 'host-missing', ...reported }
@@ -95,6 +97,13 @@ export function buildLspStatus(
   const diagnostics = registry.diagnosticsSnapshot()
   const anyLive = registry.hasLiveMounts()
   const disabledServers = registry.disabledServers?.() ?? new Set<string>()
+  // The last call routed to a provider, when the composition root observes the
+  // lsp tool. A mounted row whose last call failed is the state the seam cannot
+  // report by itself; the row carries the evidence instead of inventing a state.
+  const observations = registry.observationSnapshot?.() ?? new Map<string, LspCallObservation>()
+  // Per-suite liveness when the registry can report it: a suite whose own mount
+  // never came up must not read as mounted because a sibling's did.
+  const liveKeys = registry.liveKeys?.()
   const entries: LspStatusEntry[] = []
   const mountedSuiteIds = new Set<number | string>()
   for (const suite of suites) {
@@ -105,11 +114,16 @@ export function buildLspStatus(
     const suiteKey = qualifiedSuiteId(suite.sourceId, suite.id)
     const disabled = suite.activeSurfaces.lsp === false
     const diagnostic = diagnostics.get(suiteKey)
-    const { state, reason, code, causes, retryable } = deriveState(disabled, diagnostic, anyLive)
-    if (state === 'mounted') mountedSuiteIds.add(suiteKey)
     for (const spec of Object.values(suite.lsp.servers)) {
+      // Liveness is per provider: the registry mounts one child per server, so a
+      // suite's second server can fail while the first is answering. The row id
+      // is the mount key, and it is what the registry reports.
+      const rowId = `${suiteKey}/${spec.key}`
+      const { state, reason, code, causes, mountMs, retryable } = deriveState(disabled, diagnostic, liveKeys === undefined ? anyLive : liveKeys.has(rowId))
+      if (state === 'mounted') mountedSuiteIds.add(suiteKey)
+      const observation = observations.get(rowId)
       entries.push({
-        id: `${suiteKey}/${spec.key}`,
+        id: rowId,
         serverKey: spec.key,
         suiteId: suiteKey,
         suiteName: suite.manifest.name,
@@ -118,23 +132,34 @@ export function buildLspStatus(
         command: spec.command,
         args: spec.args,
         extensions: spec.extensionToLanguage,
-        state: disabled || disabledServers.has(`${suiteKey}/${spec.key}`) ? 'disabled' : state,
+        state: disabled || disabledServers.has(rowId) ? 'disabled' : state,
         ...(localization === undefined ? {} : localization.localizeFields('lsp', spec.key, { name: spec.key }, localization.locale).fields),
         ...(reason === undefined ? {} : { reason }),
         ...(code === undefined ? {} : { code }),
         ...(causes === undefined ? {} : { causes }),
-        ...(retryable === undefined ? {} : { retryable })
+        ...(mountMs === undefined ? {} : { mountMs }),
+        ...(retryable === undefined ? {} : { retryable }),
+        ...(observation === undefined ? {} : { observation })
       })
     }
   }
   // Direct user-configured rows: no install state or surface toggle of their
   // own — configured means on; the mount diagnostic decides the state.
   const directDiagnostic = diagnostics.get(DIRECT_LSP_SUITE_ID)
-  const { state: directState, reason: directReason, code: directCode, causes: directCauses, retryable: directRetryable } = deriveState(false, directDiagnostic, anyLive)
-  if (directState === 'mounted') mountedSuiteIds.add(DIRECT_LSP_SUITE_ID)
   for (const spec of Object.values(direct.servers)) {
+    const rowId = `${DIRECT_LSP_SUITE_ID}/${spec.key}`
+    const {
+      state: directState,
+      reason: directReason,
+      code: directCode,
+      causes: directCauses,
+      mountMs: directMountMs,
+      retryable: directRetryable
+    } = deriveState(false, directDiagnostic, liveKeys === undefined ? anyLive : liveKeys.has(rowId))
+    if (directState === 'mounted') mountedSuiteIds.add(DIRECT_LSP_SUITE_ID)
+    const observation = observations.get(rowId)
     entries.push({
-      id: `${DIRECT_LSP_SUITE_ID}/${spec.key}`,
+      id: rowId,
       serverKey: spec.key,
       suiteId: DIRECT_LSP_SUITE_ID,
       suiteName: spec.key,
@@ -148,7 +173,9 @@ export function buildLspStatus(
       ...(directReason === undefined ? {} : { reason: directReason }),
       ...(directCode === undefined ? {} : { code: directCode }),
       ...(directCauses === undefined ? {} : { causes: directCauses }),
-      ...(directRetryable === undefined ? {} : { retryable: directRetryable })
+      ...(directMountMs === undefined ? {} : { mountMs: directMountMs }),
+      ...(directRetryable === undefined ? {} : { retryable: directRetryable }),
+      ...(observation === undefined ? {} : { observation })
     })
   }
   const mounted = entries.filter(entry => entry.state === 'mounted').length

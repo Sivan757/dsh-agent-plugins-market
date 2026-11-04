@@ -44,7 +44,8 @@ export class SerialPassQueue {
 /**
  * Bounded retry schedule for a failed mount/unmount. The cap keeps a
  * crash-looping or permanently broken server from consuming attempt budget
- * forever, and the count resets with every reconcile pass.
+ * forever; a key that later mounts is settled by its registry, so the next
+ * failure starts from the first delay again.
  */
 const RETRY_SCHEDULE_MS = [1_500, 5_000, 15_000, 45_000, 120_000]
 const MAX_RETRY_ATTEMPTS = RETRY_SCHEDULE_MS.length
@@ -93,6 +94,20 @@ export class RetryScheduler {
     }, delay)
     timer.unref?.()
     this.timers.set(target.key, timer)
+  }
+
+  /**
+   * Drop one key's budget and its pending timer: its target is live again, so
+   * the next failure is a new outage rather than the sixth attempt of an old
+   * one. Without this a mount that failed five times across its life could
+   * never be retried again, however long it had been healthy in between.
+   * @param key - the mount key that just mounted.
+   */
+  settle(key: string): void {
+    const pending = this.timers.get(key)
+    if (pending !== undefined) clearTimeout(pending)
+    this.timers.delete(key)
+    this.attempts.delete(key)
   }
 
   /** Cancel every pending retry and drop all attempt budgets. */

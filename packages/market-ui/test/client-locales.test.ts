@@ -1,6 +1,7 @@
 // @vitest-environment jsdom
 import { describe, expect, it } from 'vitest'
 import { en, zh } from '../../../packages/market-ui/src/locales.js'
+import { extensionPresetsEn } from '../../../packages/market-ui/src/locales-extension-presets.js'
 import { shouldUseLegacyPageMode } from '../../../packages/market-ui/src/workspace/page-mode-selection.js'
 
 describe('Agent Plugins Market client compatibility', () => {
@@ -9,6 +10,20 @@ describe('Agent Plugins Market client compatibility', () => {
     for (const key of Object.keys(zh)) {
       expect(en[key as keyof typeof en]).not.toBe('')
       expect(zh[key as keyof typeof zh]).not.toBe('')
+    }
+  })
+
+  it('keeps Chinese out of both English dictionaries', () => {
+    // A missing translation falls back to the Chinese source, and the fallback is easy to
+    // miss in a Chinese reading session. A manual English pass over all nine tabs found no
+    // leftovers, so this pins the state instead of trusting the next one.
+    for (const [name, table] of [
+      ['locales', en],
+      ['presets', extensionPresetsEn]
+    ] as Array<[string, Record<string, string>]>) {
+      for (const [key, value] of Object.entries(table)) {
+        expect(/[\u4e00-\u9fff]/.test(value), name + '.' + key + ': ' + value).toBe(false)
+      }
     }
   })
 
@@ -22,10 +37,33 @@ describe('Agent Plugins Market client compatibility', () => {
       expect(labels.mcpStatusTitle).toBe(labels.workspaceTabMcp)
       expect(labels.lspStatusTitle).toBe(labels.workspaceTabLsp)
       expect(labels.mcpStatusSubtitle).toContain('MCP')
-      expect(labels.lspStatusSubtitle).toContain('LSP')
+      // The LSP subtitle keeps to the 20-character header budget, so the acronym
+      // rides the action that creates a server instead of the one-line intro.
+      expect(labels.lspAddTitle).toContain('LSP')
+      expect(labels.lspStatusSubtitle.toLowerCase()).toMatch(/language server|语言服务器/)
     }
     expect(zh.detailCommand).toBe('命令')
     expect(en.detailCommand).toBe('Command')
+  })
+
+  it('keeps every panel intro within the header line budget', () => {
+    // A panel intro sits on one line under the header. Chinese gets 20 characters,
+    // English 70, and an ASCII name such as MCP or AGENTS.md counts as its visible
+    // length. The market and the three user panels name their intro *Description.
+    const zhLimit = 20
+    const enLimit = 70
+    const introKeys = [
+      ...Object.keys(zh).filter(key => key.endsWith('Subtitle')),
+      'navDescription',
+      'skillsPanelDescription',
+      'commandsPanelDescription',
+      'personasPanelDescription'
+    ]
+    expect(introKeys).toEqual(expect.arrayContaining(['mcpStatusSubtitle', 'hooksPanelSubtitle', 'lspStatusSubtitle', 'instructionsSubtitle', 'outputStylesSubtitle']))
+    for (const key of introKeys) {
+      expect(Array.from(zh[key as keyof typeof zh].trim()).length, `zh ${key}`).toBeLessThanOrEqual(zhLimit)
+      expect(Array.from(en[key as keyof typeof en].trim()).length, `en ${key}`).toBeLessThanOrEqual(enLimit)
+    }
   })
 
   it('uses the legacy page only when the settings page is unavailable', () => {

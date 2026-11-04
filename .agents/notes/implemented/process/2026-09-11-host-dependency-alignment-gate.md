@@ -7,7 +7,7 @@ Status: implemented
 The published tarball carries whatever `package.json` said at the released tag, so a host pin that has fallen behind ships a stale contract. Two failures came out of the same drift:
 
 1. **A prerelease peer range excludes the next host line.** `^0.1.2-rc.1` matches only `0.1.2-*` prereleases and `0.1.2` itself — semver resolves a prerelease identifier only against a comparator carrying the same `major.minor.patch`. Once the host moved to `0.1.5-rc.2`, every consumer's peer resolution pointed at a line nobody runs.
-2. **A dynamically imported host package was never declared.** `src/runtime/lsp-mounts.ts` mounts `@deepseek-ai/dsh-lsp-stdio` through `import(...)`, and the package appeared in no dependency section at all, so nothing versioned it and its `host-missing` diagnostic was the only trace of its absence.
+2. **A dynamically imported host package was never declared.** `packages/market-lsp/src/runtime/lsp/lsp-mounts.ts` mounts `@deepseek-ai/dsh-lsp-stdio` through `import(...)`, and the package appeared in no dependency section at all, so nothing versioned it and its `host-missing` diagnostic was the only trace of its absence.
 
 Nothing detected either one: `check:refactor` reads the tree, and the tree was internally consistent — package.json, the lockfile, and `pnpm-workspace.yaml` all agreed on the same stale version.
 

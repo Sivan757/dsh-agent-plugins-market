@@ -13,7 +13,29 @@ let cachedOverview: OverviewData | undefined
 let inflightOverview: Promise<OverviewData> | undefined
 let overviewGeneration = 0
 
-/** Load the last overview immediately and revalidate one shared request. */
+/**
+ * The overview a panel can paint right now, without starting a request.
+ *
+ * Render must not start network work. A request issued during render races the
+ * mount effect that is about to ask for the same answer, and the loser's result
+ * is discarded by the generation guard in {@link loadOverview}, so the reader
+ * pays two round trips for one answer. A component therefore seeds its initial
+ * state from here, where reading is free, and leaves starting requests to the
+ * effect that owns them.
+ * @returns the last answer if one is cached, and whether that answer is cached.
+ */
+export function peekOverview(): { initial: OverviewData; cached: boolean } {
+  return { initial: cachedOverview ?? EMPTY_OVERVIEW, cached: cachedOverview !== undefined }
+}
+
+/**
+ * Load the last overview immediately and revalidate one shared request.
+ *
+ * A read with nothing in flight starts a request even when an answer is
+ * cached, so this always revalidates. A read that finds a request in flight
+ * joins it instead of starting a second one, which is what makes a mount
+ * following a mount cost nothing extra.
+ */
 export function loadOverview(): { initial: OverviewData; revalidating: boolean; promise: Promise<OverviewData> } {
   const initial = cachedOverview ?? EMPTY_OVERVIEW
   if (inflightOverview === undefined) {

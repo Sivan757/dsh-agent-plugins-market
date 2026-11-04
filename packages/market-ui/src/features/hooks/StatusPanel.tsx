@@ -8,29 +8,59 @@ import { createElement as h, useEffect, useState, type ReactNode } from 'react'
 import type { ExtensionTranslate } from '../../i18n.js'
 import { fetchHooksOverview } from '../../api.js'
 import type { ExtensionDetail, ExtensionResource } from '../../../../market-contracts/src/contracts/extension-presets.js'
-import { PanelHeader, PanelActions } from '../../ui/panel.js'
-import { HookResourceCard } from '../../ui/HookResourceCard.js'
-import { ResourceCollection } from '../../ui/ResourceCard.js'
-import { SearchFilterToolbar } from '../../ui/SearchFilterToolbar.js'
-import { useWorkspaceView } from '../../ui/workspace-view.js'
+import { PanelHeader, PanelActions, ReadFailed } from '../../ui/panel.js'
+import { ResourceSurface } from '../../ui/ResourceSurface.js'
+import { buildFaceEntry } from '../../ui/face-entry.js'
+import { surfaceProviderCuts } from '../../ui/surface-facets.js'
+import { HookCreateModal } from './HookCreateModal.js'
 import { HookDetailModal } from '../../ui/HookDetailModal.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import css from '../mcp/mcp-status.module.css'
 
-type Filter = 'all' | 'supported' | 'limited'
-
 /** One hook's detail address, as the shared card opens it. */
 type HookDetail = Extract<ExtensionDetail, { kind: 'hook' }>
+
+/**
+ * A hook command as a card shows it.
+ *
+ * The command is the row's identity, but an absolute interpreter path eats the line: the
+ * one long value says where the script happens to live rather than what runs. This keeps
+ * the leading words and shortens every absolute path to its last two segments.
+ *
+ * @param command - the authored command line.
+ * @returns the same command with long paths abbreviated.
+ */
+function commandForCard(command: string): string {
+  return command.replace(/((?:\/[^\s"']+){2,})/gu, path => {
+    const segments = path.split('/').filter(Boolean)
+    return segments.length <= 2 ? path : '…/' + segments.slice(-2).join('/')
+  })
+}
+
+/**
+ * The name a hook card leads with.
+ *
+ * A hook's identity for a reader is the script it runs, not the interpreter line that
+ * invokes it: the command is an absolute path and it was the card's title, so every row led
+ * with a mount point. This takes the last segment of the path the command runs, and falls
+ * back to the command's first word when it runs no file.
+ *
+ * @param command - the authored command line.
+ * @returns the script's file name, or the command's leading word.
+ */
+function scriptNameOf(command: string): string {
+  const path = /(?:\/[^\s"']+)+/u.exec(command)?.[0]
+  if (path !== undefined) return path.split('/').filter(Boolean).pop() ?? path
+  return command.trim().split(/\s+/u)[0] ?? command
+}
 
 /** The configured command hooks of both sources, grouped by event, read-only. */
 export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
   const [rows, setRows] = useState<ExtensionResource[]>([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | undefined>(undefined)
-  const [search, setSearch] = useState('')
-  const [filter, setFilter] = useState<Filter>('all')
-  const [view, setView] = useWorkspaceView()
   const [detail, setDetail] = useState<HookDetail | undefined>(undefined)
+  const [creating, setCreating] = useState(false)
 
   const refresh = (): void => {
     setLoading(true)
@@ -46,24 +76,6 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
   }, [])
 
   const limited = (row: ExtensionResource): boolean => row.control === 'global-only'
-  const needle = search.trim().toLowerCase()
-  // Every event lists together: the stage travels on each card, so no tab row
-  // hides the other events.
-  const filtered = rows.filter(
-    row => (filter === 'all' || (filter === 'supported') === !limited(row)) && (needle === '' || (row.name + ' ' + row.source).toLowerCase().includes(needle))
-  )
-  const filters = [
-    { id: 'all' as const, label: t('tabAll'), count: rows.length, active: filter === 'all', onSelect: () => setFilter('all') },
-    {
-      id: 'supported' as const,
-      label: t('hooksFilterSupported'),
-      count: rows.filter(row => !limited(row)).length,
-      active: filter === 'supported',
-      onSelect: () => setFilter('supported')
-    },
-    { id: 'limited' as const, label: t('hooksFilterLimited'), count: rows.filter(limited).length, active: filter === 'limited', onSelect: () => setFilter('limited') }
-  ]
-  const filterId = 'hooks-panel-filter'
   // One opener for the whole panel: the card reports the row, and the detail
   // comes from that row's own address, so no other hook can be opened here.
   const openDetail = (row: ExtensionResource): void => {
@@ -75,43 +87,70 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
     { className: css.surface },
     h(PanelHeader, {
       subtitle: t('hooksPanelSubtitle'),
-      actions: h(PanelActions, { refreshLabel: t('refresh'), onRefresh: refresh, busy: loading })
+      actions: h(PanelActions, {
+        addLabel: t('hooksCreateTitle'),
+        onAdd: () => setCreating(true),
+        refreshLabel: t('refresh'),
+        onRefresh: refresh,
+        busy: loading
+      })
     }),
-    h(SearchFilterToolbar, {
-      className: css.toolbar,
-      search,
+    error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
+    // The shared renderer draws the list; this panel only supplies entries and the detail.
+    h(ResourceSurface, {
+      t,
+      entries: rows.map(row =>
+        buildFaceEntry(
+          t,
+          {
+            surface: 'hooks',
+            provider: 'suite',
+            id: row.id,
+            // The script the row runs is what a reader recognizes; the command that invokes it
+            // is the body. `name` on the payload is the command, so the title is derived here.
+            name: row.detail.kind === 'hook' && row.detail.command !== undefined ? scriptNameOf(row.detail.command) : row.name,
+            ...(row.detail.kind === 'hook' && row.detail.command !== undefined ? { hint: row.name } : {}),
+            // The tag names the stage; the support verdict is the state word and the warning.
+            tag: row.description,
+            // The authored command is what this row is; the stage is the tag. A hook command
+            // that points at a script is mostly an absolute path, so the card shows only the
+            // command and the file it runs: the whole line lives in the detail's declaration
+            // row, and a card body is one line to scan, not a mount point to read.
+            description: row.detail.kind === 'hook' && row.detail.command !== undefined ? commandForCard(row.detail.command) : row.description,
+            meta: row.source,
+            keywords: [row.name, row.source, row.description].join(' '),
+            // This surface cannot switch a hook: the declaration belongs to its suite.
+            showSwitch: false,
+            on: true,
+            liveWord: limited(row) ? t('hookStateLimited') : t('hooksFilterSupported'),
+            ...(limited(row)
+              ? {
+                  live: { state: 'degraded' as const },
+                  note: t(row.unavailableReason === 'hook-event-partial' ? 'hooksEventPartial' : 'hooksEventUnsupported')
+                }
+              : {})
+          },
+          'settings'
+        )
+      ),
+      // The reader's own declarations live in the synthetic @user-hooks suite: the id names it
+      // and the source carries it, with or without the @ the layout uses.
+      filters: surfaceProviderCuts('hooks', t, id => {
+        const row = rows.find(item => item.id === id)
+        const own = row !== undefined && (row.id.startsWith('hooks:@user-hooks/') || row.source === '@user-hooks' || row.source === 'user-hooks')
+        return own ? 'user' : 'suite'
+      }),
       searchLabel: t('hooksPanelSearch'),
       searchPlaceholder: t('hooksPanelSearch'),
-      onSearchChange: setSearch,
-      filters,
-      filterId,
-      filterLabel: t('workspaceTabHooks'),
-      view,
-      toListLabel: t('switchToList'),
-      toGridLabel: t('switchToGrid'),
-      onViewChange: nextView => setView(nextView)
+      // No tabs: "supported" equals "all" whenever nothing is limited, and the
+      // card's own warning already says why a row is limited.
+      emptyText: error !== undefined && rows.length === 0 ? t('statusUnreadable') : loading && rows.length === 0 ? t('loading') : t('hooksPanelEmpty'),
+      onOpen: rowId => {
+        const row = rows.find(item => item.id === rowId)
+        if (row !== undefined) openDetail(row)
+      }
     }),
-    error !== undefined
-      ? h('div', { className: css.error, role: 'status' }, error)
-      : loading && rows.length === 0
-        ? h('div', { className: css.empty, role: 'status' }, t('loading'))
-        : filtered.length === 0
-          ? h('div', { className: css.empty, role: 'status' }, t('hooksPanelEmpty'))
-          : h(
-              ResourceCollection,
-              { view },
-              filtered.map(row =>
-                h(HookResourceCard, {
-                  key: row.id,
-                  row,
-                  t,
-                  // Read-only chrome: a limited declaration warns, everything
-                  // else the host can run reads active.
-                  state: limited(row) ? 'warning' : 'active',
-                  onView: openDetail
-                })
-              )
-            ),
+    creating ? h(HookCreateModal, { t, onSaved: refresh, onClose: () => setCreating(false) }) : null,
     detail === undefined ? null : h(HookDetailModal, { detail, t, onClose: () => setDetail(undefined) })
   )
 }

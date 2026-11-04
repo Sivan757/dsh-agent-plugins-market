@@ -230,16 +230,3 @@ export function registerSubagentProvider(seam: SubagentSeam, provider: SubagentP
   if (resolved === undefined) throw missingMember('registerProvider')
   return (resolved.call as (provider: SubagentProvider) => () => void)(provider)
 }
-
-/**
- * One guarded adapter per table operation.
- *
- * The contract test reads this map, so a member added to the table without an
- * adapter fails there instead of in a user session.
- */
-export const SEAM_ADAPTERS = {
-  oneShotChild: startOneShotChild,
-  continuableChild: startContinuableChild,
-  drainChildren: drainContinuableChildIds,
-  registerProvider: registerSubagentProvider
-} as const satisfies Record<SeamOperation, unknown>

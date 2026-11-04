@@ -241,10 +241,12 @@ describe('Catalog translation', () => {
     const { catalog } = await catalogWith({ locale: 'zh', provider })
     await catalog.overview()
     await catalog.settleDescriptions(1_000)
-    // A failed batch is silent: the read still answers with upstream text.
+    // A failed batch is silent: the read still answers with the exact upstream
+    // text, not a partial or substituted one.
     const overview = await catalog.overview()
     expect(overview.suites).toHaveLength(1)
-    expect(overview.suites[0]?.description).toBeTruthy()
+    expect(overview.suites[0]?.description).toBe(SUITE_DESCRIPTION)
+    expect(overview.suites[0]?.translatedDescription).toBeUndefined()
   })
 
   it('clearTranslations drops the cache so the next read translates again', async () => {

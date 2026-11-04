@@ -8,23 +8,6 @@
   color: var(--dsw-alias-label-primary, #1f2328);
 }
 
-.toolbar {
-  flex: none;
-}
-
-@media (max-width: 760px) {
-  .grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-}
-
-.empty,
-.detailEmpty {
-  padding: 24px;
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
-  font-size: 12px;
-  text-align: center;
-}
 .error {
   display: flex;
   align-items: center;
@@ -46,22 +29,6 @@
   gap: 8px;
   flex-wrap: wrap;
 }
-/* Sits opposite the dialog's buttons and says what saving does. */
-.modalFooterHint {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-}
-.modalFooterGrow {
-  flex: 1 1 auto;
-}
-.detail {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
 /* The destructive-authorization confirmation: explanation plus the two
    buttons, directly under the status band it belongs to. It carries no fill of
    its own — the band is the dialog's one state container. */
@@ -154,14 +121,14 @@
   color: var(--dsw-alias-label-tertiary, #8b93a1);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 10px;
+  font-size: 11px;
 }
 .toolNote {
   overflow: hidden;
   color: var(--dsw-alias-label-tertiary, #8b93a1);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 10px;
+  font-size: 11px;
 }
 /* A tool name that opens its parameter list reads as a control, not a label. */
 .toolNameButton {
@@ -206,19 +173,19 @@
 }
 .toolParamRequired {
   color: var(--dsw-alias-state-warn-primary, #b45309);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 16px;
 }
 .toolParamDesc {
   overflow-wrap: anywhere;
   color: var(--dsw-alias-label-tertiary, #8b93a1);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 16px;
 }
 .toolParamsEmpty {
   margin: 0;
   color: var(--dsw-alias-label-tertiary, #8b93a1);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 16px;
 }
 /* The row that expands the list; a text button in the flow, not a boxed CTA. */
@@ -237,17 +204,10 @@
 .toolMore:hover {
   background: var(--dsw-alias-interactive-bg-hover);
 }
-@media (max-width: 760px) {
-  .toolbar {
-    padding-left: 0;
-    padding-right: 0;
-  }
-  .grid {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .list .cardTop {
-    max-width: 100%;
-  }
+/* The tool table narrows with the panel, not with the window: the settings
+   dialog is ~700px inside a full-width window, so a media query never fired and
+   the rows never stacked. The nearest container is the panel shell. */
+@container (max-width: 700px) {
   .tool {
     grid-template-columns: minmax(0, 1fr);
   }

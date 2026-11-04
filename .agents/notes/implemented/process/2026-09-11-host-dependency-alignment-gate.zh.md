@@ -7,7 +7,7 @@ Status: implemented
 发布产物携带的是打 tag 那个 commit 上的 `package.json`，所以落后的宿主 pin 等于发出一份过期的契约。同一次漂移产生了两类失效：
 
 1. **prerelease 范围排除下一条宿主发布线。** `^0.1.2-rc.1` 只匹配 `0.1.2-*` 的 prerelease 与 `0.1.2` 本身——semver 只在 `major.minor.patch` 相同的比较器上解析 prerelease 标识。宿主推进到 `0.1.5-rc.2` 后，所有消费方的 peer 解析都指向一条没人运行的线。
-2. **动态引入的宿主包从未被声明。** `src/runtime/lsp-mounts.ts` 通过 `import(...)` 挂载 `@deepseek-ai/dsh-lsp-stdio`，而这个包不在任何依赖段里，因此没有任何地方为它定版，"它不存在"的唯一痕迹是 `host-missing` 诊断。
+2. **动态引入的宿主包从未被声明。** `packages/market-lsp/src/runtime/lsp/lsp-mounts.ts` 通过 `import(...)` 挂载 `@deepseek-ai/dsh-lsp-stdio`，而这个包不在任何依赖段里，因此没有任何地方为它定版，"它不存在"的唯一痕迹是 `host-missing` 诊断。
 
 两者都没有被任何检查发现：`check:refactor` 读的是工作树，而工作树自洽——package.json、锁文件、`pnpm-workspace.yaml` 一致地停在同一个过期版本上。
 

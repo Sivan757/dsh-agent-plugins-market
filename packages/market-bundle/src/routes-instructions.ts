@@ -11,11 +11,14 @@
  * The handlers live here rather than in `routes.ts` so the main table stays
  * readable; the composition root mounts both under one disposer.
  */
+import { isTrustedMutation } from './request-trust.js'
+import { routeFailurePayload, type RouteLogger } from './route-errors.js'
+import { queryOf, readJsonBody, sendJson } from './route-http.js'
 import { isAbsolute } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { INSTRUCTION_ROUTES } from '../../market-contracts/src/contracts/instructions.js'
 import type { SuiteRouteSessionResolver } from './routes.js'
-import { readInstructions, saveInstruction, deleteInstruction, type InstructionLimits } from './application/instructions.js'
+import { readInstructions, saveInstruction, deleteInstruction, userScopeDirectory, type InstructionLimits } from './application/instructions.js'
 
 interface WebServerService {
   register(route: { kind: 'exact' | 'prefix'; path: string; handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void> }): () => void
@@ -34,9 +37,9 @@ export interface InstructionRouteDeps {
 
 interface RouteHost {
   webServer: WebServerService
+  /** Receives a failure's full detail, including the paths the browser never sees. */
+  logger?: RouteLogger
 }
-
-const MAX_BODY_BYTES = 64 * 1024
 
 /** Mount the instruction routes; returns the disposer releasing them all. */
 export function mountInstructionRoutes(hostCtx: unknown, deps: InstructionRouteDeps): () => void {
@@ -51,7 +54,7 @@ export function mountInstructionRoutes(hostCtx: unknown, deps: InstructionRouteD
         kind: 'exact',
         path,
         handler: (request, response) => {
-          if (!sameOrigin(request)) {
+          if (!isTrustedMutation(request)) {
             sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
             return
           }
@@ -65,7 +68,7 @@ export function mountInstructionRoutes(hostCtx: unknown, deps: InstructionRouteD
               const value = await handler(body as Record<string, unknown>, request)
               sendJson(response, 200, { ok: true, ...value })
             } catch (error) {
-              sendJson(response, 400, { ok: false, error: error instanceof Error ? error.message : String(error) })
+              sendJson(response, 400, routeFailurePayload(error, 'route ' + path, host.logger))
             }
           })()
         }
@@ -75,17 +78,21 @@ export function mountInstructionRoutes(hostCtx: unknown, deps: InstructionRouteD
 
   /**
    * The directory one request answers for: the named session's workspace, or
-   * the process working directory when no session is named. An unknown session
-   * is a diagnostic, never a quiet fallback to another directory.
+   * the user's own Agent root when no session is named.
+   *
+   * The second case is the settings page: it belongs to no workspace, so it must not answer for
+   * the directory the harness happens to be started in. Reading the user root keeps the page to
+   * the user-level half of the chain instead of reporting a project the reader never chose.
+   * An unknown session is a diagnostic, never a quiet fallback to another directory.
    */
-  const cwdOf = (request: IncomingMessage): { cwd: string } | { error: string } => {
+  const cwdOf = (request: IncomingMessage): { cwd: string; scope: 'all' | 'user' } | { error: string } => {
     const sessionId = queryOf(request).get('sessionId')
-    if (sessionId === null || sessionId === '') return { cwd: process.cwd() }
+    if (sessionId === null || sessionId === '') return { cwd: userScopeDirectory(), scope: 'user' }
     const agent = deps.session?.agent(sessionId)
     if (agent === undefined) return { error: `no live session "${sessionId}"` }
     const cwd = agent.session.header.cwd
     if (typeof cwd !== 'string' || !isAbsolute(cwd)) return { error: `session "${sessionId}" has no absolute workspace` }
-    return { cwd }
+    return { cwd, scope: 'all' }
   }
 
   get(INSTRUCTION_ROUTES.read, async (request, response) => {
@@ -94,7 +101,7 @@ export function mountInstructionRoutes(hostCtx: unknown, deps: InstructionRouteD
       sendJson(response, 404, { ok: false, error: resolved.error })
       return
     }
-    sendJson(response, 200, await readInstructions(resolved.cwd, deps.limits))
+    sendJson(response, 200, await readInstructions(resolved.cwd, deps.limits, resolved.scope))
   })
 
   post(INSTRUCTION_ROUTES.save, async (body, request) => {
@@ -114,51 +121,4 @@ export function mountInstructionRoutes(hostCtx: unknown, deps: InstructionRouteD
   return () => {
     for (const dispose of disposers) dispose()
   }
-}
-
-function sameOrigin(request: IncomingMessage): boolean {
-  const origin = request.headers['origin']
-  if (origin === undefined) return true
-  try {
-    return new URL(origin).host === request.headers['host']
-  } catch {
-    return false
-  }
-}
-
-/** Parse the query string of one request into a URLSearchParams. */
-function queryOf(request: IncomingMessage): URLSearchParams {
-  return new URL(request.url ?? '/', 'http://dsh.local').searchParams
-}
-
-/** Parses the request body; `undefined` for an oversized, unparsable, or failed read. */
-function readJsonBody(request: IncomingMessage): Promise<unknown> {
-  return new Promise(resolve => {
-    let size = 0
-    const chunks: Buffer[] = []
-    request.on('data', (chunk: Buffer) => {
-      size += chunk.length
-      if (size > MAX_BODY_BYTES) {
-        resolve(undefined)
-        request.destroy()
-        return
-      }
-      chunks.push(chunk)
-    })
-    request.on('end', () => {
-      if (size > MAX_BODY_BYTES) return
-      try {
-        resolve(JSON.parse(Buffer.concat(chunks).toString('utf8')))
-      } catch {
-        resolve(undefined)
-      }
-    })
-    request.on('error', () => resolve(undefined))
-  })
-}
-
-function sendJson(response: ServerResponse, status: number, payload: unknown): void {
-  const body = JSON.stringify(payload)
-  response.writeHead(status, { 'content-type': 'application/json; charset=utf-8', 'content-length': Buffer.byteLength(body) })
-  response.end(body)
 }

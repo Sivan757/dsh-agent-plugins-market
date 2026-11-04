@@ -11,6 +11,7 @@ import { isDeepStrictEqual } from 'node:util'
 import type { McpBackend, McpMountDiagnostic } from '../../../../market-contracts/src/contracts/mcp.js'
 import type { LspMountDiagnostic } from '../../../../market-contracts/src/contracts/lsp.js'
 import type { Suite } from '../../../../market-contracts/src/model/types.js'
+import { lspCallOutcome } from './lsp-call-observation.js'
 import { CommandMountRegistry, type CommandMountDiagnostic } from '../surfaces/commands-mounts.js'
 import type { MenuRowRegistration } from '../host/menu-row-identities.js'
 import { HooksMountRegistry, type HooksMountDiagnostic } from '../surfaces/hooks-mounts.js'
@@ -82,6 +83,8 @@ export class RuntimeReconciler {
   private overridesProvider: () => Promise<Map<string, McpOverridesPort>> = async () => new Map()
   private disposal?: Promise<void>
   private readonly warn: (message: string) => void
+  /** Disposer for the lsp-tool observer, so disposal leaves no listener behind. */
+  private lspObserver: (() => void) | undefined
 
   /**
    * @param ctx - the context every mount registers through.
@@ -107,6 +110,21 @@ export class RuntimeReconciler {
       }
       return overrides
     })
+    // The lsp tool is the only evidence of a provider that stopped answering:
+    // the seam reports no process death, so a mounted server reads as healthy
+    // until someone asks it for something. Record every outcome against the
+    // provider that owns the file's extension and pass the result through
+    // untouched — an observer that edited results would be a different plugin.
+    // A structural context (an embedding, a test double) may carry no event
+    // bus; the observation is an enhancement, so its absence must not fail the
+    // coordinator that owns mounting.
+    if (typeof ctx.on === 'function') {
+      this.lspObserver = ctx.on('tools/post-execute', (exec, result, next) => {
+        const outcome = lspCallOutcome(exec, result)
+        if (outcome !== undefined) this.lspRegistry.observe(outcome.filePath, outcome.ok ? { ok: true } : { ok: false, error: outcome.error ?? '' })
+        return next()
+      })
+    }
   }
 
   /** Transfer commands and hooks to per-agent registries; call before the first reconcile. */
@@ -179,6 +197,25 @@ export class RuntimeReconciler {
     this.mcp.forceRemountAll()
   }
 
+  /**
+   * Flag one LSP mount for a rebuild on the next reconcile.
+   *
+   * The LSP seam exposes no provider snapshot and no process probe, so a
+   * language server that died underneath its mount keeps matching its own
+   * config and its status row keeps reading `mounted`. Rebuilding that one
+   * mount is the only path that re-verifies it, and it leaves every other
+   * provider's in-flight work alone.
+   * @param id - the status-row id, which is also the mount key.
+   */
+  forceLspRemount(id: string): void {
+    this.lspRegistry.forceRemount(id)
+  }
+
+  /** Flag every live LSP mount for a rebuild; the whole-workspace recovery path. */
+  forceLspRemountAll(): void {
+    this.lspRegistry.forceRemountAll()
+  }
+
   /** The mount key owning one derived serverName; undefined when not mounted here. */
   mcpServerOwner(serverName: string): { suiteId: string; serverKey: string } | undefined {
     return this.mcp.serverOwner(serverName)
@@ -197,7 +234,29 @@ export class RuntimeReconciler {
     return [...this.demandedMcp].flatMap(([suiteId, keys]) => [...keys].map(serverKey => ({ suiteId, serverKey })))
   }
 
-  /** Publish fresh immutable authority without mounting or waiting behind network work. */
+  /**
+   * Seed authority from the catalog if no pass has published it yet.
+   *
+   * A session apply needs authority to project its own demand, but it must not
+   * REPLACE authority: what one session's declaration read returned would then
+   * decide which suites every other session still has mounted, and a read that
+   * raced a source update would unmount another session's servers. Only the
+   * catalog pipeline, which owns a fresh read on every change, may replace it.
+   * @param candidates - validated declarations this caller read.
+   * @param global - the enabled user-dimension suites the same read produced.
+   */
+  ensureCatalogAuthority(candidates: readonly ExtensionSuiteCandidate[], global: readonly Suite[]): void {
+    if (this.disposed || this.authority !== undefined) return
+    this.setCatalogAuthority(candidates, global)
+  }
+
+  /**
+   * Publish fresh immutable authority without mounting or waiting behind network work.
+   *
+   * Reserved for the catalog owner. A session-scoped caller uses
+   * {@link ensureCatalogAuthority} so one session cannot narrow what another
+   * session may mount.
+   */
   setCatalogAuthority(candidates: readonly ExtensionSuiteCandidate[], global: readonly Suite[]): void {
     if (this.disposed) return
     if (isDeepStrictEqual(this.authority, candidates) && isDeepStrictEqual(this.globalSuites, global)) return
@@ -485,6 +544,8 @@ export class RuntimeReconciler {
   dispose(): Promise<void> {
     if (this.disposal) return this.disposal
     this.disposed = true
+    this.lspObserver?.()
+    this.lspObserver = undefined
     for (const token of this.staged.values()) token.active = false
     this.staged.clear()
     this.committed.clear()

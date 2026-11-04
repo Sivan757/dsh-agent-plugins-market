@@ -1,14 +1,16 @@
-# Workspace instructions
+# System prompt
 
 English | [简体中文](instructions.zh.md) | [README](../../README.md)
 
-**Guide:** [Install](install.md) · [Sources](sources.md) · [Resources](resources.md) · [Services](services.md) · [Translation](translation.md) · [Settings](settings.md) · [Workspace](workspace.md) · [Instructions](instructions.md)
+**Guide:** [Install](install.md) · [Sources](sources.md) · [Resources](resources.md) · [Services](services.md) · [Translation](translation.md) · [Settings](settings.md) · [Workspace](workspace.md) · [System prompt](instructions.md)
 
 ## What the page shows
 
-The **Instructions** tab shows the `AGENTS.md` chain the host injects into the current session. Discovery, load order, deduplication and the byte budget all come from the harness package `@deepseek-ai/dsh-agent-instructions`, so the page and the prompt cannot disagree: a row status is read from the text the model receives.
+The **System prompt** tab lists the `AGENTS.md` files the host injects into the session's system prompt: one card per file that exists, in the order the host loads them, and the project files sit in the same list as your global ones. Discovery, load order, deduplication and the byte budget all come from the harness package `@deepseek-ai/dsh-agent-instructions`, so the page and the prompt cannot disagree: a row's status comes from the text the model receives.
 
-The page reads the chain for the session's working directory. When no session is named it reads the host process working directory, and the page says so under the directory path.
+A card opens the file for reading: its absolute path, the scope it belongs to, what it contributes to the prompt, its size and its share of the budget, then the file's text. **Edit** and **Delete** live in that dialog, so browsing the chain never puts you in an editor by accident. **Create** asks which candidate to create, because the chain has one candidate per root and the project's are the ones that go into your repository.
+
+The page reads the chain for the session's working directory. The settings page renders outside any session, so there it reads the host process working directory and says so in one line under the header. The page does not render the injected text: the file list and the status tags are what it can keep true to the prompt.
 
 ## Load order
 
@@ -23,7 +25,7 @@ Two user-global roots come first, then every directory from the project root dow
 
 Only `AGENTS.md` loads in the two user-global roots. Neither `CLAUDE.md` nor a local overlay is a candidate there, so the page never offers to create one.
 
-All four names load inside a project directory. A row the page adds for a directory with no instruction file is marked as not created, and creating it is the action that row offers.
+All four names load inside a project directory. A file that does not exist is not listed, and **Create** offers it by path, with the scope it would belong to.
 
 ## Repeated content
 
@@ -31,7 +33,7 @@ Inside one candidate group, a file whose trimmed content matches an earlier one 
 
 ## The byte budget
 
-`instructionMaxBytes` caps the whole injected baseline, and `instructionMaxSourceBytes` caps one file. Their defaults are 65536 and 1048576, the values the host row uses. Keep both equal to the host value, or the page describes a budget the model does not get.
+The page reports two caps: 65536 bytes for the whole injected baseline and 1048576 bytes for one file. Both are the values the harness ships and reads a chain under. They are display-only, not settings, because the harness does not export its resolved values. A profile that raises its own `maxBytes` or `maxSourceBytes` makes the page report the shipped numbers, and nothing here can detect that. Stated rather than configurable is the deliberate trade: an independent plugin setting would describe a budget the model never got.
 
 Over the budget, broader files are omitted first and only the most specific file is truncated. A file over the per-file cap never loads at all, and the page names that reason instead of the omission list. A budget of 0 or less switches instruction loading off entirely.
 
@@ -42,7 +44,7 @@ Over the budget, broader files are omitted first and only the most specific file
 | Loaded              | The file's text is in the injected prompt.                          |
 | Truncated           | The file is the most specific one, cut to fit the remaining budget. |
 | Over budget         | A broader file the budget omitted.                                  |
-| Over the file limit | Larger than `instructionMaxSourceBytes`, so it never loads.         |
+| Over the file limit | Larger than the 1048576 byte per-file cap, so it never loads.       |
 | Repeated content    | The same trimmed text as an earlier file in its group, shown once.  |
 | Not injected        | Existing but absent from the prompt for no attributable reason.     |
 | Not created         | The file does not exist. Creating it is the offered action.         |
@@ -51,7 +53,7 @@ Over the budget, broader files are omitted first and only the most specific file
 
 Every action writes one file the chain can load. A request names a scope, a project-relative directory and a candidate file name, never a path, so the page cannot reach a file this session does not inject.
 
-Writes are atomic, they create the parent directory only for a location the chain already lists, and the editor refuses text over `instructionMaxSourceBytes` because such a file would never load. The editor counts bytes against both limits as you type.
+Writes are atomic, they create the parent directory only for a location the chain already lists, and the editor refuses text over the 1048576 byte per-file cap because such a file would never load. The editor counts bytes against both caps as you type.
 
 One file can carry two names on the chain, for example `CLAUDE.md` symlinked to `AGENTS.md`. Deleting either name reports the other one, and whether the deleted entry was a link, so you know what the remaining name still resolves to.
 

@@ -9,7 +9,8 @@
 ## 决策
 
 - **全部控件用宿主原语。** 窗口整体骑在 Modal 上(对话框骨架、Escape、遮罩、关闭钮),六面 tab 用 SegmentedTabs(与 SegmentedControl 不同,它接受 ReactNode 标签,因此每格标签由面词加小字计数两级组成),搜索用 Input(前导 IconSearchOutlineMedium),行开关用 Switch,收藏胶囊用 Pill,来源用 Tag,套用/保存/删除反馈用 Toast。卡片/列表切换是仿原型 .segc 的双段 aria-pressed 图标组:SegmentedControl 的 string 标签装不下图标,且 group 语义(按压与否)本就不是 tablist 语义。会话输入框入口是 2×2 填充圆角方格加过滤圆点,按原型 .plugin-entry 的方式内联绘制(currentColor、无外框;原语未导出网格图形;原型里未经样式化的 `<span class="plus">` 残渣不属于定稿视觉)。行形态骑在共享的 ResourceCard 解剖上,与市场卡和 MCP 卡完全同构(见下条)。
-- **行骑在共享的 ResourceCard 解剖上,不做形似物。** 列表容器是 ResourceCollection(窗口的卡片视图=解剖的 grid 视图,列表视图=紧凑单行),外层是尺寸容器;每行按解剖的分区(rowId/rowActions/rowBody/rowFoot)填充,卡片本身即开关——悬停行为、行内操作簇与窄容器分支的 container query 都与市场卡、MCP 卡同源。3px 状态边条已表达启用/已过滤,不再重复状态文字。 条目过滤与六面开关同住一份按工作区路径哈希命名的文档(v2 增加 entries 节,v1 写入方在单面翻转时保留该节);收藏是 data root 下的单一全局文件,因为它的价值正是在另一个工作区重放一套配置。运行时门沿用面开关形态:每个挂载贡献者在计算期望行时各自应答拒绝集,各面保持正交;market 面的拒绝是唯一刻意的快照过滤,因为它的行就是套件本身。
+- **行骑在共享的 ResourceCard 解剖上,不做形似物。** 列表容器是 ResourceCollection(窗口的卡片视图=解剖的 grid 视图,列表视图=紧凑单行),外层是尺寸容器;每行按解剖的分区(rowId/rowActions/rowBody/rowFoot)填充,卡片本身即开关——悬停行为、行内操作簇与窄容器分支的 container query 都与市场卡、MCP 卡同源。3px 状态边条已表达启用/已过滤,不再重复状态文字。
+- **状态沿用面开关模式,不另起炉灶。** 条目过滤与六面开关同住一份按工作区路径哈希命名的文档(v2 增加 entries 节,v1 写入方在单面翻转时保留该节);收藏是 data root 下的单一全局文件,因为它的价值正是在另一个工作区重放一套配置。运行时门沿用面开关形态:每个挂载贡献者在计算期望行时各自应答拒绝集,各面保持正交;market 面的拒绝是唯一刻意的快照过滤,因为它的行就是套件本身。
 - **一次聚合,不建第二套扫描。** 库存路由把 overview() + 面板存储 + mcpStatus() + lspStatus() 组装成窗口载荷;收藏的激活态由快照精确匹配推导,任何手动翻转都使工作区回到自定义态。
 - **词典隔离。** 窗口的 zh/en 键放在 locales-resources.ts,注册时合并进同一命名空间,主 locales.ts(被并行工作线持有)保持不动;Translate 仍以主词典为键,合并这一事实只在挂接处断言一次。
 

@@ -10,7 +10,7 @@ User-facing surfaces here carried the reasoning behind internal choices. The age
 
 User-facing documentation and comments state what the user gets and what they can do. They do not present decision information — the rationale for an internal choice, the rejected alternative, what was given up — and they do not carry hints nobody asked for. This covers the READMEs, `docs/`, `docs-site/`, panel copy in `packages/market-ui/src/locales.ts`, and code comments. The rationale lives in Agent Notes and ADRs, which are developer-facing.
 
-The first application removed `personaToolsHint` from both locale tables in `packages/market-ui/src/locales.ts` and the paragraph rendering it in `src/client/features/personas/RoleMetadataFields.tsx`.
+The first application removed `personaToolsHint` from both locale tables in `packages/market-ui/src/locales.ts` and the paragraph rendering it in `packages/market-ui/src/ui/RoleMetadataFields.tsx`.
 
 ## Where the line falls
 

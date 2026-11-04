@@ -26,5 +26,13 @@ export interface McpMountDiagnostic {
   code?: McpStatusCode
   /** The messages under the failure's `cause` chain, outermost first. */
   causes?: string[]
+  /**
+   * How long the mount attempt took, in milliseconds.
+   *
+   * A failure that took ten seconds and a failure that took forty milliseconds read
+   * the same in a one-line reason, and the difference decides what to look at: a
+   * slow handshake, a proxy that never answers, or a configuration error.
+   */
+  mountMs?: number
   credentialRefs?: string[]
 }

@@ -1,78 +1,74 @@
-/** Pure MCP status filtering and count derivation. */
-import type { McpStatusEntry, McpStatusPayload } from '../../api.js'
-
-/** MCP status list filter; `disabled` isolates the rows the user switched off. */
-export type McpStatusFilter = 'all' | 'plugin' | 'direct' | 'disabled'
-
-/** Derived MCP list data used by the status screen. */
-export interface McpStatusViewModel {
-  /** Every row the payload carries, switched-off ones included. */
-  activeEntries: McpStatusEntry[]
-  filtered: McpStatusEntry[]
-  filterCounts: Record<McpStatusFilter, number>
-}
-
-/** Filter tabs in display order: scope first, the switched-off rows last. */
-export const MCP_FILTERS: readonly McpStatusFilter[] = ['all', 'direct', 'plugin', 'disabled']
-
-interface SearchableEntry {
-  entry: McpStatusEntry
-  haystack: string
-}
-
-const searchableCache = new WeakMap<McpStatusPayload, SearchableEntry[]>()
+/** Pure MCP status filtering: the predicate the shared renderer counts tabs through. */
+import type { McpStatusEntry } from '../../api.js'
 
 /**
- * Derive the rows, the per-filter counts, and the visible rows in one pass.
+ * MCP status list filter.
  *
- * One predicate decides both the counts and the visible rows, so a tab's number
- * is always the number of rows clicking it shows.
+ * `attention` is the cut a status surface exists for: the rows that need a click.
+ * Which suite declared a row is a chip on the row itself, and at seven
+ * connectors that distinction fits on one screen, so it earns no tab.
  */
-export function deriveMcpStatusViewModel(payload: McpStatusPayload, filter: McpStatusFilter, search: string): McpStatusViewModel {
-  const searchable = searchableFor(payload)
-  const activeEntries = searchable.map(item => item.entry)
-  const filterCounts: Record<McpStatusFilter, number> = { all: 0, plugin: 0, direct: 0, disabled: 0 }
-  const filtered: McpStatusEntry[] = []
-  const needle = search.trim().toLowerCase()
+export type McpStatusFilter = 'all' | 'attention' | 'disabled'
 
-  for (const item of searchable) {
-    const entry = item.entry
-    for (const key of MCP_FILTERS) {
-      if (matchesMcpFilter(entry, key)) filterCounts[key]++
-    }
-    if (!matchesMcpFilter(entry, filter)) continue
-    if (needle !== '' && !item.haystack.includes(needle)) continue
-    filtered.push(entry)
-  }
+/** Filter tabs in display order; the renderer adds `all` itself. */
+export const MCP_FILTERS: readonly McpStatusFilter[] = ['attention', 'disabled']
 
-  return {
-    activeEntries,
-    filtered,
-    filterCounts
-  }
-}
+/** The states a reader can act on: something is wrong or missing. */
+const NEEDS_ACTION: ReadonlySet<string> = new Set(['failed', 'degraded', 'needs-credentials', 'orphaned'])
 
 /**
  * Whether one row belongs to a filter.
  *
- * A switched-off row keeps its own scope, so it is reachable both through
- * `plugin`/`direct` and through `disabled`.
+ * The shared renderer counts each tab through this predicate, so a tab's number
+ * is always the number of rows clicking it shows. A switched-off row keeps its
+ * own scope, so it is reachable both through `plugin`/`direct` and through
+ * `disabled`.
+ *
+ * @param entry - the status row.
+ * @param filter - the tab in force.
+ * @returns whether the row belongs to that tab.
  */
 export function matchesMcpFilter(entry: McpStatusEntry, filter: McpStatusFilter): boolean {
   if (filter === 'all') return true
   if (filter === 'disabled') return entry.state === 'disabled'
-  return entry.kind === filter
+  return NEEDS_ACTION.has(entry.state)
 }
 
-function searchableFor(payload: McpStatusPayload): SearchableEntry[] {
-  const cached = searchableCache.get(payload)
-  if (cached !== undefined) return cached
-  const searchable = payload.entries.map(entry => ({
-    entry,
-    haystack: `${entry.name} ${entry.source ?? ''} ${entry.endpoint ?? ''} ${entry.transport} ${entry.reason ?? ''} ${(entry.credentialRefs ?? []).join(' ')}`.toLowerCase()
-  }))
-  searchableCache.set(payload, searchable)
-  return searchable
+/** How long the panel waits when a moving connection names no next attempt. */
+export const CONNECTION_READ_FALLBACK_MS = 1_500
+/** The longest wait, so a panel still notices a change made somewhere else. */
+export const CONNECTION_READ_CEILING_MS = 15_000
+/** Read just after the supervisor's own attempt, so the answer is the attempt's. */
+export const CONNECTION_READ_LEAD_MS = 250
+/** The shortest wait, so a nearly-due retry still gets read. */
+export const CONNECTION_READ_FLOOR_MS = 500
+
+/**
+ * How long until the panel should read the status again by itself.
+ *
+ * A reconnecting row carries the supervisor's own next attempt time, so the
+ * panel does not have to poll to find out: it sleeps until just after that
+ * attempt. Polling every second and a half instead costs dozens of reads across
+ * a minute-long backoff and still shows the old attempt number most of the time.
+ *
+ * @param payload - the last status read.
+ * @param now - the clock, injectable for tests.
+ * @returns milliseconds to wait, or undefined when nothing moves on its own.
+ */
+export function nextConnectionRead(payload: { entries: readonly McpStatusEntry[] }, now = Date.now()): number | undefined {
+  let moving = false
+  let earliest: number | undefined
+  for (const entry of payload.entries) {
+    const connection = entry.connection
+    if (connection === undefined || (connection.phase !== 'reconnecting' && connection.phase !== 'connecting')) continue
+    moving = true
+    if (connection.retryAt === undefined) continue
+    if (earliest === undefined || connection.retryAt < earliest) earliest = connection.retryAt
+  }
+  if (!moving) return undefined
+  if (earliest === undefined) return CONNECTION_READ_FALLBACK_MS
+  const wait = earliest - now + CONNECTION_READ_LEAD_MS
+  return Math.min(CONNECTION_READ_CEILING_MS, Math.max(CONNECTION_READ_FLOOR_MS, wait))
 }
 
 /** One row of the detail dialog's tool list. */

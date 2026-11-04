@@ -39,6 +39,7 @@ import { resolveDeclaredCommand } from '../../../../market-runtime/src/index.js'
 import type { Suite } from '../../../../market-contracts/src/model/types.js'
 
 import type { LspMountDiagnostic } from '../../../../market-contracts/src/contracts/lsp.js'
+import type { LspCallObservation } from '../../../../market-contracts/src/contracts/lsp-status.js'
 
 export type { LspMountDiagnostic }
 
@@ -46,6 +47,17 @@ interface WantedMount {
   config: Record<string, LspStdioServerConfig>
   facts: string[]
   pathExtensions: string[]
+}
+
+/**
+ * The leading-dot lowercase extension a path ends with, or '' when it has none.
+ * @param filePath - the file the `lsp` call named.
+ * @returns the extension `.ts`, or '' for a path without one.
+ */
+function extensionOf(filePath: string): string {
+  const base = filePath.slice(filePath.lastIndexOf('/') + 1)
+  const dot = base.lastIndexOf('.')
+  return dot <= 0 ? '' : base.slice(dot).toLowerCase()
 }
 
 interface LiveMount {
@@ -133,6 +145,23 @@ export class LspMountRegistry {
   private readonly passes = new SerialPassQueue()
   /** Delayed re-attempts for mounts that are not live yet. */
   private readonly retries: RetryScheduler
+  /**
+   * Mount keys flagged for an explicit rebuild: the next reconcile tears the
+   * live provider down and mounts a fresh one even though its resolved config
+   * is unchanged. A provider whose server died underneath it still matches its
+   * own fingerprint, and `ctx.lsp` exposes no death signal, so this flag is the
+   * only way a live mount is ever re-verified.
+   */
+  private readonly forcedRemounts = new Set<string>()
+  /**
+   * What the last `lsp` call routed to each provider did, keyed by provider id.
+   *
+   * The seam publishes no process death, so a mounted provider that died keeps
+   * matching its own config and reads as mounted until someone queries it. This
+   * record is the only evidence of that state: the composition root reports the
+   * outcome of every `lsp` call here, and the status row carries the latest one.
+   */
+  private readonly observations = new Map<string, LspCallObservation>()
   /** Snapshot of the last reconciled suite set, replayed by retry passes. */
   private lastEnabled: Suite[] = []
   /** Host module loader; overridable for tests. */
@@ -185,6 +214,27 @@ export class LspMountRegistry {
   /** Queue one reconciliation behind any in-flight mount/unmount pass. */
   reconcile(enabledSuites: Suite[]): Promise<LspMountDiagnostic[]> {
     return this.passes.run(() => this.reconcileNow(enabledSuites))
+  }
+
+  /**
+   * Flag one mount for an explicit rebuild on the next reconcile.
+   *
+   * The flag only matters for a live mount, because that is the one a config
+   * comparison would otherwise keep: a key with no live mount is mounted by
+   * the ordinary pass. A flag whose teardown fails survives to the next pass.
+   * @param key - the provider id the mount was created under, `${suiteId}/${serverKey}`.
+   */
+  forceRemount(key: string): void {
+    if (this.live.has(key)) this.forcedRemounts.add(key)
+  }
+
+  /**
+   * Flag every live mount for an explicit rebuild on the next reconcile: the
+   * manual restart path, and the only way to replace a language-server process
+   * that died or wedged underneath its own mount.
+   */
+  forceRemountAll(): void {
+    for (const key of this.live.keys()) this.forcedRemounts.add(key)
   }
 
   /** Mount/unmount LSP servers to match the enabled suites plus direct config exactly. */
@@ -251,17 +301,28 @@ export class LspMountRegistry {
     }
     for (const [key, live] of [...this.live]) {
       const target = wantedProviders.get(key)
-      if (target === undefined || live.fingerprint !== JSON.stringify(target.entry.config)) {
-        const reason = await this.unmount(key, live)
-        this.lastDiagnostics.delete(key)
-        if (reason !== undefined) diagnostics.push({ suiteId: live.suiteId, serverKey: live.serverKeys.join(','), reason, code: 'unmount-failed' })
-      }
+      // A forced key skips the fingerprint match on purpose: a provider whose
+      // server died underneath it still matches its own config, so only the
+      // explicit restart tears it down and lets the next query spawn afresh.
+      if (target !== undefined && !this.forcedRemounts.has(key) && live.fingerprint === JSON.stringify(target.entry.config)) continue
+      const reason = await this.unmount(key, live)
+      // A flag survives a failed teardown so the next pass retries it, and is
+      // spent once the mount is actually gone.
+      if (reason === undefined) this.forcedRemounts.delete(key)
+      this.lastDiagnostics.delete(key)
+      if (reason !== undefined) diagnostics.push({ suiteId: live.suiteId, serverKey: live.serverKeys.join(','), reason, code: 'unmount-failed' })
     }
+    // A flag on a key with no live mount has nothing to tear down: the mount
+    // loop below covers it for the ordinary reason, so the flag is dropped
+    // rather than kept until something else notices it.
+    for (const key of this.forcedRemounts) if (!this.live.has(key)) this.forcedRemounts.delete(key)
     if (wantedProviders.size === 0 && this.live.size === 0) await this.releaseCapability()
     const capabilityFailure = wantedProviders.size > 0 ? await this.ensureCapability() : undefined
     for (const [key, { suiteId, entry }] of wantedProviders) {
       if (this.live.has(key)) {
         this.lastDiagnostics.delete(key)
+        // Already live: any budget left from an earlier failure is history.
+        this.retries.settle(key)
         continue
       }
       const causes = [...(capabilityFailure?.causes ?? []), ...entry.facts]
@@ -281,6 +342,8 @@ export class LspMountRegistry {
         this.retries.schedule({ key, label: failure.suiteId, ...(failure.code === 'host-missing' ? {} : { reason: failure.reason }) })
       } else {
         this.lastDiagnostics.delete(key)
+        // Live again: a later failure starts from the first retry delay.
+        this.retries.settle(key)
       }
     }
     for (const key of this.lastDiagnostics.keys()) {
@@ -459,6 +522,40 @@ export class LspMountRegistry {
     return this.live.size > 0
   }
 
+  /** The suite keys whose mount is live right now, so a row reads its own health. */
+  liveKeys(): ReadonlySet<string> {
+    return new Set(this.live.keys())
+  }
+
+  /**
+   * Record what the last `lsp` call routed to one provider did.
+   *
+   * Attribution is by file extension: the seam routes a request to the one
+   * provider claiming that extension, and rejects a duplicate claim at mount
+   * time, so a path names at most one live provider. A path no live provider
+   * claims belongs to the host's own seams or to nothing, and records nothing.
+   * @param filePath - the file the `lsp` call named.
+   * @param outcome - whether the call returned an error, and its message.
+   */
+  observe(filePath: string, outcome: { ok: boolean; error?: string }): void {
+    const extension = extensionOf(filePath)
+    if (extension === '') return
+    const at = Date.now()
+    for (const mount of this.live.values()) {
+      for (const provider of mount.providers) {
+        if (!provider.extensions.includes(extension)) continue
+        // The row id is the mount key: provider ids are the row ids, and the
+        // resource id is that same string with the `lsp:` scheme in front.
+        this.observations.set(provider.resourceId.replace(/^lsp:/, ''), { at, ok: outcome.ok, ...(outcome.error === undefined ? {} : { error: outcome.error }) })
+      }
+    }
+  }
+
+  /** The latest call observation per provider id, for the status rows. */
+  observationSnapshot(): ReadonlyMap<string, LspCallObservation> {
+    return new Map(this.observations)
+  }
+
   /** Mount one provider as an independently disposable `dsh-lsp-stdio` instance. */
   private async mountWith(
     key: string,
@@ -478,6 +575,9 @@ export class LspMountRegistry {
       return { suiteId, serverKey: hostKeys, reason: 'the host context does not support dynamic plugin mounting', code: 'host-missing' }
     }
     let handle: MountPluginHandle | undefined
+    // Timed here because this is where a start is waited for: a language server that
+    // takes thirty seconds to come up and one that fails at once read the same without it.
+    const startedAt = Date.now()
     try {
       handle = mountCtx.plugin(plugin, { servers })
       await handle.await()
@@ -498,6 +598,7 @@ export class LspMountRegistry {
         serverKey: hostKeys,
         reason: `mount failed: ${message}`,
         code: conflict ? 'seam-conflict' : 'mount-failed',
+        mountMs: Date.now() - startedAt,
         causes: [...causeMessages(error), ...facts]
       }
     }
@@ -517,6 +618,7 @@ export class LspMountRegistry {
     try {
       await live.disposer()
       this.live.delete(key)
+      for (const provider of live.providers) this.observations.delete(provider.resourceId.replace(/^lsp:/, ''))
       return undefined
     } catch (error) {
       const reason = `unmount failed: ${error instanceof Error ? error.message : String(error)}`
@@ -534,6 +636,7 @@ export class LspMountRegistry {
       await this.releaseCapability()
     })
     this.retries.clear()
+    this.forcedRemounts.clear()
   }
 }
 

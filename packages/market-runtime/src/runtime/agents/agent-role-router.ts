@@ -433,12 +433,7 @@ export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) =
   const entries = async (parent?: unknown) => roleSnapshot(await listRoles(parent)).entries
   const tool = defineTool({
     name: AGENT_ROLE_TOOL_NAME,
-    description:
-      "Delegate a task to a named role child from the session's subagent-catalog: the role's own instructions and its configured model apply, and the child starts without this conversation. Use it proactively for self-contained work — codebase exploration whose raw reads would fill this context, a scoped implementation, a review, or an analysis you can brief in one prompt — and start independent children together in one message. The child runs in " +
-      'the background by default and returns a durable subagent id at once, keeping the child available for later turns; when the run settles, the runtime sends the parent a notice carrying its outcome and ' +
-      'final reply. A child usually runs for minutes, so continue with independent work instead of waiting. `prompt` must stand alone, since the child cannot see this conversation and a question it asks while it runs goes unanswered. When the notice arrives, verify its ' +
-      "assertions against the files and relay the result to the user; the child's output is not visible to them. The current subagent-catalog lists the available roles and the full usage guidance; when no listed " +
-      "role matches, use the host's own `subagent` tools instead.",
+    description: AGENT_ROLE_TOOL_DESCRIPTION,
     parameters: {
       agent: { type: 'string', required: true, description: 'Exact callable role name listed in the current "subagent-catalog" message.' },
       prompt: {
@@ -540,4 +535,31 @@ export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) =
     disposeTool?.()
     disposeComposition()
   }
-}
+} /**
+ * The delegation tool's description, in the measured instruction-list shape.
+ *
+ * Claude Code tool descriptions open with a purpose line, separate a list of
+ * usage notes with one blank line, and put lengthy guidance under a `##` section.
+ * The skip rule sits in the bullets because that is what gets skimmed.
+ */
+export const AGENT_ROLE_TOOL_DESCRIPTION = [
+  "Delegate a task to a named role child from the session's subagent-catalog. The role's own instructions and its configured model apply, and the child starts without this conversation.",
+  '',
+  ' - Use it proactively for self-contained work: codebase exploration whose raw reads would fill this context, a scoped implementation, a review, or an analysis you can brief in one prompt.',
+  ' - Start independent children together in one message so they run concurrently.',
+  ' - The child runs in the background by default and returns a durable subagent id at once, keeping it available for later turns. It usually runs for minutes, so continue with independent work instead of waiting.',
+  " - When no listed role matches, use the host's own 'subagent' tools instead. The current subagent-catalog lists the available roles and the full usage guidance.",
+  '',
+  "When the run settles, the runtime sends the parent a notice carrying its outcome and final reply. When it arrives, verify its assertions against the files and relay the result to the user: the child's output is not visible to them.",
+  '',
+  '## Writing the prompt',
+  '',
+  'prompt must stand alone, since the child cannot see this conversation, and a question it asks while it runs goes unanswered.',
+  '',
+  ' - Explain what you are trying to accomplish and why.',
+  ' - Describe what you have already learned or ruled out.',
+  ' - Give enough context for the child to make judgment calls rather than following a narrow instruction.',
+  ' - State the boundaries: research only, or may edit files.',
+  '',
+  'Terse command-style prompts produce shallow, generic work.'
+].join('\n')

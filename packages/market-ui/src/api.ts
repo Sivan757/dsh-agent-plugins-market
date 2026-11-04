@@ -1,6 +1,6 @@
 /** Typed fetch helpers over the host's `/api/agent-plugins/*` routes. */
 import { withBusyOperation } from './ui/busy-operation.js'
-import { RequestTimeoutError } from './request-error.js'
+import { RequestFailedError, RequestTimeoutError } from './request-error.js'
 import {
   MARKET_ROUTES,
   userPanelMutationRoute,
@@ -26,10 +26,20 @@ import type {
 import type { McpStatusPayload } from '../../market-contracts/src/contracts/mcp-status.js'
 import type { LspStatusPayload } from '../../market-contracts/src/contracts/lsp-status.js'
 import type { SurfaceToggleKey, SurfaceToggles } from '../../market-contracts/src/contracts/surface-toggles.js'
-import { resolveHiddenTabs, type TabLayoutWire } from '../../market-contracts/src/contracts/tab-layout.js'
+import { OUTPUT_STYLE_ROUTES, type OutputStyleSaveRequest, type OutputStylesPayload } from '../../market-contracts/src/contracts/output-styles.js'
+import {
+  AI_DRAFT_ROUTES,
+  type AiDiagnoseFace,
+  type AiDiagnoseFailure,
+  type AiDiagnosis,
+  type AiPresetCandidate,
+  type AiPresetSuggestion
+} from '../../market-contracts/src/contracts/ai-draft.js'
+import { resolveHiddenTabs, resolveTabOrder, type TabLayoutWire } from '../../market-contracts/src/contracts/tab-layout.js'
 import { INSTRUCTION_ROUTES } from '../../market-contracts/src/contracts/instructions.js'
 import type { InstructionDeleteResult, InstructionsPayload, InstructionSaveRequest } from '../../market-contracts/src/contracts/instructions.js'
 import type { DocumentTranslation } from '../../market-contracts/src/contracts/translation.js'
+import { USER_HOOKS_ROUTES, type UserHookSaveRequest } from '../../market-contracts/src/contracts/user-hooks.js'
 
 export type {
   HookPreview,
@@ -127,9 +137,20 @@ async function boundedFetch(url: string, init: RequestInit, timeoutMs: number): 
  * `label` names the resource in the thrown message, so a failed load reads the
  * same in every panel that shares this helper.
  */
+/**
+ * The error a non-2xx answer becomes.
+ *
+ * A host that explained itself keeps its sentence; one that did not gets the
+ * typed status error, so the panel renders the same localized line every other
+ * panel renders instead of an English route label.
+ */
+function statusError(hostReason: string | undefined, label: string, status: number): RequestFailedError {
+  return hostReason === undefined || hostReason === '' ? new RequestFailedError(label, status) : new RequestFailedError(label, status, hostReason)
+}
+
 async function getJson<T>(url: string, label: string, init?: RequestInit): Promise<T> {
   return boundedRequest(url, { credentials: 'same-origin', ...init }, READ_TIMEOUT_MS, async response => {
-    if (!response.ok) throw new Error(`${label}: ${response.status}`)
+    if (!response.ok) throw new RequestFailedError(label, response.status)
     return response.json() as Promise<T>
   })
 }
@@ -146,9 +167,11 @@ async function postOkJson<T>(url: string, body: Record<string, unknown>, label: 
     },
     timeoutMs,
     async response => {
-      const payload = (await response.json()) as T & { ok?: boolean; error?: string; fields?: MarketFieldError[] }
+      const payload = (await response.json()) as T & { ok?: boolean; error?: string; fields?: MarketFieldError[]; code?: string }
       if (!response.ok || payload.ok !== true) {
-        throw Object.assign(new Error(payload.error ?? `${label}: ${response.status}`), { fields: payload.fields })
+        // The code crosses so a caller can say the same fact in the reader's own words; the
+        // message stays the fallback for a failure nobody classified.
+        throw Object.assign(new Error(payload.error ?? `${label}: ${response.status}`), { fields: payload.fields, code: payload.code })
       }
       return payload
     }
@@ -161,7 +184,7 @@ export async function fetchServerConfig(kind: 'mcp' | 'lsp', id: string): Promis
       const url = `${MARKET_ROUTES.serverConfig}?${new URLSearchParams({ kind, id })}`
       const response = await boundedFetch(url, { credentials: 'same-origin' }, READ_TIMEOUT_MS)
       const body = (await response.json()) as ServerConfigPayload & { error?: string }
-      if (!response.ok) throw new Error(body.error ?? `Server configuration failed: ${response.status}`)
+      if (!response.ok) throw statusError(body.error, 'server configuration', response.status)
       return body
     },
     { blocking: false }
@@ -264,6 +287,20 @@ export async function runExtensionHook(input: ExtensionHookRunInput): Promise<Ex
 export async function fetchLspStatus(background = false, sessionId?: string): Promise<LspStatusPayload> {
   const load = (): Promise<LspStatusPayload> => getJson<LspStatusPayload>(sessionRoute(MARKET_ROUTES.lspStatus, sessionId), 'LSP status failed')
   return background ? load() : withBusyOperation(load, { blocking: false })
+}
+
+/**
+ * Rebuild every live language-server mount: the manual LSP recovery path.
+ *
+ * The host reports a dead language-server process only on the next request, so
+ * a row can read mounted after its process exited. A restart tears the mount
+ * down and re-mounts it, which is the one action that replaces the provider
+ * before the next request discovers it is gone.
+ */
+export async function restartLspServers(id?: string): Promise<void> {
+  return withBusyOperation(async () => {
+    await postAction('lsp-restart', id === undefined ? {} : { id })
+  })
 }
 
 /** Add one direct LSP server to the user's table. */
@@ -525,7 +562,7 @@ export async function createUserPanelEntry(kind: UserPanelKind, name: string, te
       MUTATION_TIMEOUT_MS
     )
     const payload = (await response.json()) as { ok?: boolean; error?: string; entry?: UserPanelEntry }
-    if (!response.ok || payload.ok !== true || payload.entry === undefined) throw new Error(payload.error ?? `create failed: ${response.status}`)
+    if (!response.ok || payload.ok !== true || payload.entry === undefined) throw statusError(payload.error, 'create', response.status)
     return payload.entry
   })
 }
@@ -567,16 +604,22 @@ export async function setSurfaceToggle(key: SurfaceToggleKey, enabled: boolean):
 }
 /* ---- Workspace tab stowing ---- */
 
-/** Read this workspace's stowed workspace tabs. */
+/** Read this workspace's tab row: which tabs are stowed, and in what order. */
 export async function loadTabLayout(): Promise<TabLayoutWire> {
   const layout = await getJson<TabLayoutWire>(MARKET_ROUTES.tabLayout, 'tab layout failed')
-  return { hidden: resolveHiddenTabs(layout.hidden) }
+  return { hidden: resolveHiddenTabs(layout.hidden), order: resolveTabOrder(layout.order) }
 }
 
 /** Replace this workspace's stowed tabs and resolve with the committed layout. */
 export async function saveTabLayout(hidden: readonly string[]): Promise<TabLayoutWire> {
-  const payload = await postOkJson<{ hidden?: unknown }>(MARKET_ROUTES.setTabLayout, { hidden: [...hidden] }, 'tab layout failed')
-  return { hidden: resolveHiddenTabs(payload.hidden) }
+  const payload = await postOkJson<{ hidden?: unknown; order?: unknown }>(MARKET_ROUTES.setTabLayout, { hidden: [...hidden] }, 'tab layout failed')
+  return { hidden: resolveHiddenTabs(payload.hidden), order: resolveTabOrder(payload.order) }
+}
+
+/** Replace this workspace's row order and resolve with the committed layout. */
+export async function saveTabOrder(order: readonly string[]): Promise<TabLayoutWire> {
+  const payload = await postOkJson<{ hidden?: unknown; order?: unknown }>(MARKET_ROUTES.setTabOrder, { order: [...order] }, 'tab order failed')
+  return { hidden: resolveHiddenTabs(payload.hidden), order: resolveTabOrder(payload.order) }
 }
 
 /* ---- Workspace instructions (AGENTS.md chain) ---- */
@@ -593,7 +636,7 @@ export async function fetchInstructions(sessionId?: string): Promise<Instruction
     async () => {
       const response = await boundedFetch(sessionRoute(INSTRUCTION_ROUTES.read, sessionId), { credentials: 'same-origin' }, READ_TIMEOUT_MS)
       const payload = (await response.json()) as InstructionsPayload & { error?: string }
-      if (!response.ok) throw new Error(payload.error ?? `instructions failed: ${response.status}`)
+      if (!response.ok) throw statusError(payload.error, 'instructions', response.status)
       return payload
     },
     { blocking: false }
@@ -627,4 +670,169 @@ export async function deleteInstructionFile(request: Omit<InstructionSaveRequest
   const payload = await postOkJson<{ aliases?: unknown[]; targetIsLink?: boolean }>(sessionRoute(INSTRUCTION_ROUTES.remove, sessionId), { ...request }, 'delete failed')
   const aliases = Array.isArray(payload.aliases) ? payload.aliases.map(value => String(value)) : []
   return { aliases, targetIsLink: payload.targetIsLink === true }
+}
+/* ---- Output styles (the selected style's prompt section) ---- */
+
+/**
+ * Read every output style, the selection, and the exact text the prompt gets.
+ *
+ * @param sessionId - the live session whose workspace to describe; omitted
+ * means the host process working directory.
+ * @returns the styles, the selection and the injected section text.
+ */
+export async function fetchOutputStyles(sessionId?: string): Promise<OutputStylesPayload> {
+  return withBusyOperation(
+    async () => {
+      const response = await boundedFetch(sessionRoute(OUTPUT_STYLE_ROUTES.read, sessionId), { credentials: 'same-origin' }, READ_TIMEOUT_MS)
+      const payload = (await response.json()) as OutputStylesPayload & { error?: string }
+      if (!response.ok) throw statusError(payload.error, 'output styles', response.status)
+      return payload
+    },
+    { blocking: false }
+  )
+}
+
+/**
+ * Select one style for this workspace.
+ *
+ * @param styleId - the style's stable id from the read.
+ * @param sessionId - the live session whose workspace to change.
+ * @returns the committed read, so the page renders the server's answer.
+ */
+export async function selectOutputStyle(styleId: string, sessionId?: string): Promise<OutputStylesPayload> {
+  return withBusyOperation(async () => {
+    const payload = await postOkJson<OutputStylesPayload>(sessionRoute(OUTPUT_STYLE_ROUTES.select, sessionId), { styleId }, 'select failed')
+    return {
+      styles: payload.styles,
+      selected: payload.selected,
+      workspace: payload.workspace,
+      injected: payload.injected
+    }
+  })
+}
+
+/**
+ * Capture one suite style's text through its own SessionStart hook.
+ *
+ * The capture runs the suite's program once. The page calls this only when a
+ * person asks for it, and the captured text is what the prompt receives after.
+ * @param suiteKey - the suite address, `sourceId/suiteId`.
+ * @param sessionId - the live session whose workspace records the capture.
+ * @returns the captured text and the fingerprint it is bound to.
+ */
+/**
+ * Create or replace one user-authored output style.
+ *
+ * The body names the style's own fields and never a path.
+ * @param request - the name, description and body.
+ * @param sessionId - the live session whose workspace read answers the change.
+ * @returns the committed read.
+ */
+export async function saveUserOutputStyle(request: OutputStyleSaveRequest, sessionId?: string): Promise<OutputStylesPayload> {
+  return withBusyOperation(async () => {
+    const payload = await postOkJson<OutputStylesPayload>(sessionRoute(OUTPUT_STYLE_ROUTES.saveUser, sessionId), { ...request }, 'save failed')
+    return payload
+  })
+}
+
+/**
+ * Remove one user-authored output style.
+ *
+ * @param name - the style's file stem.
+ * @param sessionId - the live session whose workspace read answers the change.
+ * @returns the committed read.
+ */
+export async function deleteUserOutputStyle(name: string, sessionId?: string): Promise<OutputStylesPayload> {
+  return withBusyOperation(async () => {
+    const payload = await postOkJson<OutputStylesPayload>(sessionRoute(OUTPUT_STYLE_ROUTES.deleteUser, sessionId), { name }, 'delete failed')
+    return payload
+  })
+}
+
+/* ---- AI drafting ------------------------------------------------------- */
+
+/**
+ * Ask the deployment's model to suggest a preset selection from the rows the manager shows.
+ *
+ * The manager sends its own rows because the suggestion may only name rows that exist: the
+ * server checks every id it answers against this list, so a hallucinated id cannot become a
+ * preset entry.
+ *
+ * @param input.intent - what the preset should be for, in the person's own words.
+ * @param input.candidates - the rows the manager can put in a preset.
+ * @param input.locale - the language the name and the reason should be written in.
+ * @returns the suggestion, already filtered to the rows on offer.
+ */
+export async function requestAiPreset(input: {
+  intent: string
+  /** Absent with `purpose: 'install'`: the server reads its own catalogue instead. */
+  candidates?: readonly AiPresetCandidate[]
+  locale: 'zh' | 'en'
+  /** `install` asks which catalogue suites to add; absent asks what to switch on. */
+  purpose?: 'preset' | 'install'
+}): Promise<AiPresetSuggestion> {
+  return withBusyOperation(() =>
+    postOkJson<AiPresetSuggestion>(
+      `${AI_DRAFT_ROUTES.suggestPreset}`,
+      {
+        intent: input.intent,
+        locale: input.locale,
+        ...(input.candidates === undefined ? {} : { candidates: [...input.candidates] }),
+        ...(input.purpose === undefined ? {} : { purpose: input.purpose })
+      },
+      'suggestion failed'
+    )
+  )
+}
+
+/**
+ * Ask the deployment's model to explain one service failure and name the next step.
+ *
+ * Only the facts the panel already shows the reader cross the wire: the state word, the code,
+ * the reason and the attributed causes. Endpoints and commands stay here, because an endpoint
+ * can carry a credential and an explanation is not worth leaking one.
+ *
+ * @param input.face - the service family that failed.
+ * @param input.failure - the facts to explain.
+ * @param input.locale - the language the explanation should be written in.
+ * @returns the explanation and the route that produced it.
+ */
+export async function requestAiDiagnosis(input: { face: AiDiagnoseFace; failure: AiDiagnoseFailure; locale: 'zh' | 'en' }): Promise<AiDiagnosis> {
+  return withBusyOperation(() => postOkJson<AiDiagnosis>(AI_DRAFT_ROUTES.diagnose, { face: input.face, failure: { ...input.failure }, locale: input.locale }, 'explanation failed'))
+}
+
+/* ---- User hooks --------------------------------------------------------- */
+
+/**
+ * Draft one hook entry from an intent.
+ *
+ * The answer is a proposal for the form: the event and the command both stay editable, and
+ * nothing is saved until the reader presses save.
+ * @param input - what the hook should do.
+ * @param input.intent - the reader's own words.
+ * @param input.locale - the language the exchange is written in.
+ * @returns the proposed entry, with the route that produced it.
+ */
+export async function draftUserHook(input: { intent: string; locale: 'zh' | 'en' }): Promise<UserHookSaveRequest & { provider: string; model: string }> {
+  return withBusyOperation(() =>
+    postOkJson<UserHookSaveRequest & { provider: string; model: string }>(USER_HOOKS_ROUTES.draft, { intent: input.intent, locale: input.locale }, 'hook draft failed')
+  )
+}
+
+/**
+ * Append one entry to the reader's own hook document.
+ *
+ * The append merges into whatever shape the file already has and never rewrites the rest, so a
+ * hand-written document survives this call untouched but for the one new entry.
+ * @param entry - the event, the command, and an optional matcher.
+ * @returns the file the entry landed in.
+ */
+export async function saveUserHook(entry: UserHookSaveRequest): Promise<{ file: string }> {
+  return withBusyOperation(() =>
+    postOkJson<{ file: string }>(
+      USER_HOOKS_ROUTES.save,
+      { event: entry.event, command: entry.command, ...(entry.matcher === undefined ? {} : { matcher: entry.matcher }) },
+      'hook save failed'
+    )
+  )
 }

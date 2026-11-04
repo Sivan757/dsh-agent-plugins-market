@@ -146,6 +146,53 @@ describe('native hook bridge lifecycle', () => {
     }
   })
 
+  /**
+   * An unchanged suite keeps its bridge.
+   *
+   * Reconcile runs on every catalog change and every surface toggle, so a pass
+   * that remounted a suite whose config had not moved would dispose a live
+   * bridge, rewrite its private snapshot and restart the bridge's own state on
+   * each toggle. The fingerprint memo is the only thing that stops it, and
+   * deleting that one line left the whole suite green.
+   */
+  it('keeps the live bridge for an unchanged suite instead of remounting it', async () => {
+    const project = await root()
+    await writeFile(join(project, '.claude/settings.json'), JSON.stringify({ hooks: { PreToolUse: [hook('echo one')] } }))
+    const mounts: Array<{ configPath: string; disposed: boolean }> = []
+    const host = {
+      plugin: (_plugin: unknown, config: { configPath: string }) => {
+        const mount = { configPath: config.configPath, disposed: false }
+        mounts.push(mount)
+        return {
+          await: async () => {},
+          dispose: async () => {
+            mount.disposed = true
+          }
+        }
+      }
+    }
+    const registry = new HooksMountRegistry(host as unknown as Context)
+    try {
+      const suites = async () => (await discoverNativeProjectSuites(project, 'project')).map(suite => withDefaultSurfaces(suite))
+      expect(await registry.reconcile(await suites())).toEqual([])
+      expect(mounts).toHaveLength(1)
+      const [first] = mounts
+      if (first === undefined) throw new Error('expected the hook config to mount once')
+      const snapshot = await readFile(first.configPath, 'utf8')
+
+      // The second pass sees the same content, the same root and the same
+      // project root, so the fingerprint matches and nothing is remounted.
+      expect(await registry.reconcile(await suites())).toEqual([])
+      expect(await registry.reconcile(await suites())).toEqual([])
+      expect(mounts).toHaveLength(1)
+      expect(first.disposed).toBe(false)
+      // The private snapshot was not rewritten either: same path, same content.
+      expect(await readFile(first.configPath, 'utf8')).toBe(snapshot)
+    } finally {
+      await registry.disposeAll()
+    }
+  })
+
   it('uses a private runtime snapshot, remounts changed config and removes temporary files', async () => {
     const project = await root()
     const settingsPath = join(project, '.claude/settings.json')

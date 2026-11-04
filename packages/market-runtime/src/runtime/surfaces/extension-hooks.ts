@@ -25,6 +25,7 @@ import { expandPluginPaths, pluginPathEnvironment, pluginRootOf, suiteDataDir } 
 import { normalizeHookDocuments, standaloneHookDocument } from '../../../../market-catalog/src/index.js'
 import type { ProjectHooks, Suite } from '../../../../market-contracts/src/model/types.js'
 import { hookConfigPath, type HooksMountDiagnostic } from './hooks-mounts.js'
+import { attribute, frame } from './prompt-frame.js'
 
 /**
  * Every Claude Code hook event this bridge runs. The host extension points
@@ -50,10 +51,24 @@ export const HOOK_RUNTIME_POINTS = [
 ] as const
 type Point = (typeof HOOK_RUNTIME_POINTS)[number]
 type Outcome = ReturnType<typeof mergeHookOutputs>
+/** One decoded hook output with the suite that produced it. */
+interface AttributedOutput {
+  /** The suite name, the heading a reader uses to tell contributors apart. */
+  label: string
+  /** The selection key, kept for calls that need the exact suite identity. */
+  key: string
+  output: HookOutput
+}
 /** One point's merged decision, plus the denial reason rebuilt from denying hooks only. */
 interface PointOutcome {
   merged: Outcome
   denySystemMessages: string[]
+  /**
+   * The durable instruction text this point injected, one entry per contributing
+   * suite. Kept apart from `merged` because the merge loses which suite wrote
+   * what, and attribution is what makes two suites separable.
+   */
+  contexts: Array<{ label: string; text: string }>
 }
 type Turn = Parameters<typeof appendHookInvoked>[1]['turn']
 type Source = 'startup' | 'resume'
@@ -79,8 +94,28 @@ interface RunOptions {
   fallback?: boolean
 }
 const CONTEXT_SOURCE = { kind: 'hooks-claude-code' } as const
+/**
+ * The sentence a framed hook block says after its label.
+ *
+ * This host never tells the model what `<system-reminder>` means, so the block
+ * explains itself. It sits after the label rather than replacing it.
+ */
+const SESSION_CONTEXT_DISCLAIMER =
+  'The following context was injected by an enabled agent plugin suite. It is session instructions, not a message from the user. More specific instructions take precedence over broader ones.'
 /** Plain (non-JSON) stdout is conversation context on exactly these events. */
 const STDOUT_CONTEXT_POINTS: ReadonlySet<Point> = new Set<Point>(['SessionStart', 'UserPromptSubmit'])
+/**
+ * The events whose context is standing session instruction, so it takes the frame.
+ *
+ * A submitted prompt opens a turn and a session start outlives one, so both carry
+ * instruction weight. Every other event is a per-call callback: plain text with a
+ * label, never a second frame competing with the tool result beside it.
+ * @param point - the hook event.
+ * @returns whether that event's context is standing instruction.
+ */
+function isSessionStanding(point: Point): boolean {
+  return point === 'SessionStart' || point === 'UserPromptSubmit'
+}
 /**
  * Reference per-event timeouts, in ms, for the events whose reference default
  * differs from the protocol default: Claude Code lowers UserPromptSubmit
@@ -102,13 +137,31 @@ const NON_EXECUTED_FAILURE_CODES: ReadonlySet<string> = new Set(['ABORTED', 'ABO
 const SESSION_END_MAX_TIMEOUT_MS = 60_000
 /** Never aborted: a closing pass outlives the drain that aborts the shared run signal. */
 const NEVER_ABORTED = new AbortController().signal
-/** English fallback the model and the session log read when a hook blocks without a reason. */
+/**
+ * English fallback the model and the session log read when a hook blocks without
+ * a reason.
+ *
+ * The event leads, as it does in a hook's own labelled output, so a blocked tool
+ * call and a blocked prompt are told apart by the first word rather than the
+ * last.
+ */
 const DEFAULT_REASON: Partial<Record<Point, string>> = {
-  UserPromptSubmit: 'blocked by UserPromptSubmit hook',
-  PreToolUse: 'blocked by PreToolUse hook',
-  PostToolUse: 'blocked by PostToolUse hook',
-  Stop: 'continue: blocked by Stop hook'
+  UserPromptSubmit: 'UserPromptSubmit hook blocked this prompt',
+  PreToolUse: 'PreToolUse hook blocked this tool',
+  PostToolUse: 'PostToolUse hook blocked this step',
+  PostToolUseFailure: 'PostToolUseFailure hook blocked this step',
+  Stop: 'Stop hook kept the turn going'
 }
+
+/**
+ * English fallback the session log records when a hook halts the run without a
+ * reason.
+ *
+ * Separate from {@link DEFAULT_REASON} because a Stop hook does one of two
+ * opposite things: a deny keeps the turn going, and `continue: false` cancels the
+ * run. One constant cannot say both, and recording the wrong one is durable.
+ */
+const HALT_REASON: Partial<Record<Point, string>> = { Stop: 'Stop hook stopped the turn' }
 
 /**
  * Own one live Agent's hooks. Supply a live context injected with shell and
@@ -192,7 +245,7 @@ export class ExtensionHooks {
         // continuation, and every later Stop hook reads a stale activation.
         this.continuations = 0
         return this.track(async () => {
-          const { merged } = await this.runPoint(
+          const outcome = await this.runPoint(
             'UserPromptSubmit',
             '',
             { ...base(agent, 'UserPromptSubmit'), prompt: text(authored.flatMap(message => message.content)) },
@@ -200,6 +253,7 @@ export class ExtensionHooks {
             event.turn,
             event.signal
           )
+          const { merged } = outcome
           if (this.disposed) return next()
           if (merged.stop) {
             this.halt(agent, 'UserPromptSubmit', merged)
@@ -210,7 +264,9 @@ export class ExtensionHooks {
             return { kind: 'reject' as const }
           }
           const downstream = await next()
-          const context = contextFrom(merged)
+          // A submitted prompt opens a turn, so its context is session-standing
+          // instruction text and takes the frame.
+          const context = contextFrom(outcome, 'UserPromptSubmit')
           return !this.disposed && context && downstream.kind === 'enter' ? { ...downstream, messages: [...downstream.messages, context] } : downstream
         })
       })
@@ -246,7 +302,9 @@ export class ExtensionHooks {
           const decision: PreToolDecision = merged.decision === 'allow' && downstream.kind === 'ask' ? { kind: 'allow' } : downstream
           // The pre-execute decision carries no context field, so context reaches
           // the next request through the agent's own model-facing inbox.
-          const context = contextFrom(merged)
+          // One tool call's context is a per-call callback, not standing session
+          // instruction, so it stays plain prose with its own event label.
+          const context = contextFrom(outcome, 'PreToolUse', exec.name)
           if (!this.disposed && decision.kind === 'allow' && context) agent.inject(context)
           return decision
         })
@@ -294,13 +352,13 @@ export class ExtensionHooks {
             this.halt(agent, point, merged)
             return next()
           }
-          const context = contextFrom(merged)
+          const context = contextFrom(outcome, point, exec.name)
           const reason = merged.decision === 'deny' ? this.blockReason(point, outcome) : undefined
           if (result.isError) {
             // A failed call already carries its own error. Replacing it would hide
             // the failure, so a blocking hook's reason rides the next request.
             const downstream = await next()
-            const contexts = [...(reason === undefined ? [] : [contextFromReason(reason)]), ...(context === undefined ? [] : [context])]
+            const contexts = [...(reason === undefined ? [] : [contextFromReason(point, reason)]), ...(context === undefined ? [] : [context])]
             return this.disposed || contexts.length === 0 ? downstream : { ...downstream, additionalContexts: [...contexts, ...(downstream.additionalContexts ?? [])] }
           }
           if (reason !== undefined)
@@ -342,9 +400,14 @@ export class ExtensionHooks {
             return
           }
           this.continuations += 1
+          // Plain text, labelled the way the reference labels Stop output. Rule R2
+          // forbids a <system-reminder> frame on steering, because a framed steer is
+          // what a recorded transcript refused; a plain label is not a frame, and it
+          // is what tells the model this text came from a hook rather than the person.
           for (const message of [reason, ...merged.additionalContext]) {
             if (message === undefined || message.length === 0) continue
-            agent.steer(createUserMessage({ content: [{ type: 'text', text: message }], source: CONTEXT_SOURCE }))
+            const labelled = message === reason ? stopFeedbackText(message) : hookLabel('Stop', undefined, 'additional context') + message
+            agent.steer(createUserMessage({ content: [{ type: 'text', text: labelled }], source: CONTEXT_SOURCE }))
           }
         })
       })
@@ -438,7 +501,8 @@ export class ExtensionHooks {
     if (this.disposed) return Promise.resolve()
     this.startup = this.track(async () => {
       await this.pending
-      const { merged } = await this.runPoint('SessionStart', source, { ...base(this.agent, 'SessionStart'), source }, this.agent, undefined, signal)
+      const outcome = await this.runPoint('SessionStart', source, { ...base(this.agent, 'SessionStart'), source }, this.agent, undefined, signal)
+      const { merged } = outcome
       if (this.disposed || signal?.aborted) return
       if (merged.stop) {
         this.reportBlocked('SessionStart', merged)
@@ -448,7 +512,8 @@ export class ExtensionHooks {
       // No SessionStart interception point exists, so a blocking start hook is
       // reported and the session opens anyway.
       if (merged.decision === 'deny') this.reportBlocked('SessionStart', merged)
-      const context = contextFrom(merged)
+      // A session start is the durable case: the frame says what the text is.
+      const context = contextFrom(outcome, 'SessionStart', source)
       if (context) this.agent.inject(context)
     })
     return this.startup
@@ -498,7 +563,7 @@ export class ExtensionHooks {
     if (point === 'SubagentStart' && child) this.children.set(info.runId, child)
     if (point === 'SubagentStop') this.children.delete(info.runId)
     void this.track(async () => {
-      const { merged } = await this.runPoint(
+      const outcome = await this.runPoint(
         point,
         'general-purpose',
         {
@@ -509,6 +574,7 @@ export class ExtensionHooks {
         },
         child
       )
+      const { merged } = outcome
       if (this.disposed) return
       if (point === 'SubagentStop') {
         // The subagent end edge is an emit-only notification: it carries no
@@ -516,7 +582,7 @@ export class ExtensionHooks {
         if (merged.decision === 'deny') this.reportBlocked('SubagentStop', merged)
         return
       }
-      const context = contextFrom(merged)
+      const context = contextFrom(outcome, 'SubagentStart')
       if (context && child && this.children.get(info.runId) === child) child.inject(context)
       if (merged.stop && child) this.halt(child, 'SubagentStart', merged)
       // The subagent start edge cannot veto a spawn, so a denial is reported.
@@ -559,10 +625,10 @@ export class ExtensionHooks {
     turn?: Turn,
     signal?: AbortSignal,
     options: RunOptions = {}
-  ): Promise<HookOutput[]> {
+  ): Promise<AttributedOutput[]> {
     const closing = options.closing === true
     const selection = options.selection ?? this.selected
-    const outputs: HookOutput[] = []
+    const outputs: AttributedOutput[] = []
     // Disposal drains by aborting the shared signal, so the final pass it waits
     // behind cannot use it: SessionEnd would be killed before it ran.
     const ownerSignal = closing ? (signal ?? NEVER_ABORTED) : signal === undefined ? this.runs.signal : AbortSignal.any([signal, this.runs.signal])
@@ -619,7 +685,7 @@ export class ExtensionHooks {
           this.reportUnapplied(key, point, output, position)
           this.warnSystemMessage(point, output.systemMessage, key)
           if ((!closing && this.disposed) || ownerSignal.aborted) continue
-          outputs.push(withStdoutContext(point, output))
+          outputs.push({ label: suite.manifest.name, key, output: withStdoutContext(point, output) })
         }
       }
     }
@@ -699,7 +765,7 @@ export class ExtensionHooks {
     // text into the denial would present one hook's notice as another hook's
     // reason, so only a denying hook's own message can stand in for a reason.
     if (outcome.denySystemMessages.length > 0) return outcome.denySystemMessages.join(REASON_SEPARATOR)
-    return DEFAULT_REASON[point] ?? 'blocked by ' + point + ' hook'
+    return DEFAULT_REASON[point] ?? point + ' hook blocked this call'
   }
 
   /**
@@ -711,7 +777,7 @@ export class ExtensionHooks {
    * is what a halt means.
    */
   private halt(subject: Agent, point: Point, merged: Outcome): void {
-    const reason = merged.stopReason ?? merged.reason ?? DEFAULT_REASON[point] ?? 'stopped by ' + point + ' hook'
+    const reason = merged.stopReason ?? merged.reason ?? HALT_REASON[point] ?? point + ' hook stopped this turn'
     this.ctx.logger?.warn('extension-hooks: ' + point + ' hook halted the run: ' + logSafe(reason))
     try {
       subject.cancel({ kind: 'hook', reason })
@@ -738,20 +804,101 @@ function text(content: readonly { type: string; text?: string }[]): string {
  * @param outputs - every matched hook's decoded output, in hook order.
  * @returns the merged decision plus the system messages of denying hooks.
  */
-function foldOutcome(outputs: HookOutput[]): PointOutcome {
-  const denySystemMessages = outputs
+function foldOutcome(outputs: readonly AttributedOutput[]): PointOutcome {
+  const decoded = outputs.map(entry => entry.output)
+  const denySystemMessages = decoded
     .filter(output => output.decision === 'deny' || output.decision === 'block')
     .map(output => output.systemMessage)
     .filter((message): message is string => message !== undefined && message.length > 0)
-  return { merged: mergeHookOutputs(outputs), denySystemMessages }
+  const contexts: Array<{ label: string; text: string }> = []
+  for (const entry of outputs) {
+    const text = entry.output.additionalContext
+    if (text !== undefined && text.length > 0) contexts.push({ label: entry.label, text })
+  }
+  return { merged: mergeHookOutputs(decoded), denySystemMessages, contexts }
 }
-function contextFrom(merged: Outcome) {
-  return merged.additionalContext.length === 0
-    ? undefined
-    : createUserMessage({ content: merged.additionalContext.map(text => ({ type: 'text' as const, text })), source: CONTEXT_SOURCE })
+/**
+ * The label every hook-authored context carries.
+ *
+ * Measured shape: the event, then the qualifier that fired it, then the status.
+ * `SessionStart:startup hook success:`, `UserPromptSubmit hook additional
+ * context:`, `PreToolUse:Bash hook error:`. The label is what separates a
+ * hook's text from the person's own words, and it is the one thing an unlabelled
+ * block cannot recover.
+ * @param point - the event the output came from.
+ * @param qualifier - the matcher that fired, when there is one.
+ * @param status - the outcome word: `additional context`, `success`, or `error`.
+ * @returns the label, ending in a colon and a space.
+ */
+function hookLabel(point: Point, qualifier: string | undefined, status: string): string {
+  // A matcher is a single token; whitespace becomes a space so the label stays
+  // one line whatever a suite named its tool.
+  const target = qualifier === undefined ? '' : ':' + qualifier.replace(/\s+/gu, ' ').trim()
+  return point + target + ' hook ' + status + ': '
 }
-function contextFromReason(reason: string) {
-  return createUserMessage({ content: [{ type: 'text' as const, text: reason }], source: CONTEXT_SOURCE })
+
+/**
+ * One action's hook output as conversation content.
+ *
+ * Session-standing context takes the frame, a labelled lead line, and one
+ * heading per contributing suite. A per-call callback stays plain but carries the
+ * same label, because unlabelled text from a hook is the case a model most often
+ * reads as if the person had typed it.
+ * @param outcome - the merged hook outcome.
+ * @param point - the event the output came from.
+ * @param qualifier - the matcher that fired, when there is one.
+ * @returns the message, or undefined when no hook produced context.
+ */
+function contextFrom(outcome: PointOutcome, point: Point, qualifier?: string) {
+  const { contexts } = outcome
+  if (contexts.length === 0) return undefined
+  const label = hookLabel(point, qualifier, 'additional context')
+  const content = isSessionStanding(point)
+    ? [
+        {
+          type: 'text' as const,
+          text: frame([label + SESSION_CONTEXT_DISCLAIMER, attribute(contexts.map(context => ({ heading: context.label, body: context.text })))].join('\n\n'))
+        }
+      ]
+    : contexts.map(context => ({ type: 'text' as const, text: label + context.text }))
+  return createUserMessage({ content, source: CONTEXT_SOURCE })
+}
+/**
+ * A blocking hook's reason as conversation content.
+ *
+ * The reason is labelled with its event. Unlabelled text from a hook is the case
+ * a model most often reads as though the person had typed it, and a blocked call
+ * is exactly when the model must not mistake a hook for its user.
+ * @param point - the event whose hook blocked the call.
+ * @param reason - the hook's own reason text, already resolved.
+ * @returns the labelled message.
+ */
+function contextFromReason(point: Point, reason: string) {
+  // A fallback reason already names its event, so labelling it again would read as
+  // two hooks blocking one call.
+  const text = reason.startsWith(point + ' hook ') ? reason : hookLabel(point, undefined, 'error') + reason
+  return createUserMessage({ content: [{ type: 'text' as const, text }], source: CONTEXT_SOURCE })
+}
+
+/**
+ * The label the reference writes before a Stop hook's reason.
+ *
+ * A Stop deny continues the turn, so its text reads as feedback rather than as an
+ * error. The label stays plain: rule R2 forbids a frame on steering, because a
+ * framed steer is what a recorded transcript treated as third-party metadata.
+ */
+const STOP_FEEDBACK_LABEL = 'Stop hook feedback:\n'
+
+/**
+ * One Stop reason with its label.
+ *
+ * A fallback reason already names its event (`Stop hook kept the turn going`), so
+ * labelling it again would read as two hooks reporting one stop.
+ * @param reason - the hook's own reason text, already resolved.
+ * @returns the labelled reason.
+ */
+function stopFeedbackText(reason: string): string {
+  return reason.startsWith('Stop hook ') ? reason : STOP_FEEDBACK_LABEL + reason
 }
 
 /**

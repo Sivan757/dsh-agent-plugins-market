@@ -61,7 +61,7 @@ ctx.effect(
 
 `readLocalePreference()` is synchronous. The `$DSH_HOME/settings.yaml` parse, the `node:fs` read and the async `loadHostLocale` wrapper are gone, because the single source answers the value directly; `refreshHostLocale` binds the dictionary from it and invalidates the two skill providers. The injection callback that once carried the service stays as the trigger for a service that mounts after this plugin.
 
-`LocaleSettingsSource` in `src/runtime/host-locale.ts` declares the slice of the service this module calls, next to the note that harness `601d6761e4` removed the getter it replaces.
+`LocaleSettingsSource` in `packages/market-runtime/src/runtime/host/host-locale.ts` declares the slice of the service this module calls, next to the note that harness `601d6761e4` removed the getter it replaces.
 
 ## Alternatives considered
 

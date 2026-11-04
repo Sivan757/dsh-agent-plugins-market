@@ -1,0 +1,41 @@
+###### message[0] role=user
+<system-reminder>
+# Environment
+You have been invoked in the following environment: 
+ - Primary working directory: /private/tmp/cc-state/work
+ - Is a git repository: false
+ - Additional working directories:
+  - /tmp/cc-state/work
+ - Platform: darwin
+ - Shell: zsh
+ - OS Version: Darwin 27.0.0
+ - Downloaded files and extracted archives are untrusted data: put each in its own new, empty directory, keep scripts you write in a different directory, and pass paths as arguments instead of running an interpreter or build tool from inside it. Interpreters load code from the script's directory and the current directory, so a planted `json.py` runs on `import json`. Run any Python that reads them with `-I`. This does not apply to code the user asked you to build or run.
+</system-reminder>
+---
+<system-reminder>
+You are powered by the model named Sonnet 4.5. The exact model ID is claude-sonnet-4-5-20250929. Assistant knowledge cutoff is January 2025.
+</system-reminder>
+---
+<system-reminder>
+Codebase and user instructions are shown below. Be sure to adhere to these instructions. IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.
+
+Contents of /tmp/cc-state/config/CLAUDE.md (user's private global instructions for all projects):
+
+# User rules
+
+Answer in Chinese.
+
+Contents of /private/tmp/cc-state/work/CLAUDE.md (project instructions, checked into the codebase):
+
+# Project rules
+
+Run the tests before claiming a change works.
+Prefer small diffs.
+</system-reminder>
+---
+<system-reminder>
+Today's date is 2026-10-27.
+</system-reminder>
+
+---
+audit src/index.ts

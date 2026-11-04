@@ -20,7 +20,7 @@ import { qualifiedSuiteId, suiteDataDir } from '../../../../market-catalog/src/i
 import { expandPluginPaths, pluginRootOf } from '../../../../market-catalog/src/index.js'
 import type { Suite, SuiteMarkdownResource } from '../../../../market-contracts/src/model/types.js'
 import { defaultMarkdownResources, resourceCommandName, resourceText } from '../../../../market-catalog/src/index.js'
-import { parseCommandResource, readCommands, type CommandSpec } from '../../application/command-resources.js'
+import { forwardCommandText, parseCommandResource, readCommands, type CommandSpec } from '../../application/command-resources.js'
 export { readCommands } from '../../application/command-resources.js'
 import { bindHostLocale, type HostTranslate } from '../host/host-locale.js'
 import { expandCommandArguments } from '../../application/command-arguments.js'
@@ -244,7 +244,7 @@ export class CommandMountRegistry {
             if (shell === undefined) {
               agent.followup(
                 createUserMessage({
-                  content: [{ type: 'text', text: body }],
+                  content: [{ type: 'text', text: forwardCommandText(name, body, invocation.rawInput) }],
                   source: pluginMarketSource()
                 })
               )
@@ -261,7 +261,7 @@ export class CommandMountRegistry {
             }
             agent.followup(
               createUserMessage({
-                content: [{ type: 'text', text }],
+                content: [{ type: 'text', text: forwardCommandText(name, text, invocation.rawInput) }],
                 source: pluginMarketSource()
               })
             )

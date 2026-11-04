@@ -5,7 +5,7 @@
  * @module client/ui/UserEntryDetail
  */
 import { createElement as h, useEffect, useRef, useState, type ReactNode } from 'react'
-import { StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, StateDot, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import { DetailModal } from './DetailModal.js'
 import { DocumentTranslationView } from './DocumentTranslation.js'
 import { DetailRow, DetailRows, kvCell } from './DetailRows.js'
@@ -28,6 +28,12 @@ export interface UserEntryDetailProps {
   /** The panel's text view, and the switch that drives it. */
   showOriginal?: boolean
   onClose: () => void
+  /**
+   * Removes this entry's file. Offered only for a user-authored entry, and only
+   * here: the card's click opens this dialog, and the one irreversible action
+   * waits one step inside it behind the panel's confirmation.
+   */
+  onDelete?: () => void
 }
 
 /** The entry's document, its overview, and its metadata. */
@@ -125,7 +131,22 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
           entry.suiteName === undefined ? null : h(Tag, { tone: 'quiet' }, entry.suiteName)
         ),
         h('p', { className: css.heroMono }, entry.path)
-      )
+      ),
+      // The one destructive action sits with the facts it deletes, not on the
+      // card that opened this dialog.
+      props.onDelete === undefined
+        ? null
+        : h(
+            Button,
+            {
+              variant: 'ghost',
+              size: 'sm',
+              'aria-label': t('panelDelete'),
+              title: t('panelDeleteTitle', { name: entry.name }),
+              onClick: props.onDelete
+            },
+            t('panelDelete')
+          )
     ),
     h(
       'div',

@@ -13,7 +13,8 @@
  * self-contained: suites' MCP servers mount through the market's own bridge
  * plugin on the host `tools` registry.
  */
-import { createSessionExtensions } from './session-extension.js'
+import { createSessionExtensions, type PromptLayerPorts } from './session-extension.js'
+import { readInstructions } from './application/instructions.js'
 import { type Context, type Volatile } from '@deepseek-ai/cordis'
 import type {} from '@deepseek-ai/cosmokit'
 import type { SkillProviderControl } from '@deepseek-ai/dsh-skill'
@@ -23,12 +24,13 @@ import type { DownloadRegionSetting } from '../../market-contracts/src/contracts
 import { Catalog } from './application/catalog.js'
 import type { CatalogPortsOverride } from '../../market-contracts/src/ports/ports.js'
 import { resolveSwitchSettleMs, settlesWithin } from '../../market-catalog/src/index.js'
+import { resolveInventoryRetry } from '../../market-runtime/src/index.js'
 import { RuntimeReconciler } from '../../market-runtime/src/index.js'
 import { ReconcileScheduler } from '../../market-runtime/src/index.js'
 import { MarketSettingsNamespace } from './platform/settings-namespace.js'
 import { SurfaceToggleService } from '../../market-runtime/src/index.js'
 import { ALL_SURFACES_ON } from '../../market-contracts/src/contracts/surface-toggles.js'
-import { deleteMcpAuthGrant } from '../../market-mcp/src/index.js'
+import { deleteMcpAuthGrant, mcpConnectionSnapshot } from '../../market-mcp/src/index.js'
 import { inspectToolRegistry, toolsServiceOf } from '../../market-runtime/src/index.js'
 import { createLlmTranslator } from '../../market-translation/src/index.js'
 import { createTranslationProviders } from '../../market-translation/src/index.js'
@@ -47,7 +49,15 @@ import { mountSuiteRoutes } from './routes.js'
 import { mountResourceRoutes } from './routes-resources.js'
 import { mountTabLayoutRoutes } from './routes-tab-layout.js'
 import { mountInstructionRoutes } from './routes-instructions.js'
-import { resolveInstructionLimits } from './application/instructions.js'
+import { INSTRUCTION_LIMITS } from './application/instructions.js'
+import { mountOutputStyleRoutes } from './routes-output-styles.js'
+import { mountAiDraftRoutes } from './routes-ai.js'
+import { createAiPresetService } from './application/ai-preset.js'
+import { createAiDiagnoseService } from './application/ai-diagnose.js'
+import { mountUserHooksRoutes } from './routes-user-hooks.js'
+import { createLlmDraftPort } from './platform/llm-draft.js'
+import { createOutputStyleSuitePort } from './application/output-styles-suites.js'
+import { OutputStyleService, mountOutputStyleSection } from '../../market-runtime/src/index.js'
 import { ResourceFilterService } from '../../market-runtime/src/index.js'
 import { TabLayoutService } from '../../market-runtime/src/index.js'
 import { loadLspServers } from '../../market-lsp/src/index.js'
@@ -104,6 +114,14 @@ export interface Config {
    * status read being immediately accurate for never waiting on a slow server.
    */
   switchSettleMs?: number
+  /**
+   * How often one session's extension inventory is re-read after a failed or
+   * postponed catalog read, in milliseconds. `baseMs` is the first delay and
+   * `maxMs` is the ceiling the doubling delay settles at. The retry never stops
+   * while the session is denied, because a schedule that gave up would turn a
+   * transient failure into a permanent denial. Defaults: 200 and 60000.
+   */
+  inventoryRetry?: { baseMs?: number; maxMs?: number }
   /** MCP mount backend switch; updated live through the host settings service. */
   mcpEnhanced: Volatile<boolean | undefined>
   /** Project-layout discovery switch; updated live through the host settings service. */
@@ -118,19 +136,6 @@ export interface Config {
   translationEnabled: Volatile<boolean | undefined>
   /** Agent preset manager switch; updated live through the host settings service. */
   agentPresetsEnabled: Volatile<boolean | undefined>
-  /**
-   * Byte cap on the whole workspace instruction baseline the instructions page
-   * reports. Defaults to 65536, the host loader's own default: keep the two
-   * equal, or the page would describe a budget the model does not get. `0`
-   * disables instruction loading, exactly as the host row's `maxBytes` does.
-   */
-  instructionMaxBytes?: number
-  /**
-   * Byte cap on one instruction file. Defaults to 1048576, the host loader's
-   * own default; a larger file never loads. Keep equal to the host
-   * `agent-instructions` row's `maxSourceBytes`.
-   */
-  instructionMaxSourceBytes?: number
 }
 
 /**
@@ -138,31 +143,6 @@ export interface Config {
  * the `dsh-agent-plugins-market` settings namespace (the Plugins panel's
  * configuration page reads it), while the startup fields stay plain.
  */
-/** The schema's input face: every field optional, exactly what a profile patch may carry. */
-export interface ConfigInput {
-  userRoot?: string | null
-  dataRoot?: string | null
-  sources?: unknown
-  git?: {
-    proxy?: string | null
-    insteadOf?: Record<string, unknown>
-    timeoutMs?: number | null
-    cloneRetry?: boolean | null
-    fallbackTarball?: boolean | null
-    allowHttpArchives?: boolean | null
-  }
-  switchSettleMs?: number | null
-  mcpEnhanced?: boolean | null
-  scanProjectLayouts?: boolean | null
-  downloadRegion?: 'auto' | 'global' | 'china' | null
-  feedbackEnabled?: boolean | null
-  autoUpdateSources?: boolean | null
-  translationEnabled?: boolean | null
-  agentPresetsEnabled?: boolean | null
-  instructionMaxBytes?: number | null
-  instructionMaxSourceBytes?: number | null
-}
-
 export const Config = z.object({
   userRoot: z.union([z.string(), z.const(undefined)]),
   dataRoot: z.union([z.string(), z.const(undefined)]),
@@ -176,15 +156,20 @@ export const Config = z.object({
     allowHttpArchives: z.boolean()
   }),
   switchSettleMs: z.union([z.natural(), z.const(undefined)]),
+  inventoryRetry: z.union([
+    z.object({
+      baseMs: z.union([z.natural(), z.const(undefined)]),
+      maxMs: z.union([z.natural(), z.const(undefined)])
+    }),
+    z.const(undefined)
+  ]),
   mcpEnhanced: MarketSettingsFields.mcpEnhanced.volatile(),
   scanProjectLayouts: MarketSettingsFields.scanProjectLayouts.volatile(),
   downloadRegion: MarketSettingsFields.downloadRegion.volatile(),
   feedbackEnabled: MarketSettingsFields.feedbackEnabled.volatile(),
   autoUpdateSources: MarketSettingsFields.autoUpdateSources.volatile(),
   translationEnabled: MarketSettingsFields.translationEnabled.volatile(),
-  agentPresetsEnabled: MarketSettingsFields.agentPresetsEnabled.volatile(),
-  instructionMaxBytes: z.union([z.natural(), z.const(undefined)]),
-  instructionMaxSourceBytes: z.union([z.natural(), z.const(undefined)])
+  agentPresetsEnabled: MarketSettingsFields.agentPresetsEnabled.volatile()
 })
 
 const undefinedRef = { get: () => undefined as never }
@@ -206,10 +191,16 @@ export async function apply(
   // One explicit resolve step, so a malformed budget fails here rather than
   // turning into an accidental endless wait at the first switch.
   const switchSettleMs = resolveSwitchSettleMs(config.switchSettleMs)
+  // The same rule as the switch budget: a deployment-varying schedule is a
+  // resolved configuration value, so a bad one fails at load.
+  const inventoryRetry = resolveInventoryRetry({
+    ...(config.inventoryRetry?.baseMs == null ? {} : { baseMs: config.inventoryRetry.baseMs }),
+    ...(config.inventoryRetry?.maxMs == null ? {} : { maxMs: config.inventoryRetry.maxMs })
+  })
   // The instruction page reads and rewrites the same AGENTS.md chain the host
-  // injects, so its two byte caps must be the values that chain runs under.
-  // Resolved once, validated here: a typo fails at load, not at the first read.
-  const instructionLimits = resolveInstructionLimits(config)
+  // injects. Its two byte caps are the host's own shipped values, reported
+  // rather than configured: see INSTRUCTION_LIMITS.
+  const instructionLimits = INSTRUCTION_LIMITS
   const agentsRoot = resolveAgentsRoot()
   const migration = await migratePluginStorage(config)
   if (migration.conflicts.length > 0) throw new Error(`Plugin storage migration conflicts (original files retained): ${migration.conflicts.join(', ')}`)
@@ -261,7 +252,7 @@ export async function apply(
   )
 
   const runtime = new RuntimeReconciler(ctx, dataRoot, createRuntimeMounts(ctx, dataRoot), key => hostLocale.t(key))
-  const sessionExtensions = createSessionExtensions({ ctx, dataRoot, agentsRoot, runtime, hostLocale })
+  const sessionExtensions = createSessionExtensions({ ctx, dataRoot, agentsRoot, runtime, hostLocale, inventoryRetry })
 
   // User panel stores (skills / commands / agent personas) and their runtime
   // contributions: one extra skill provider plus one command mount registry.
@@ -378,9 +369,15 @@ export async function apply(
     // Read per call: the set is rebuilt by every mount pass, so a snapshot here
     // would report the demand of whichever pass happened to run at apply time.
     mcpDemandedMounts: () => runtime.demandedMcpMounts(),
+    // Live phases published by the bridge supervisors: read per call for the
+    // same reason as the demand list, since a reconnect rewrites the row on
+    // every backoff edge.
+    mcpConnections: () => mcpConnectionSnapshot(),
     lspStatusSource: runtime.lsp,
+    // One row's restart names its mount; no id means every live mount, which is
+    // the recovery path when the caller cannot name a single server.
+    lspRestart: id => (id === undefined ? runtime.forceLspRemountAll() : runtime.forceLspRemount(id)),
     mcpBackend: () => settings.backend(),
-    setMcpBackend: backend => settings.setBackend(backend),
     downloadRegion: () => settings.downloadRegion(),
     localePreference: () => localePreference,
     // Read per call, like every port here: the registries change on each
@@ -406,9 +403,23 @@ export async function apply(
 
   const catalog = new Catalog({ userRoot, dataRoot, agentsRoot, onChanged, ports, switchSettleMs, ...(config.git === undefined ? {} : { git: config.git }) })
   await catalog.load()
+  // The output-style selection is the third document of the tab-layout shape and
+  // owns its own file for the same reason. Its suite rows are the Markdown files the
+  // enabled suites ship, so the catalog arrives as a port the composition root
+  // supplies. The initial read is the process workspace; each agent's own workspace is
+  // read when that agent is created.
+  const outputStyles = new OutputStyleService(dataRoot, agentsRoot, createOutputStyleSuitePort({ catalog }))
+  void outputStyles.refresh(process.cwd()).catch(error => ctx.logger.warn('workspace output style: ' + String(error)))
   const readUserDeclarations = async (): Promise<ExtensionSuiteCandidate[]> => {
     const [installed, direct] = await Promise.all([catalog.installedSuiteDeclarations(), Promise.all([loadUserMcpSuite(agentsRoot), loadUserHooksSuite(agentsRoot)])])
     return [...installed, ...(await readExtensionSuiteDeclarations(direct))]
+  }
+  // The prompt layer the preset manager lists: an output style is a choice a preset can
+  // carry, and the instruction chain is what it can only read.
+  const promptLayer: PromptLayerPorts = {
+    outputStyles: workspace => outputStyles.payload(workspace),
+    selectStyle: (workspace, styleId) => outputStyles.select(workspace, styleId),
+    instructions: workspace => readInstructions(workspace, instructionLimits)
   }
   // Translation is lazy by design: nothing is translated until a panel read
   // asks for it, so a deployment that never opens the market pays nothing. The
@@ -431,7 +442,15 @@ export async function apply(
   // that has it: a profile without the service never loads presets at all,
   // rather than half-loading and failing every session. The routes mount from a
   // scope nested in that one, so the service exists before the first request.
-  sessionExtensions.mount({ catalog, panels, resources, readUserDeclarations })
+  sessionExtensions.mount({
+    catalog,
+    panels,
+    resources,
+    readUserDeclarations,
+    // Built below this call, so the getter is what lets the inventory read them at
+    // session time rather than at construction time.
+    promptLayer: () => promptLayer
+  })
   runtime.setMcpOverridesProvider(async () => catalog.allMcpOverrides((await readUserDeclarations()).map(candidate => candidate.suite)))
   runtime.lsp.setDirectProvider(async () => {
     // An empty table is the lsp-off state: the seam stays mounted (the plugin
@@ -475,6 +494,14 @@ export async function apply(
     hostCtx.effect(() => mountUnlessAgentTeams(hostCtx, () => mountAgentRoleTool(hostCtx, listRoles)), 'dsh-agent-plugins-market: agent role routing')
   })
 
+  // The output-style section is per agent: a selection belongs to a workspace,
+  // and a child agent can run in a different one. It mounts on the root context
+  // because the events it follows are root events; each registration lands on
+  // the agent's own scope.
+  ctx.inject(['agents', 'systemPrompt'], hostCtx => {
+    hostCtx.effect(() => mountOutputStyleSection(hostCtx, outputStyles), 'dsh-agent-plugins-market: output style section')
+  })
+
   // Coordination also serves native teammates and does not depend on role discovery.
   ctx.inject(['agents', 'agentTeams', 'systemPrompt'], teamCtx => {
     teamCtx.effect(() => mountTeamCoordination(teamCtx), 'dsh-agent-plugins-market: Team coordination')
@@ -496,6 +523,23 @@ export async function apply(
       const disposeInstructions = mountInstructionRoutes(hostCtx, {
         limits: instructionLimits,
         ...(sessionExtensions.session() === undefined ? {} : { session: sessionExtensions.session() })
+      })
+      const disposeOutputStyles = mountOutputStyleRoutes(hostCtx, {
+        service: outputStyles,
+        ...(sessionExtensions.session() === undefined ? {} : { session: sessionExtensions.session() })
+      })
+      // The AI draft: one route, one deployment model. The port reads the model at call
+      // time, so a deployment that configures one later starts drafting without a restart.
+      const draftPort = createLlmDraftPort(hostCtx)
+      // The reader's own hook document: draft an entry, append an entry, never rewrite the rest.
+      const disposeUserHooks = mountUserHooksRoutes(hostCtx, { agentsRoot, port: draftPort, logger: ctx.logger })
+      const disposeAiDraft = mountAiDraftRoutes(hostCtx, {
+        presets: createAiPresetService(draftPort),
+        diagnose: createAiDiagnoseService(draftPort),
+        // The catalogue is already the server's; a recommendation reads it instead of asking the
+        // browser to post a thousand ids.
+        catalogue: { overview: () => catalog.overview() },
+        logger: ctx.logger
       })
       const disposeResources = mountResourceRoutes(hostCtx, {
         catalog,
@@ -529,6 +573,9 @@ export async function apply(
         disposeSuite?.()
         disposeTabLayout()
         disposeInstructions()
+        disposeOutputStyles()
+        disposeAiDraft()
+        disposeUserHooks()
         disposeResources()
       }
     }, 'dsh-agent-plugins-market: http routes')

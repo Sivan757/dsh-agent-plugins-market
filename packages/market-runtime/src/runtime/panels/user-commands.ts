@@ -15,6 +15,7 @@ import type { Context } from '@deepseek-ai/cordis'
 import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
 import { commandCallName } from '../../../../market-contracts/src/model/command-names.js'
 import type { HostTranslate } from '../host/host-locale.js'
+import { forwardCommandText } from '../../application/command-resources.js'
 import { USER_ENTRY_PATH, parseFrontmatterRecord } from '../../application/panels/user-store.js'
 import type { UserPanelStore } from './user-panels.js'
 import { pluginMarketSource } from '../../../../market-contracts/src/host/plugin-message-source.js'
@@ -160,7 +161,7 @@ export class UserCommandMountRegistry {
               if (this.selectionPolicy?.(key) === false) return { kind: 'error', text: this.t('commandNotSelected', { command: name }) }
               agent.followup(
                 createUserMessage({
-                  content: [{ type: 'text', text: body.replaceAll('$ARGUMENTS', invocation.rawInput.trim()) }],
+                  content: [{ type: 'text', text: forwardCommandText(name, body.replaceAll('$ARGUMENTS', invocation.rawInput.trim()), invocation.rawInput) }],
                   source: pluginMarketSource()
                 })
               )

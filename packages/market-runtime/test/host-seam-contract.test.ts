@@ -9,7 +9,6 @@
 import { describe, expect, it } from 'vitest'
 import { SubagentRuntime } from '@deepseek-ai/dsh-subagent'
 import {
-  SEAM_ADAPTERS,
   SEAM_MEMBER_ALTERNATIVES,
   drainContinuableChildIds,
   registerSubagentProvider,
@@ -20,6 +19,19 @@ import {
 
 const members = new Set(Object.getOwnPropertyNames(SubagentRuntime.prototype))
 const operations = Object.keys(SEAM_MEMBER_ALTERNATIVES) as SeamOperation[]
+/**
+ * One adapter per table operation, named the way production names it.
+ *
+ * The `satisfies` is this test's own assertion: `tsconfig.test.json` runs under
+ * `pnpm run typecheck`, so a `SeamOperation` added to the table without an
+ * adapter here fails the gate rather than shipping a seam that cannot dispatch.
+ */
+const adapters = {
+  oneShotChild: startOneShotChild,
+  continuableChild: startContinuableChild,
+  drainChildren: drainContinuableChildIds,
+  registerProvider: registerSubagentProvider
+} satisfies Record<SeamOperation, unknown>
 const signal = new AbortController().signal
 const input = { provider: 'spawn', label: 'reviewer', request: {}, signal }
 
@@ -38,8 +50,10 @@ describe('host subagent member contract', () => {
     expect(published).toEqual([])
   })
 
-  it('has one guarded adapter for every table operation', () => {
-    for (const operation of operations) expect(typeof SEAM_ADAPTERS[operation], operation).toBe('function')
+  it('covers every table operation with one adapter', () => {
+    // A runtime twin of the `satisfies` above, so the pairing still holds if the
+    // map is ever typed more loosely.
+    expect(Object.keys(adapters).sort()).toEqual([...operations].sort())
   })
 
   it('refuses a host that lacks every spelling of a driven operation', async () => {

@@ -15,6 +15,11 @@ export const MARKET_ROUTES = {
   lspServers: `${MARKET_API_PREFIX}lsp-servers`,
   addLspServer: `${MARKET_API_PREFIX}lsp-servers/add`,
   migrateLspSeam: `${MARKET_API_PREFIX}lsp-servers/migrate-seam`,
+  /**
+   * Rebuild every live language-server mount (POST). The seam exposes no death
+   * signal, so this is the only way to replace a provider that died in place.
+   */
+  lspRestart: `${MARKET_API_PREFIX}lsp-restart`,
   serverConfig: `${MARKET_API_PREFIX}server-config`,
   saveServerConfig: `${MARKET_API_PREFIX}server-config/save`,
   progress: `${MARKET_API_PREFIX}progress`,
@@ -51,7 +56,6 @@ export const MARKET_ROUTES = {
   mcpRetry: `${MARKET_API_PREFIX}mcp-retry`,
   mcpReauthorize: `${MARKET_API_PREFIX}mcp-reauthorize`,
   mcpBackend: `${MARKET_API_PREFIX}mcp-backend`,
-  setMcpBackend: `${MARKET_API_PREFIX}set-mcp-backend`,
   userPanel: `${MARKET_API_PREFIX}user-panel`,
   menuRowFaces: `${MARKET_API_PREFIX}menu-row-faces`,
   clearTranslations: `${MARKET_API_PREFIX}translations/clear`,
@@ -60,7 +64,9 @@ export const MARKET_ROUTES = {
    * (POST). The document is per workspace, so no path or body carries one.
    */
   tabLayout: `${MARKET_API_PREFIX}tab-layout`,
-  setTabLayout: `${MARKET_API_PREFIX}tab-layout/set`
+  setTabLayout: `${MARKET_API_PREFIX}tab-layout/set`,
+  /** Reorder the row without touching the stow list. The body carries `order`. */
+  setTabOrder: `${MARKET_API_PREFIX}tab-layout/order`
 } as const
 
 /** One timeout's three layers: the user's value, the suite declaration, and the value in force. */

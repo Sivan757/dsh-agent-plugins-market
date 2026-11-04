@@ -1,4 +1,4 @@
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { describe, expect, it } from 'vitest'
@@ -13,6 +13,28 @@ describe('cwd resolution edges', () => {
     await mkdir(join(repo, 'packages', 'app', 'src'), { recursive: true })
     const deepCwd = join(repo, 'packages', 'app', 'src')
     expect(await resolveProjectRoot(deepCwd)).toBe(join(repo, '.dsh', 'agent-plugins'))
+  })
+
+  // A permission bit is the one probe failure a fixture can produce on purpose,
+  // and it only exists where POSIX modes do: on Windows chmod toggles the
+  // read-only attribute, and a root user ignores the bits entirely.
+  const permissionBits = process.platform !== 'win32' && process.getuid?.() !== 0
+
+  it.skipIf(!permissionBits)('refuses to place the project root above an ancestor it cannot read', async () => {
+    const repo = await mkdtemp(join(tmpdir(), 'dsh-unreadable-'))
+    await mkdir(join(repo, '.git'), { recursive: true })
+    await mkdir(join(repo, '.dsh', 'agent-plugins'), { recursive: true })
+    await mkdir(join(repo, 'mid', 'deep'), { recursive: true })
+    await chmod(join(repo, 'mid'), 0o000)
+    try {
+      // A probe that swallowed the refusal would walk past `mid`, find the repo
+      // marker, and hand this workspace that repository's project dimension:
+      // every suite declared there would read as this session's own.
+      await expect(resolveProjectRoot(join(repo, 'mid', 'deep'))).rejects.toMatchObject({ code: 'EACCES' })
+    } finally {
+      await chmod(join(repo, 'mid'), 0o755)
+    }
+    await rm(repo, { recursive: true, force: true })
   })
 
   it('reads a home cwd as no project rather than as a second view of the user dimension', async () => {

@@ -4,7 +4,7 @@ import type { ExtensionDetail, ExtensionHookRunResult } from '../../../market-co
 import type { Translate } from '../i18n.js'
 import { runExtensionHook } from '../api.js'
 import { DetailModal } from './DetailModal.js'
-import { DetailRow, DetailRows } from './DetailRows.js'
+import { DetailRow, DetailRows, KvGrid } from './DetailRows.js'
 import { jsonTreeLabels } from './json-tree-labels.js'
 import { clientErrorMessage } from './error-message.js'
 import css from './hook-detail.module.css'
@@ -68,25 +68,25 @@ export function HookDetailModal({ detail, t, onClose }: { detail: Extract<Extens
       ),
       h(
         'section',
-        { className: css.section },
-        h('h3', { className: css.sectionTitle }, t('hookDetailOverview')),
-        h(
-          'dl',
-          { className: panel.kvGrid },
-          cell(t('hookDetailSource'), detail.provenance),
-          cell(t('hookDetailEvent'), detail.event),
-          cell(t('hookDetailMatcher'), detail.matcher ?? '*'),
-          cell(t('hookDetailTimeout'), detail.timeoutSec === undefined ? t('hookRunTimeoutInherited') : t('hookDetailSeconds', { count: detail.timeoutSec })),
-          cell(t('hookDetailPosition'), detail.hookIndex === undefined ? '—' : t('hookDetailPositionValue', { index: detail.hookIndex + 1 })),
-          cell(t('hookDetailKind'), t('hookDetailKindCommand')),
-          cell(t('hookDetailSuite'), detail.sourceId),
-          cell(t('hookDetailRunDir'), t('hookDetailRunDirHome'))
-        )
+        { className: panel.block },
+        h('h3', { className: panel.blockHead }, t('hookDetailOverview')),
+        h(KvGrid, {
+          cells: [
+            cell(t('hookDetailSource'), detail.provenance),
+            cell(t('hookDetailEvent'), detail.event),
+            cell(t('hookDetailMatcher'), detail.matcher ?? '*'),
+            cell(t('hookDetailTimeout'), detail.timeoutSec === undefined ? t('hookRunTimeoutInherited') : t('hookDetailSeconds', { count: detail.timeoutSec })),
+            cell(t('hookDetailPosition'), detail.hookIndex === undefined ? '—' : t('hookDetailPositionValue', { index: detail.hookIndex + 1 })),
+            cell(t('hookDetailKind'), t('hookDetailKindCommand')),
+            cell(t('hookDetailSuite'), detail.sourceId),
+            cell(t('hookDetailRunDir'), t('hookDetailRunDirHome'))
+          ]
+        })
       ),
       h(
         'section',
-        { className: css.section },
-        h('h3', { className: css.sectionTitle }, t('hookDetailDeclaration')),
+        { className: panel.block },
+        h('h3', { className: panel.blockHead }, t('hookDetailDeclaration')),
         // One declaration is one record, so it reads as one row: the event names
         // it, the command previews it, and the row opens on the JSON itself.
         h(
@@ -103,15 +103,15 @@ export function HookDetailModal({ detail, t, onClose }: { detail: Extract<Extens
       ),
       detail.diagnostic === undefined
         ? null
-        : h('section', { className: css.section }, h('h3', { className: css.sectionTitle }, t('hookDetailDiagnostic')), h('p', { className: css.status }, detail.diagnostic)),
+        : h('section', { className: panel.block }, h('h3', { className: panel.blockHead }, t('hookDetailDiagnostic')), h('p', { className: css.status }, detail.diagnostic)),
       runnable
         ? h(
             'section',
-            { className: css.section },
+            { className: panel.block },
             h(
               'div',
               { className: css.sectionHead },
-              h('h3', { className: css.sectionTitle }, t('hookDetailRunResult')),
+              h('h3', { className: panel.blockHead }, t('hookDetailRunResult')),
               h(Button, { variant: 'primary', disabled: run?.status === 'running', onClick: start }, t('hookRunStart'))
             ),
             run === undefined ? h('p', { className: css.status }, t('hookRunIdle')) : resultBlock(run, t)
