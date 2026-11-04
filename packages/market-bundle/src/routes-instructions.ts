@@ -18,7 +18,7 @@ import { isAbsolute } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { INSTRUCTION_ROUTES } from '../../market-contracts/src/contracts/instructions.js'
 import type { SuiteRouteSessionResolver } from './routes.js'
-import { readInstructions, saveInstruction, deleteInstruction, type InstructionLimits } from './application/instructions.js'
+import { readInstructions, saveInstruction, deleteInstruction, userScopeDirectory, type InstructionLimits } from './application/instructions.js'
 
 interface WebServerService {
   register(route: { kind: 'exact' | 'prefix'; path: string; handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void> }): () => void
@@ -78,17 +78,21 @@ export function mountInstructionRoutes(hostCtx: unknown, deps: InstructionRouteD
 
   /**
    * The directory one request answers for: the named session's workspace, or
-   * the process working directory when no session is named. An unknown session
-   * is a diagnostic, never a quiet fallback to another directory.
+   * the user's own Agent root when no session is named.
+   *
+   * The second case is the settings page: it belongs to no workspace, so it must not answer for
+   * the directory the harness happens to be started in. Reading the user root keeps the page to
+   * the user-level half of the chain instead of reporting a project the reader never chose.
+   * An unknown session is a diagnostic, never a quiet fallback to another directory.
    */
-  const cwdOf = (request: IncomingMessage): { cwd: string } | { error: string } => {
+  const cwdOf = (request: IncomingMessage): { cwd: string; scope: 'all' | 'user' } | { error: string } => {
     const sessionId = queryOf(request).get('sessionId')
-    if (sessionId === null || sessionId === '') return { cwd: process.cwd() }
+    if (sessionId === null || sessionId === '') return { cwd: userScopeDirectory(), scope: 'user' }
     const agent = deps.session?.agent(sessionId)
     if (agent === undefined) return { error: `no live session "${sessionId}"` }
     const cwd = agent.session.header.cwd
     if (typeof cwd !== 'string' || !isAbsolute(cwd)) return { error: `session "${sessionId}" has no absolute workspace` }
-    return { cwd }
+    return { cwd, scope: 'all' }
   }
 
   get(INSTRUCTION_ROUTES.read, async (request, response) => {
@@ -97,7 +101,7 @@ export function mountInstructionRoutes(hostCtx: unknown, deps: InstructionRouteD
       sendJson(response, 404, { ok: false, error: resolved.error })
       return
     }
-    sendJson(response, 200, await readInstructions(resolved.cwd, deps.limits))
+    sendJson(response, 200, await readInstructions(resolved.cwd, deps.limits, resolved.scope))
   })
 
   post(INSTRUCTION_ROUTES.save, async (body, request) => {

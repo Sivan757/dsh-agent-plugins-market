@@ -112,6 +112,19 @@ function readHomes(): InstructionHomes {
   return { dshHome, agentsHome, dshLabel: dshHomeDisplay(dshHome), agentsLabel }
 }
 
+/**
+ * The directory that reads as "no project": the user's own Agent root.
+ *
+ * A page with no session has no workspace to answer for, and the process directory is not a
+ * workspace either - it is whatever directory the harness was started in. Reading the user root
+ * keeps such a page to the user-level half of the chain, where its files actually live.
+ *
+ * @returns the absolute Agents home directory.
+ */
+export function userScopeDirectory(): string {
+  return resolveAgentsRoot()
+}
+
 /** One candidate the page can act on. */
 interface CandidateTarget {
   scope: InstructionScope
@@ -325,7 +338,12 @@ function discoveryOptions(context: ChainContext): Parameters<HostInstructions['d
  * @param limits - the byte caps in force.
  * @returns the rows, the rendered baseline, and the budget it ran under.
  */
-export async function readInstructions(cwd: string, limits: InstructionLimits): Promise<InstructionsPayload> {
+export async function readInstructions(
+  cwd: string,
+  limits: InstructionLimits,
+  /** `user` answers for the user level only: no project marker walk, no project rows. */
+  scope: 'all' | 'user' = 'all'
+): Promise<InstructionsPayload> {
   const hosts = await loadHost()
   const homes = readHomes()
   const base = { cwd: resolve(cwd), projectRoot: resolve(cwd), budget: limits.maxBytes, maxSourceBytes: limits.maxSourceBytes, total: 0 }
@@ -342,7 +360,9 @@ export async function readInstructions(cwd: string, limits: InstructionLimits): 
   let discovered: Awaited<ReturnType<HostInstructions['discoverBaselineInstructionFiles']>>
   let rendered: Awaited<ReturnType<HostInstructions['loadBaselineInstructions']>>
   try {
-    const projectRoot = await projectRootOf(cwd)
+    // A user-only read anchors the project root at the caller's directory, so the host never
+    // walks a marker above it and no workspace file can enter the chain.
+    const projectRoot = scope === 'user' ? resolve(cwd) : await projectRootOf(cwd)
     context = chainContext(resolve(cwd), limits, hosts, projectRoot, homes)
     discovered = await hosts.discoverBaselineInstructionFiles(discoveryOptions(context))
     rendered = await hosts.loadBaselineInstructions({ ...discoveryOptions(context), maxBytes: limits.maxBytes, maxSourceBytes: limits.maxSourceBytes })
@@ -400,7 +420,9 @@ export async function readInstructions(cwd: string, limits: InstructionLimits): 
     available: true,
     projectRoot: context.projectRoot,
     total: Buffer.byteLength(text, 'utf8'),
-    rows,
+    // A user-only read speaks for the user level: a page that belongs to no workspace must not
+    // offer to create `~/.agents/AGENTS.md` as a "project" file either.
+    rows: scope === 'user' ? rows.filter(row => row.scope !== 'project') : rows,
     rendered: { text, omitted: rendered?.omitted ?? [], truncated: rendered?.truncated ?? [] }
   }
 }

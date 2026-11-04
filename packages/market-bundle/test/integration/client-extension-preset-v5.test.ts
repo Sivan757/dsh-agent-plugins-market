@@ -390,6 +390,14 @@ it('classifies project-scan rows into their surface tabs and renders no local ta
     expect(cardIds()).not.toContain(hooks.id)
   }
 })
+it('lists every face, whatever the workspace stows', () => {
+  // A preset covers every face, so "stowed in the workspace tab row" must not hide a face from
+  // the preset editor: this used to go through visibleTabs, which filtered stowed faces out.
+  const source = readFileSync('packages/market-ui/src/features/extension-presets/ResourceList.tsx', 'utf8')
+  expect(source).toContain('const orderedFaces = layout.order')
+  expect(source).not.toContain('visibleTabs(')
+})
+
 it('keeps frame geometry but delegates card layout and typography to shared styles', () => {
   const css = readFileSync('packages/market-ui/src/features/extension-presets/presets.module.css', 'utf8')
   expect(css).toContain('width: 800px')

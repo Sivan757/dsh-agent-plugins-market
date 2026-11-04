@@ -13,7 +13,7 @@
  * changes, and the row says so instead of replaying text nobody re-approved.
  * @module features/output-styles/OutputStylesPanel
  */
-import { useEffect, useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
 import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { OutputStyleRow, OutputStylesPayload } from '../../api.js'
@@ -59,11 +59,39 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
   const [detail, setDetail] = useState<OutputStyleRow | undefined>(undefined)
   const [showOriginal, setShowOriginal] = useState(false)
 
+  // One automatic capture pass per mounted panel: a suite style's text is produced by its own
+  // SessionStart hook, so the page runs that hook once instead of asking the reader to press a
+  // button per row. A failure leaves the row with its action, which is then a retry.
+  const captured = useRef(false)
+
   const refresh = (): void => {
     setLoading(true)
     setError(undefined)
     fetchOutputStyles(sessionId)
-      .then(setPayload)
+      .then(next => {
+        setPayload(next)
+        if (captured.current) return
+        const missing = next.styles.filter(row => suiteKeyOf(row) !== undefined && row.capture === 'missing')
+        if (missing.length === 0) {
+          captured.current = true
+          return
+        }
+        captured.current = true
+        void (async () => {
+          for (const row of missing) {
+            const key = suiteKeyOf(row)
+            if (key === undefined) continue
+            try {
+              await captureOutputStyle(key, sessionId)
+            } catch {
+              // The row keeps its own action; one suite failing must not stop the others.
+            }
+          }
+          fetchOutputStyles(sessionId)
+            .then(setPayload)
+            .catch(() => undefined)
+        })()
+      })
       .catch(caught => setError(clientErrorMessage(t, caught)))
       .finally(() => setLoading(false))
   }

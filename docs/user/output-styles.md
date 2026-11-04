@@ -34,9 +34,9 @@ The plugin ships no styles of its own: a style you author is stored as a Markdow
 
 ## Suite styles and the capture
 
-A Claude Code output-style plugin delivers its text by running a program at session start. This plugin does not run that program while you are reading the page. The tab lists the suite, and each row says where it stands — in use, not selected, or not captured — with the action that moves it on: **Capture text** on a row that was never captured, and the switch to choose one. Capture runs the suite's declared SessionStart hook once, in your home directory, under a fixed timeout and output cap. The text it prints is what the prompt receives afterwards.
+A Claude Code output-style plugin delivers its text by running a program at session start. Opening this tab captures that text once, automatically, for every suite style that has not been captured yet: one pass per visit, in your home directory, under a fixed timeout and output cap. A row that was captured still shows where it stands — in use, or not selected — and a failed capture keeps a **Capture text** action that retries.
 
-Capturing is a separate action because running a suite's program is a side effect, and because the text that shapes every answer should be something a person has read first. The preview shows the captured text before the style can be selected.
+The automatic pass only collects text. What enters the prompt is still a decision: the preview shows the captured text, and only the switch puts it in the prompt. Nothing is captured for a style you never look at.
 
 The capture is bound to a fingerprint of the suite's declaration, its version and the hook command. If the suite changes, the row reports the capture as out of date, stops injecting it, and offers to capture again. Text from a version nobody approved never reaches the prompt.
 

@@ -588,7 +588,7 @@ export const zh = {
   instructionsDeleteDesc: '删除这个文件，操作无法撤销。',
   instructionsDeleteAliases: '以下路径指向同一个文件，删除后会一起失效：{paths}',
   instructionsDeleteLink: '这是一个符号链接，删除只移除链接本身，目标文件保留。',
-  instructionsSessionHint: '未指定会话，显示宿主进程工作目录下的链条。',
+  instructionsSessionHint: '设置页不属于任何工作区，只列用户级文件；项目级 AGENTS.md 在会话里按该会话的工作区读取。',
   /* ---- Output styles tab (the injected prompt section) ---- */
   workspaceTabOutputStyles: '输出风格',
   outputStylesSubtitle: '选用的风格会作为系统提示注入。',
@@ -1216,7 +1216,8 @@ export const en: Record<LocaleKey, string> = {
   instructionsDeleteDesc: 'Deletes this file. This cannot be undone.',
   instructionsDeleteAliases: 'These paths resolve to the same file and stop working too: {paths}',
   instructionsDeleteLink: 'This entry is a symbolic link. Deleting it removes only the link and keeps the target file.',
-  instructionsSessionHint: 'No session was named, so this is the chain under the host process working directory.',
+  instructionsSessionHint:
+    'This page belongs to no workspace, so it lists the user-level files only. A project AGENTS.md is read for a session, from that session workspaces directory.',
   /* ---- Output styles tab (the injected prompt section) ---- */
   workspaceTabOutputStyles: 'Output styles',
   outputStylesSubtitle: 'The chosen style is injected as a system prompt.',

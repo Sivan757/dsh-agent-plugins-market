@@ -195,6 +195,27 @@ describe('instruction test harness', () => {
   })
 })
 
+describe('a page with no session', () => {
+  it('reads the user level only, never the directory the harness was started in', async () => {
+    // The settings page belongs to no workspace. It used to answer for `process.cwd()`, which
+    // reported whatever project the harness happened to be started in; the user-level chain is
+    // the only one such a page can speak for.
+    const root = await tree({ '.git/HEAD': 'x\n', 'AGENTS.md': '# Root\n' })
+    const agents = join(root, 'agents')
+    await mkdir(agents, { recursive: true })
+    await writeFile(join(agents, 'AGENTS.md'), '# User level\n', 'utf8')
+    useHomes(join(root, 'home'), agents)
+    const { routes } = mounted({ limits: LIMITS, cwd: root })
+
+    const answer = await get(routes, INSTRUCTION_ROUTES.read)
+    expect(answer.status).toBe(200)
+    expect(answer.body['cwd']).toBe(agents)
+    const scopes = (answer.body['rows'] as Array<{ scope: string }>).map(row => row.scope)
+    expect(scopes).not.toContain('project')
+    expect(scopes).toContain('agents-global')
+  })
+})
+
 describe('instruction chain parity with the host module', () => {
   it('reports the host own chain, order, dedupe and render', async () => {
     const root = await tree({

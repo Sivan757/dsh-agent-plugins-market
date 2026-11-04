@@ -12,7 +12,7 @@ import type { ExtensionTranslate } from './types.js'
 import panel from '../../ui/panel.module.css'
 import workspace from '../../workspace/workspace.module.css'
 import { useTabLayout, type TabLayoutMessages } from '../../workspace/tab-layout-store.js'
-import { visibleTabs, type WorkspaceTabKey } from '../../../../market-contracts/src/contracts/tab-layout.js'
+import type { WorkspaceTabKey } from '../../../../market-contracts/src/contracts/tab-layout.js'
 import { PRESET_FACES, WORKSPACE_TAB_META, workspaceKeyOfFace } from '../../workspace/tab-meta.js'
 import { surfaceProviderCuts, type SurfaceProvider } from '../../ui/surface-facets.js'
 import { buildFaceEntry, type FaceRowFacts } from '../../ui/face-entry.js'
@@ -110,7 +110,11 @@ export function ResourceList({
   const { state: layoutState, move: applyTabMoveTo } = useTabLayout(layoutMessages)
   const layout = layoutState.layout
   // This surface's faces, in the shared order, with the active one always kept.
-  const orderedFaces = visibleTabs(layout.order, layout, TAB_KEY[requestedFace])
+  // A preset covers every face, so the manager lists every face: "stowed in the workspace" is a
+  // display choice about the workspace tab strip, not a statement that the face has nothing to
+  // configure. Stowing it there used to hide its rows from the preset editor too.
+  const orderedFaces = layout.order
+    .slice()
     .map(faceOf)
     .filter((value): value is (typeof faces)[number] => value !== undefined)
   const face = orderedFaces.includes(requestedFace) ? requestedFace : (orderedFaces[0] ?? 'market')

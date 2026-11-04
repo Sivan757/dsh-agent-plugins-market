@@ -138,10 +138,11 @@ export class OutputStyleService {
   /**
    * Capture one suite style's text through its own SessionStart hook.
    *
-   * The page calls this only when a person asks for it. That is the whole reason
-   * the flow is explicit: the text is a suite's process output, capture runs a
-   * program once, and what enters the prompt afterwards is stored text a person
-   * read beforehand.
+   * The page runs this on its own the first time the face is opened, so a reader
+   * who merely looks at the list does not have to press a button per row. The
+   * explicit step moved one place later and stayed a step a person takes: the
+   * captured text is shown in the preview and only a selection puts it in the
+   * prompt. A failed capture leaves the row with its action, which retries.
    * @param workspace - the workspace whose capture record is updated.
    * @param suiteKey - the suite address, `sourceId/suiteId`.
    * @returns the captured text and the fingerprint it is bound to.

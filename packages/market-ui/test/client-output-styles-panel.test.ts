@@ -95,6 +95,13 @@ const button = (label: string, scope: HTMLElement | null = document.body): HTMLB
   [...(scope?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find(node => node.textContent === label) ?? null
 
 describe('output style card actions', () => {
+  it('runs a missing capture on first view, so the page never asks for that click', async () => {
+    // A suite style's text is produced by its own SessionStart hook. The page runs that hook
+    // once on its own; the card only keeps the action as a retry after a failure.
+    await mount()
+    expect(api.captureOutputStyle).toHaveBeenCalledWith('src/teaching', undefined)
+  })
+
   it('names the missing capture on the card and offers the action beside it', async () => {
     // The row says where it stands and what moves it on: an installed suite style looked
     // inert when the only capture control lived inside the row's dialog.
