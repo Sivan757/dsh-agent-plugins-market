@@ -155,6 +155,18 @@ function ledgerRows(text) {
  * @param files - every source file to search.
  * @returns `{ pkg, file, name }` per orphan.
  */
+/**
+ * Escape the characters a regular expression treats as syntax.
+ *
+ * The identifiers here come from source files, so a backslash, a bracket or a dot in an
+ * export name would otherwise change what the pattern matches.
+ * @param text - the literal text to match.
+ * @returns the text with every metacharacter escaped.
+ */
+function escapeRegExp(text) {
+  return text.replace(/[.*+?^$(){}|[\]\\]/g, '\\$&')
+}
+
 function findOrphans(entries, files) {
   const contents = new Map(files.map(file => [file, stripComments(readFileSync(file, 'utf8'))]))
   const orphans = []
@@ -162,7 +174,7 @@ function findOrphans(entries, files) {
     const ownSrc = join(pkgDir, 'src') + sep
     const outside = files.filter(file => file !== entry && !file.startsWith(ownSrc))
     for (const name of [...exportedNames(entry)].sort()) {
-      const word = new RegExp('\\b' + name.replace(/\$/g, '\\$') + '\\b')
+      const word = new RegExp('\\b' + escapeRegExp(name) + '\\b')
       if (outside.some(file => word.test(contents.get(file) ?? ''))) continue
       orphans.push({ pkg: relative(PACKAGES, pkgDir).split(sep).join('/'), file: relative(ROOT, entry), name })
     }
