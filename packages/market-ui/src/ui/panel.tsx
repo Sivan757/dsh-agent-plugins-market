@@ -160,7 +160,6 @@ export function EntryEditorModal(props: {
    * A render prop like `renderFields`, because the draft replaces the editor's own draft
    * text: a node rendered once could not write into it.
    */
-  renderAiSlot?: (text: string, onChange: (text: string) => void) => ReactNode
   onClose: () => void
   onSave: (state: PanelEditorState) => Promise<boolean>
 }): ReactNode {
@@ -231,7 +230,6 @@ export function EntryEditorModal(props: {
               h('label', { className: formCss.field }, h('span', null, props.nameLabel), nameControl),
               props.renderNamePairField(current.text, text => setDraft({ ...current, text }))
             ),
-      props.renderAiSlot?.(current.text, text => setDraft({ ...current, text })),
       props.renderFields?.(current.text, text => setDraft({ ...current, text })),
       // A routing-only editor exposes no document surface at all: the suite owns
       // the body, and the row's label would be a lie without an editor under it.

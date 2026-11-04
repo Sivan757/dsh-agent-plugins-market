@@ -25,8 +25,9 @@ export interface InstructionDetailProps {
   /** The rendered baseline's byte cap, for the share line. */
   budget: number
   onClose: () => void
-  onEdit: () => void
-  onDelete: () => void
+  /** Editing is the page's job; a read-only caller (the preset manager) omits both actions. */
+  onEdit?: () => void
+  onDelete?: () => void
 }
 
 /**
@@ -53,8 +54,8 @@ export function InstructionDetail({ t, row, budget, onClose, onEdit, onDelete }:
     footer: h(
       'div',
       { className: css.detailFooter },
-      h(Button, { variant: 'ghost', size: 'sm', onClick: onDelete }, t('panelDelete')),
-      h(Button, { variant: 'primary', size: 'sm', onClick: onEdit }, t('instructionsEdit')),
+      onDelete === undefined ? null : h(Button, { variant: 'ghost', size: 'sm', onClick: onDelete }, t('panelDelete')),
+      onEdit === undefined ? null : h(Button, { variant: 'primary', size: 'sm', onClick: onEdit }, t('instructionsEdit')),
       h(Button, { variant: 'ghost', onClick: onClose }, t('detailDone'))
     ),
     children: h(

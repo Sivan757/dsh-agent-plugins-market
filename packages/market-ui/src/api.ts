@@ -32,11 +32,8 @@ import {
   type AiDiagnoseFace,
   type AiDiagnoseFailure,
   type AiDiagnosis,
-  type AiDraftFace,
-  type AiDraftResult,
   type AiPresetCandidate,
-  type AiPresetSuggestion,
-  type AiSessionRequest
+  type AiPresetSuggestion
 } from '../../market-contracts/src/contracts/ai-draft.js'
 import { resolveHiddenTabs, resolveTabOrder, type TabLayoutWire } from '../../market-contracts/src/contracts/tab-layout.js'
 import { INSTRUCTION_ROUTES } from '../../market-contracts/src/contracts/instructions.js'
@@ -755,29 +752,6 @@ export async function deleteUserOutputStyle(name: string, sessionId?: string): P
 /* ---- AI drafting ------------------------------------------------------- */
 
 /**
- * Ask the deployment's own model to draft one artifact.
- *
- * The client sends what the person wants, never how to ask for it: the prompt, the model
- * and the bounds belong to the server, so this call cannot be used to run an arbitrary
- * prompt on the deployment's model.
- *
- * @param input.face - which artifact is being drafted.
- * @param input.intent - what the person wants, in their own words.
- * @param input.locale - the language the artifact should be authored in.
- * @param input.sessionId - the session whose default model applies, when there is one.
- * @returns the draft text and the route that produced it.
- */
-export async function requestAiDraft(input: { face: AiDraftFace; intent: string; locale: 'zh' | 'en'; sessionId?: string }): Promise<AiDraftResult> {
-  return withBusyOperation(() =>
-    postOkJson<AiDraftResult>(
-      `${AI_DRAFT_ROUTES.draft}`,
-      { face: input.face, intent: input.intent, locale: input.locale, ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }) },
-      'draft failed'
-    )
-  )
-}
-
-/**
  * Ask the deployment's model to suggest a preset selection from the rows the manager shows.
  *
  * The manager sends its own rows because the suggestion may only name rows that exist: the
@@ -825,35 +799,6 @@ export async function requestAiPreset(input: {
  */
 export async function requestAiDiagnosis(input: { face: AiDiagnoseFace; failure: AiDiagnoseFailure; locale: 'zh' | 'en' }): Promise<AiDiagnosis> {
   return withBusyOperation(() => postOkJson<AiDiagnosis>(AI_DRAFT_ROUTES.diagnose, { face: input.face, failure: { ...input.failure }, locale: input.locale }, 'explanation failed'))
-}
-
-/**
- * Open a session whose first message carries a drafting task.
- *
- * The session belongs to the reader: they edit the requirement, switch the model the way they
- * would for any session, and send when it reads right. The server resolves where the artifact
- * lives, so the browser never guesses a path.
- *
- * @param input - the face, the intent, and where the artifact lives when the caller knows it.
- * @returns the session to open from the sidebar.
- */
-export async function requestAiSession(input: Omit<AiSessionRequest, 'intent'> & { intent: string }): Promise<{ sessionId: string; workspace?: string }> {
-  return withBusyOperation(() =>
-    postOkJson<{ sessionId: string; workspace?: string }>(
-      `${AI_DRAFT_ROUTES.session}`,
-      {
-        face: input.face,
-        intent: input.intent,
-        locale: input.locale,
-        mode: input.mode,
-        ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
-        ...(input.dir === undefined ? {} : { dir: input.dir }),
-        ...(input.path === undefined ? {} : { path: input.path }),
-        ...(input.name === undefined ? {} : { name: input.name })
-      },
-      'session failed'
-    )
-  )
 }
 
 /* ---- User hooks --------------------------------------------------------- */

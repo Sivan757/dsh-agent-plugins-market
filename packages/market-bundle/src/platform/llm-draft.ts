@@ -10,26 +10,26 @@
 import { BlockAssembler } from '@deepseek-ai/dsh-llm'
 import type { GenerateOptions } from '@deepseek-ai/dsh-llm'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
-import { AI_DRAFT_LIMITS, type AiDraftResult } from '../../../market-contracts/src/contracts/ai-draft.js'
+import { AI_ANSWER_LIMITS, type AiAnswer } from '../../../market-contracts/src/contracts/ai-draft.js'
 import { pluginMarketSource } from '../../../market-contracts/src/host/plugin-message-source.js'
 import { auxiliaryFinishError, auxiliaryLlmOf, chooseOffEffort, readDefaultModelRoute, type AuxiliaryCallHost } from '../../../market-translation/src/index.js'
-import type { AiDraftPort } from '../application/ai-draft.js'
+import type { AiPort } from '../application/ai-port.js'
 
 /**
  * Build the host-backed drafting port over one plugin context.
  * @param host - the plugin context.
  * @returns the port the draft service calls.
  */
-export function createLlmDraftPort(host: AuxiliaryCallHost): AiDraftPort {
+export function createLlmDraftPort(host: AuxiliaryCallHost): AiPort {
   return {
-    async complete(prompt, outerSignal): Promise<AiDraftResult> {
+    async complete(prompt, outerSignal): Promise<AiAnswer> {
       const route = readDefaultModelRoute(host)
       const llm = auxiliaryLlmOf(host)
       if (route === undefined || llm === undefined) {
         throw Object.assign(new Error('no model is configured for drafting; set the default model first'), { code: 'ai-model-unconfigured' })
       }
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), AI_DRAFT_LIMITS.timeoutMs)
+      const timeout = setTimeout(() => controller.abort(), AI_ANSWER_LIMITS.timeoutMs)
       const forward = (): void => controller.abort()
       outerSignal?.addEventListener('abort', forward, { once: true })
       try {
@@ -39,7 +39,7 @@ export function createLlmDraftPort(host: AuxiliaryCallHost): AiDraftPort {
           model: route.model,
           system: prompt.system,
           messages: [createUserMessage({ content: [{ type: 'text', text: prompt.user }], source: pluginMarketSource() })],
-          maxTokens: AI_DRAFT_LIMITS.maxTokens,
+          maxTokens: AI_ANSWER_LIMITS.maxTokens,
           temperature: 0.2,
           ...(effort === undefined ? {} : { reasoningEffort: effort as GenerateOptions['reasoningEffort'] }),
           signal: controller.signal

@@ -16,8 +16,6 @@ import type { Translate } from '../../i18n.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { CodeEditor } from '../../ui/CodeEditor.js'
 import { buildFaceEntry } from '../../ui/face-entry.js'
-import { AiDraftField } from '../../ui/AiDraftField.js'
-import { frontmatter } from '../../ui/frontmatter.js'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, ReadFailed, type PanelConfirmState } from '../../ui/panel.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
@@ -213,7 +211,6 @@ function StyleEditor(props: {
   const { t, draft, error, onChange, onClose, onSave } = props
   const [busy, setBusy] = useState(false)
   // What the editor held when the current draft arrived, so undo can put it back.
-  const [beforeDraft, setBeforeDraft] = useState(draft)
   const nameValid = /^[a-z0-9][a-z0-9._-]*$/.test(draft.name.trim())
   return h(
     DetailModal,
@@ -269,31 +266,6 @@ function StyleEditor(props: {
           onChange: (event: { target: HTMLInputElement }) => onChange({ ...draft, description: event.target.value })
         })
       ),
-      // The same drafting row the authored panels carry: the model answers with the whole
-      // artifact, and this editor's two fields take it apart again.
-      h(AiDraftField, {
-        t,
-        face: 'outputStyles',
-        disabled: busy,
-        session: { name: draft.name },
-        // The draft is unpacked into two fields, so the undo step is the pair it replaced
-        // rather than a document this editor does not hold.
-        onRestore: () => {
-          onChange(beforeDraft)
-        },
-        onDrafted: (text: string) => {
-          setBeforeDraft(draft)
-          try {
-            const parsed = frontmatter(text)
-            const fields = (parsed.document.toJS() ?? {}) as Record<string, unknown>
-            const described = typeof fields['description'] === 'string' ? fields['description'] : draft.description
-            onChange({ ...draft, description: described, body: parsed.body.trimStart() })
-          } catch {
-            // A draft without usable frontmatter is still a draft: it becomes the body.
-            onChange({ ...draft, body: text })
-          }
-        }
-      }),
       h(CodeEditor, {
         value: draft.body,
         onChange: (body: string) => onChange({ ...draft, body }),

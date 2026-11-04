@@ -19,7 +19,6 @@ import { clientErrorMessage } from '../../ui/error-message.js'
 import { CodeEditor } from '../../ui/CodeEditor.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { surfaceProviderCuts } from '../../ui/surface-facets.js'
-import { AiDraftField } from '../../ui/AiDraftField.js'
 import { DetailModal } from '../../ui/DetailModal.js'
 import { ConfirmModal, PanelActions, PanelHeader, ReadFailed, type PanelConfirmState } from '../../ui/panel.js'
 import { InstructionDetail } from './InstructionDetail.js'
@@ -332,16 +331,6 @@ function InstructionEditor(props: {
         )
       )
     },
-    // The same drafting row the other authored faces carry. A file is a block of Markdown, so
-    // the model is asked for exactly that and the answer replaces the editor's text.
-    h(AiDraftField, {
-      t,
-      face: 'instructions',
-      documentText: draft.text,
-      disabled: busy,
-      session: { path: `${draft.directory.replace(/\/+$/, '')}/${draft.candidate}` },
-      onDrafted: (text: string) => onChange({ ...draft, text })
-    }),
     h(CodeEditor, {
       value: draft.text,
       onChange: (text: string) => {

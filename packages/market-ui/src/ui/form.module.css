@@ -442,8 +442,9 @@
   }
 }
 
-/* The AI draft row: one line above the document it fills. The row stays quiet until it has
-   something to say, so it does not compete with the fields a person came to edit. */
+/* The intent row: one line above the fields it fills, used by the hook form and the AI
+   suggestion dialogs. The row stays quiet until it has something to say, so it does not
+   compete with the fields a person came to edit. */
 .aiField {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto auto;
@@ -453,12 +454,6 @@
   border: 1px solid var(--dsw-alias-border-l1);
   border-radius: 8px;
   background: var(--dsw-alias-bg-layer-2);
-}
-
-.aiLabel {
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  white-space: nowrap;
 }
 
 .aiNote {

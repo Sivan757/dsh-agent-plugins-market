@@ -9,7 +9,7 @@
  * @module application/ai-preset
  */
 import { AI_PRESET_LIMITS, type AiPresetCandidate, type AiPresetSuggestion } from '../../../market-contracts/src/contracts/ai-draft.js'
-import type { AiDraftPort } from './ai-draft.js'
+import type { AiPort } from './ai-port.js'
 
 /** What one suggestion needs. */
 export interface AiPresetInput {
@@ -116,7 +116,7 @@ export function parsePresetSuggestion(text: string, candidates: readonly AiPrese
  * @param port - the model call, or undefined when this deployment has none.
  * @returns the service.
  */
-export function createAiPresetService(port: AiDraftPort | undefined): AiPresetService {
+export function createAiPresetService(port: AiPort | undefined): AiPresetService {
   return {
     async suggest(input: AiPresetInput): Promise<AiPresetSuggestion> {
       if (port === undefined) throw Object.assign(new Error('no model is available for drafting'), { code: 'ai-unavailable' })

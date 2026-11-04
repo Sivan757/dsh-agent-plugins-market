@@ -24,7 +24,6 @@ import { RoleMetadataFields } from './RoleMetadataFields.js'
 import { UserEntryDetailModal } from './UserEntryDetail.js'
 import { readArgumentHint, readRoleFields, setSkillInvocationEnabled, updateFrontmatter } from './frontmatter.js'
 import { clientErrorMessage } from './error-message.js'
-import { AiDraftField } from './AiDraftField.js'
 
 /** Draft templates per panel kind (bilingual; the user edits from here). */
 function draftTemplate(kind: UserPanelKind, t: Translate): string {
@@ -383,17 +382,6 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
           }
         : {}),
       renderFields: kind === 'agents' ? (text, onChange) => h(RoleMetadataFields, { text, onChange, t, disabled: busy }) : undefined,
-      // The same drafting row on all three authored panels, because the question and the
-      // review step are identical; only the format the model is asked for differs.
-      renderAiSlot: (text, onChange) =>
-        h(AiDraftField, {
-          t,
-          face: kind === 'commands' ? 'commands' : kind === 'agents' ? 'agents' : 'skills',
-          documentText: text,
-          onDrafted: onChange,
-          disabled: busy,
-          session: editor?.mode === 'edit' && editor.name !== '' ? { name: editor.name } : {}
-        }),
       onClose: () => setEditor(undefined),
       onSave: saveEditor
     }),

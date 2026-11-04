@@ -1,14 +1,13 @@
 /**
- * The draft route: one request in, one artifact out.
+ * The remaining AI routes: a preset suggestion and a failure explanation.
  *
- * A draft is text a person reviews, so the route's contract is narrow on purpose: it takes a
- * face and an intent, never a prompt, a model or a system message, and it answers with the
- * artifact plus the route that produced it. These tests pin the bounds and the failure codes
- * the client renders.
+ * Both take a bounded request and answer with text a person reads; neither writes to disk.
+ * These tests pin the bounds, the failure codes the client renders, and the rule that the
+ * model only ever picks from what the server already offered it.
  */
 import { describe, expect, it } from 'vitest'
-import { AI_DRAFT_LIMITS, AI_DRAFT_ROUTES } from '../../../../packages/market-contracts/src/contracts/ai-draft.js'
-import { createAiDraftService, type AiDraftPort } from '../../../../packages/market-bundle/src/application/ai-draft.js'
+import { AI_DRAFT_ROUTES } from '../../../../packages/market-contracts/src/contracts/ai-draft.js'
+import type { AiPort } from '../../../../packages/market-bundle/src/application/ai-port.js'
 import { createAiPresetService, parsePresetSuggestion } from '../../../../packages/market-bundle/src/application/ai-preset.js'
 import { createAiDiagnoseService } from '../../../../packages/market-bundle/src/application/ai-diagnose.js'
 import { mountAiDraftRoutes } from '../../../../packages/market-bundle/src/routes-ai.js'
@@ -21,39 +20,8 @@ interface Answer {
 
 const logger = { warn: (): void => {}, info: (): void => {}, error: (): void => {} }
 
-/** A session store that records what a task was written into. */
-const sessionStub = {
-  sessions: {
-    create: (id?: string) => {
-      const written: Array<{ type: string; text?: string }> = []
-      const store = {
-        append: (type: string, data: unknown) => {
-          written.push({ type, text: JSON.stringify(data).slice(0, 200) })
-          return data
-        },
-        header: { id: id ?? 'session-fixture' },
-        written
-      }
-      return store
-    }
-  },
-  agentsRoot: '/agents-root'
-}
-
-/** The catalogue an install recommendation reads: two suites, one of them already on. */
-const catalogueStub = {
-  catalogue: {
-    overview: async () => ({
-      suites: [
-        { sourceId: 'market', suiteId: 'frontend', name: 'frontend-suite', enabled: false },
-        { sourceId: 'market', suiteId: 'testing', name: 'testing-suite', enabled: false },
-        { sourceId: 'market', suiteId: 'on', name: 'already-on', enabled: true }
-      ]
-    })
-  }
-}
-
-function host(): { ctx: { get(name: string): unknown }; routes: Map<string, Handler> } {
+/** The host surface the routes mount on. */
+function host(): { ctx: { get: (name: string) => unknown }; routes: Map<string, Handler> } {
   const routes = new Map<string, Handler>()
   return {
     routes,
@@ -71,6 +39,7 @@ function host(): { ctx: { get(name: string): unknown }; routes: Map<string, Hand
   }
 }
 
+/** A response recorder. */
 function recorded(): { response: unknown; read: () => Answer } {
   let status = 0
   let payload = ''
@@ -80,25 +49,36 @@ function recorded(): { response: unknown; read: () => Answer } {
   }
 }
 
-const request = (body: unknown, method = 'POST', origin?: string): unknown => ({
-  method,
-  url: AI_DRAFT_ROUTES.draft,
-  headers: { host: '127.0.0.1', ...(origin === undefined ? {} : { origin }) },
-  on: (event: string, listener: (chunk?: unknown) => void) => {
-    if (event === 'data') listener(Buffer.from(JSON.stringify(body), 'utf8'))
-    if (event === 'end') listener()
-  },
-  destroy: () => {}
-})
+/** A trusted same-origin POST, shaped as the stream `readJsonBody` reads. */
+function request(body: unknown): unknown {
+  const text = JSON.stringify(body)
+  const stream = {
+    method: 'POST',
+    headers: { origin: 'http://127.0.0.1:56780', host: '127.0.0.1:56780' },
+    on(event: string, listener: (value?: unknown) => void) {
+      // Body first, then the end of it: the reader attaches both before either fires.
+      if (event === 'data') setTimeout(() => listener(Buffer.from(text)), 0)
+      if (event === 'end') setTimeout(() => listener(), 5)
+      return stream
+    }
+  }
+  return stream
+}
 
-async function post(routes: Map<string, Handler>, body: unknown, method = 'POST', origin?: string): Promise<Answer> {
-  const { response, read } = recorded()
-  await routes.get(AI_DRAFT_ROUTES.draft)?.(request(body, method, origin), response)
-  return read()
+/** A catalogue with one installable suite and one already on. */
+const catalogueStub = {
+  catalogue: {
+    overview: async () => ({
+      suites: [
+        { sourceId: 'market', suiteId: 'frontend', name: 'frontend-suite' },
+        { sourceId: 'market', suiteId: 'on', name: 'already-on', enabled: true }
+      ]
+    })
+  }
 }
 
 /** A port that answers a fixed artifact and records what it was asked. */
-function port(answer = '---\ndescription: 测试\n---\n\nBody'): { port: AiDraftPort; calls: Array<{ system: string; user: string }> } {
+function port(answer = '---\ndescription: 测试\n---\n\nBody'): { port: AiPort; calls: Array<{ system: string; user: string }> } {
   const calls: Array<{ system: string; user: string }> = []
   return {
     calls,
@@ -111,141 +91,6 @@ function port(answer = '---\ndescription: 测试\n---\n\nBody'): { port: AiDraft
   }
 }
 
-describe('ai draft route', () => {
-  it('drafts one artifact and names the route that produced it', async () => {
-    const { ctx, routes } = host()
-    const fake = port()
-    mountAiDraftRoutes(ctx, {
-      ...sessionStub,
-      ...catalogueStub,
-      service: createAiDraftService(fake.port),
-      presets: createAiPresetService(fake.port),
-      diagnose: createAiDiagnoseService(fake.port),
-      logger
-    })
-    const answer = await post(routes, { face: 'skills', intent: '审查我的 TypeScript 改动', locale: 'zh' })
-
-    expect(answer.status).toBe(200)
-    // The shared client helper refuses a body without ok:true, so a success that omits it
-    // reaches the reader as "draft failed: 200".
-    expect(answer.body['ok']).toBe(true)
-    expect(String(answer.body['text'])).toContain('description:')
-    expect(answer.body).toMatchObject({ provider: 'deepseek', model: 'fixture' })
-    // The prompt says what shape the artifact takes and that the answer is the artifact only.
-    expect(fake.calls[0]!.system).toContain('frontmatter')
-    expect(fake.calls[0]!.system).toContain('No prose')
-    expect(fake.calls[0]!.user).toContain('审查我的 TypeScript 改动')
-  })
-
-  it('rejects an unknown face, an empty intent and an over-long intent', async () => {
-    const { ctx, routes } = host()
-    const fake = port()
-    mountAiDraftRoutes(ctx, {
-      ...sessionStub,
-      ...catalogueStub,
-      service: createAiDraftService(fake.port),
-      presets: createAiPresetService(fake.port),
-      diagnose: createAiDiagnoseService(fake.port),
-      logger
-    })
-
-    expect((await post(routes, { face: 'mcp', intent: 'x' })).status).toBe(400)
-    expect((await post(routes, { face: 'skills', intent: '   ' })).status).toBe(400)
-    const long = 'x'.repeat(AI_DRAFT_LIMITS.intentChars + 1)
-    expect((await post(routes, { face: 'skills', intent: long })).status).toBe(400)
-    // A rejected request never reaches the model.
-    expect(fake.calls).toHaveLength(0)
-  })
-
-  it('answers 409 when the deployment has no model, and 502 when the call fails', async () => {
-    const { ctx, routes } = host()
-    mountAiDraftRoutes(ctx, {
-      ...sessionStub,
-      ...catalogueStub,
-      service: createAiDraftService(undefined),
-      presets: createAiPresetService(undefined),
-      diagnose: createAiDiagnoseService(undefined),
-      logger
-    })
-    const unconfigured = await post(routes, { face: 'skills', intent: 'anything' })
-    expect(unconfigured.status).toBe(409)
-    expect(String(unconfigured.body['error'])).toContain('no model')
-
-    const failing: AiDraftPort = {
-      complete: async () => {
-        throw new Error('provider exploded')
-      }
-    }
-    const second = host()
-    mountAiDraftRoutes(second.ctx, {
-      ...sessionStub,
-      ...catalogueStub,
-      service: createAiDraftService(failing),
-      presets: createAiPresetService(failing),
-      diagnose: createAiDiagnoseService(failing),
-      logger
-    })
-    const failed = await post(second.routes, { face: 'outputStyles', intent: 'answer briefly' })
-    expect(failed.status).toBe(502)
-    expect(String(failed.body['error'])).toContain('provider exploded')
-  })
-
-  it('names a provider limit as a limit, not as a broken deployment', async () => {
-    // A quota answer is temporary and the reader can act on it; it must not read like the
-    // plugin is broken. The code crosses so the client can say it in the reader's language.
-    const limited: AiDraftPort = {
-      complete: async () => {
-        throw new Error('provider API error (429): {"message":"usage limit has been reached"}')
-      }
-    }
-    const { ctx, routes } = host()
-    mountAiDraftRoutes(ctx, {
-      ...sessionStub,
-      ...catalogueStub,
-      service: createAiDraftService(limited),
-      presets: createAiPresetService(limited),
-      diagnose: createAiDiagnoseService(limited),
-      logger
-    })
-    const answer = await post(routes, { face: 'skills', intent: 'anything' })
-    expect(answer.status).toBe(502)
-    expect(answer.body['code']).toBe('ai-provider-limited')
-  })
-
-  it('refuses a read method and a cross-origin write', async () => {
-    const { ctx, routes } = host()
-    mountAiDraftRoutes(ctx, {
-      ...sessionStub,
-      ...catalogueStub,
-      service: createAiDraftService(port().port),
-      presets: createAiPresetService(port().port),
-      diagnose: createAiDiagnoseService(port().port),
-      logger
-    })
-    expect((await post(routes, {}, 'GET')).status).toBe(405)
-    expect((await post(routes, { face: 'skills', intent: 'x' }, 'POST', 'https://evil.example')).status).toBe(403)
-  })
-
-  it('drafts every face with its own format rules', async () => {
-    for (const face of ['skills', 'commands', 'agents', 'outputStyles', 'instructions'] as const) {
-      const { ctx, routes } = host()
-      const fake = port('draft')
-      mountAiDraftRoutes(ctx, {
-        ...sessionStub,
-        ...catalogueStub,
-        service: createAiDraftService(fake.port),
-        presets: createAiPresetService(fake.port),
-        diagnose: createAiDiagnoseService(fake.port),
-        logger
-      })
-      const answer = await post(routes, { face, intent: 'do the thing', locale: 'en' })
-      expect(answer.status).toBe(200)
-      expect(fake.calls[0]!.system.length).toBeGreaterThan(80)
-      if (face === 'instructions') expect(fake.calls[0]!.system).toContain('no frontmatter')
-    }
-  })
-})
-
 describe('ai preset suggestion', () => {
   const candidates = [
     { id: 'market:src/frontend', label: 'frontend-suite' },
@@ -254,7 +99,7 @@ describe('ai preset suggestion', () => {
   ]
 
   /** A port that answers with whatever JSON the model would have produced. */
-  const answering = (text: string): AiDraftPort => ({ complete: async () => ({ text, provider: 'deepseek', model: 'fixture' }) })
+  const answering = (text: string): AiPort => ({ complete: async () => ({ text, provider: 'deepseek', model: 'fixture' }) })
 
   async function suggest(routes: Map<string, Handler>, body: unknown): Promise<Answer> {
     const { response, read } = recorded()
@@ -269,8 +114,6 @@ describe('ai preset suggestion', () => {
     )
     mountAiDraftRoutes(ctx, {
       ...catalogueStub,
-      ...sessionStub,
-      service: createAiDraftService(port),
       presets: createAiPresetService(port),
       diagnose: createAiDiagnoseService(port),
       logger
@@ -293,7 +136,7 @@ describe('ai preset suggestion', () => {
   it('refuses an empty intent and an empty world before calling the model', async () => {
     const { ctx, routes } = host()
     let called = 0
-    const port: AiDraftPort = {
+    const port: AiPort = {
       complete: async () => {
         called++
         return { text: '{"name":"x"}', provider: 'p', model: 'm' }
@@ -301,8 +144,6 @@ describe('ai preset suggestion', () => {
     }
     mountAiDraftRoutes(ctx, {
       ...catalogueStub,
-      ...sessionStub,
-      service: createAiDraftService(port),
       presets: createAiPresetService(port),
       diagnose: createAiDiagnoseService(port),
       logger
@@ -317,8 +158,6 @@ describe('ai preset suggestion', () => {
     const port = answering('{"message":"usage limit has been reached (429)"}')
     mountAiDraftRoutes(ctx, {
       ...catalogueStub,
-      ...sessionStub,
-      service: createAiDraftService(port),
       presets: createAiPresetService(port),
       diagnose: createAiDiagnoseService(port),
       logger
@@ -328,16 +167,14 @@ describe('ai preset suggestion', () => {
     // limit, because the text carries no limit signal from the provider.
     expect(answer.status).toBe(422)
 
-    const limited: AiDraftPort = {
+    const limited: AiPort = {
       complete: async () => {
         throw new Error('provider error (429): usage limit reached')
       }
     }
     const second = host()
     mountAiDraftRoutes(second.ctx, {
-      ...sessionStub,
       ...catalogueStub,
-      service: createAiDraftService(limited),
       presets: createAiPresetService(limited),
       diagnose: createAiDiagnoseService(limited),
       logger
@@ -352,8 +189,6 @@ describe('ai preset suggestion', () => {
     const port = answering('I would pick the frontend suite.')
     mountAiDraftRoutes(ctx, {
       ...catalogueStub,
-      ...sessionStub,
-      service: createAiDraftService(port),
       presets: createAiPresetService(port),
       diagnose: createAiDiagnoseService(port),
       logger
@@ -377,9 +212,7 @@ describe('ai failure diagnosis', () => {
     const { ctx, routes } = host()
     const fake = port('连不上这台服务。先确认地址在同一网络内可达，再检查服务是否要求认证。')
     mountAiDraftRoutes(ctx, {
-      ...sessionStub,
       ...catalogueStub,
-      service: createAiDraftService(fake.port),
       presets: createAiPresetService(fake.port),
       diagnose: createAiDiagnoseService(fake.port),
       logger
@@ -400,9 +233,7 @@ describe('ai failure diagnosis', () => {
     const { ctx, routes } = host()
     const fake = port('x')
     mountAiDraftRoutes(ctx, {
-      ...sessionStub,
       ...catalogueStub,
-      service: createAiDraftService(fake.port),
       presets: createAiPresetService(fake.port),
       diagnose: createAiDiagnoseService(fake.port),
       logger
@@ -416,9 +247,7 @@ describe('ai failure diagnosis', () => {
     const { ctx, routes } = host()
     const fake = port('x')
     mountAiDraftRoutes(ctx, {
-      ...sessionStub,
       ...catalogueStub,
-      service: createAiDraftService(fake.port),
       presets: createAiPresetService(fake.port),
       diagnose: createAiDiagnoseService(fake.port),
       logger
@@ -435,7 +264,7 @@ describe('ai failure diagnosis', () => {
 describe('install recommendation', () => {
   it('reads the catalogue instead of asking the browser for a thousand ids', async () => {
     const { ctx, routes } = host()
-    const port: AiDraftPort = {
+    const port: AiPort = {
       complete: async prompt => ({
         text: prompt.user.includes('frontend-suite') ? '{"name":"前端","reason":"够用","picks":["market/frontend","market/on"]}' : '{}',
         provider: 'p',
@@ -444,8 +273,6 @@ describe('install recommendation', () => {
     }
     mountAiDraftRoutes(ctx, {
       ...catalogueStub,
-      ...sessionStub,
-      service: createAiDraftService(port),
       presets: createAiPresetService(port),
       diagnose: createAiDiagnoseService(port),
       logger
@@ -464,9 +291,7 @@ describe('install recommendation', () => {
     const { ctx, routes } = host()
     const empty = { catalogue: { overview: async () => ({ suites: [{ sourceId: 'market', suiteId: 'on', name: 'already-on', enabled: true }] }) } }
     mountAiDraftRoutes(ctx, {
-      ...sessionStub,
       ...empty,
-      service: createAiDraftService(port().port),
       presets: createAiPresetService(port().port),
       diagnose: createAiDiagnoseService(port().port),
       logger
@@ -474,56 +299,5 @@ describe('install recommendation', () => {
     const { response, read } = recorded()
     await routes.get(AI_DRAFT_ROUTES.suggestPreset)?.(request({ intent: '前端开发', purpose: 'install' }), response)
     expect(read().status).toBe(400)
-  })
-})
-
-describe('assist session route', () => {
-  async function open(routes: Map<string, Handler>, body: unknown): Promise<Answer> {
-    const { response, read } = recorded()
-    await routes.get(AI_DRAFT_ROUTES.session)?.(request(body), response)
-    return read()
-  }
-
-  it('opens a session whose first message carries the format, the intent and the target', async () => {
-    const { ctx, routes } = host()
-    mountAiDraftRoutes(ctx, {
-      ...catalogueStub,
-      ...sessionStub,
-      service: createAiDraftService(undefined),
-      presets: createAiPresetService(undefined),
-      diagnose: createAiDiagnoseService(undefined),
-      logger
-    })
-    const answer = await open(routes, { face: 'skills', intent: '审查 TypeScript 改动', locale: 'zh' })
-
-    expect(answer.status).toBe(200)
-    expect(answer.body['ok']).toBe(true)
-    // Each creation mints its own id, so a second draft can never overwrite the first one's
-    // transcript in a store whose counter restarts with the process.
-    expect(String(answer.body['sessionId'])).toMatch(/^session-/)
-  })
-
-  it('refuses a relative or traversing path before any session exists', async () => {
-    const { ctx, routes } = host()
-    let created = 0
-    mountAiDraftRoutes(ctx, {
-      ...sessionStub,
-      ...catalogueStub,
-      sessions: {
-        create: () => {
-          created += 1
-          return sessionStub.sessions.create()
-        }
-      },
-      agentsRoot: '/agents-root',
-      service: createAiDraftService(undefined),
-      presets: createAiPresetService(undefined),
-      diagnose: createAiDiagnoseService(undefined),
-      logger
-    })
-    expect((await open(routes, { face: 'instructions', intent: 'x', path: 'relative/path' })).status).toBe(400)
-    expect((await open(routes, { face: 'instructions', intent: 'x', path: '/a/../b/c.md' })).status).toBe(400)
-    expect((await open(routes, { face: 'instructions', intent: 'x' })).status).toBe(400)
-    expect(created).toBe(0)
   })
 })

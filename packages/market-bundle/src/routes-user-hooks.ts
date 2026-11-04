@@ -11,7 +11,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http'
 import { USER_HOOK_EVENTS, USER_HOOK_LIMITS, USER_HOOKS_ROUTES, type UserHookEvent, type UserHookSaveRequest } from '../../market-contracts/src/contracts/user-hooks.js'
 import { appendUserHook } from './application/user-hooks-writer.js'
 import { createAiHookService } from './application/ai-hook.js'
-import type { AiDraftPort } from './application/ai-draft.js'
+import type { AiPort } from './application/ai-port.js'
 import { isTrustedMutation } from './request-trust.js'
 import { routeFailurePayload, type RouteLogger } from './route-errors.js'
 import { readJsonBody, sendJson } from './route-http.js'
@@ -21,7 +21,7 @@ export interface UserHooksRouteDeps {
   /** The Agent layout root the hook document lives under. */
   agentsRoot: string
   /** The model call, or undefined when this deployment has none. */
-  port: AiDraftPort | undefined
+  port: AiPort | undefined
   logger: RouteLogger
 }
 

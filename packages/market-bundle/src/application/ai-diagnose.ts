@@ -12,7 +12,7 @@
  * @module application/ai-diagnose
  */
 import { AI_DIAGNOSE_LIMITS, type AiDiagnoseFace, type AiDiagnoseFailure, type AiDiagnosis } from '../../../market-contracts/src/contracts/ai-draft.js'
-import type { AiDraftPort } from './ai-draft.js'
+import type { AiPort } from './ai-port.js'
 
 /** What one explanation needs. */
 export interface AiDiagnoseInput {
@@ -79,7 +79,7 @@ export function buildDiagnosePrompt(face: AiDiagnoseFace, failure: AiDiagnoseFai
  * @param port - the model call, or undefined when this deployment has none.
  * @returns the service.
  */
-export function createAiDiagnoseService(port: AiDraftPort | undefined): AiDiagnoseService {
+export function createAiDiagnoseService(port: AiPort | undefined): AiDiagnoseService {
   return {
     async diagnose(input: AiDiagnoseInput): Promise<AiDiagnosis> {
       if (port === undefined) throw Object.assign(new Error('no model is available for drafting'), { code: 'ai-unavailable' })

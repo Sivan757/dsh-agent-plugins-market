@@ -9,7 +9,7 @@
  * @module application/ai-hook
  */
 import { USER_HOOK_EVENTS, type UserHookEvent, type UserHookSaveRequest } from '../../../market-contracts/src/contracts/user-hooks.js'
-import type { AiDraftPort } from './ai-draft.js'
+import type { AiPort } from './ai-port.js'
 
 /** What one draft needs. */
 export interface AiHookInput {
@@ -112,7 +112,7 @@ export function parseHookDraft(text: string): UserHookSaveRequest {
  * @param port - the model call, or undefined when this deployment has none.
  * @returns the service.
  */
-export function createAiHookService(port: AiDraftPort | undefined): AiHookService {
+export function createAiHookService(port: AiPort | undefined): AiHookService {
   return {
     async draft(input: AiHookInput) {
       if (port === undefined) throw Object.assign(new Error('no model is available for drafting'), { code: 'ai-unavailable' })
