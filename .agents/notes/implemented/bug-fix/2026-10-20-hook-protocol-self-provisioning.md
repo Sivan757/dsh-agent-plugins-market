@@ -1,6 +1,8 @@
 # Agent Note: Self-provision the hook protocol so the plugin can activate
 
-Status: implemented
+Status: superseded
+
+Superseded on 2026-11-04: the support floor reached the bridge's line, so one copy serves both. The hook and its test were deleted; see [the floor note](../process/2026-11-04-host-support-floor-moves-to-baseline.md).
 
 ## Problem
 

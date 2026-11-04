@@ -61,6 +61,7 @@ import { readFileSync, readdirSync, statSync } from 'node:fs'
 import { mkdir, readFile, writeFile } from 'node:fs/promises'
 import { dirname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
+import * as WINDOW from './host-support-window.mjs'
 
 const ROOT = resolve(fileURLToPath(new URL('..', import.meta.url)))
 const MANIFEST_PATH = join(ROOT, 'package.json')
@@ -76,21 +77,9 @@ const HOST_PREFIX = '@deepseek-ai/dsh-'
  * the only family member that can answer which version has actually shipped.
  */
 const HOST_ANCHOR = '@deepseek-ai/dsh'
-/**
- * The support window every consumer-facing host pin must carry.
- *
- * A caret range is an anchor, not a contract: `^0.2.1-rc.2` excludes the 0.2.1-rc.1 candidate
- * the host shipped the day before, and a host that refuses an unmet peer range marks the plugin
- * incompatible on its own plugin page. The window states the two facts a consumer needs — the
- * oldest host release this code runs on, and the major line it never crosses — so a candidate
- * between them keeps working without a release here.
- *
- * The floor moves only when the plugin drops a release line on purpose; `baselineFrom` still
- * decides which exact version this repository builds and tests against.
- */
-const HOST_SUPPORT_FLOOR = '0.2.0-rc.2'
-const HOST_SUPPORT_CEILING = '0.3.0-0'
-const HOST_SUPPORT_RANGE = `>=${HOST_SUPPORT_FLOOR} <${HOST_SUPPORT_CEILING}`
+const HOST_SUPPORT_FLOOR = WINDOW.HOST_SUPPORT_FLOOR
+const HOST_SUPPORT_CEILING = WINDOW.HOST_SUPPORT_CEILING
+const HOST_SUPPORT_RANGE = WINDOW.HOST_SUPPORT_RANGE
 /** Client modules are host-supplied bundle externals, not installable capabilities. */
 const CLIENT_PREFIX = '@deepseek-ai/dsh-client-'
 /** Cordis is the plugin container; it tracks its own 4.x line, not the dsh family version. */

@@ -1,6 +1,8 @@
 # Agent Note: 自供 hook protocol，让插件能够激活
 
-Status: implemented
+Status: superseded
+
+已于 2026-11-04 被取代：支持下限升到桥接声明的版本，一份副本同时服务两边。钩子与它的测试已删除，见[下限记录](../process/2026-11-04-host-support-floor-moves-to-baseline.zh.md)。
 
 ## Problem
 
