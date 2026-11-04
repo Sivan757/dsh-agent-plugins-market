@@ -15,12 +15,6 @@
   color: var(--dsw-alias-label-secondary, #57606a);
   overflow-wrap: anywhere;
 }
-.rowWarn {
-  font-size: 12px;
-  color: var(--dsw-alias-state-warn-label);
-  overflow-wrap: anywhere;
-}
-
 .previewText {
   margin: 0;
   padding: 10px;

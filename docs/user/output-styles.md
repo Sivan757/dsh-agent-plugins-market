@@ -25,20 +25,21 @@ The preview on the page shows this exact text. It is the same function the serve
 
 ## Where styles come from
 
-| Source  | Lives in                                                     | Notes                                                                          |
-| ------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------ |
-| Yours   | `<Agent layout root>/output-styles/<name>.md`                | Frontmatter `description:` plus the style text. Created and edited in the tab. |
-| A suite | A market suite that prints its text from a SessionStart hook | Captured once, explicitly, then stored as text.                                |
+| Source  | Lives in                                           | Notes                                                                          |
+| ------- | -------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Yours   | `<Agent layout root>/output-styles/<name>.md`      | Frontmatter `description:` plus the style text. Created and edited in the tab. |
+| A suite | `output-styles/<name>.md` inside the suite         | Read-only here; the suite's file is the style.                                 |
+| Project | `.claude/output-styles/<name>.md` in the workspace | Nearest directory to the working directory wins. Read-only here.               |
 
 The plugin ships no styles of its own: a style you author is stored as a Markdown file, so it travels with your Agent layout root and any other tool can read it. With nothing selected the prompt carries no output-style section.
 
-## Suite styles and the capture
+## Suite and project styles
 
-A Claude Code output-style plugin delivers its text by running a program at session start. Opening this tab captures that text once, automatically, for every suite style that has not been captured yet: one pass per visit, in your home directory, under a fixed timeout and output cap. A row that was captured still shows where it stands — in use, or not selected — and a failed capture keeps a **Capture text** action that retries.
+A style is a Markdown file wherever it comes from. A suite ships its styles in `output-styles/` (or wherever its manifest's `outputStyles` field points), and this tab reads those files as they are. A workspace can also keep styles in `.claude/output-styles/`: every directory between the session's working directory and the repository root is read, and the definition nearest the working directory wins when two declare the same name. Suite styles appear under **Suites**, project styles under **Project**, and both are read-only here — the file is the source of truth, so edit it where it lives.
 
-The automatic pass only collects text. What enters the prompt is still a decision: the preview shows the captured text, and only the switch puts it in the prompt. Nothing is captured for a style you never look at.
+Selecting a suite or project style injects its file text exactly as written. When the suite updates the file, the next read carries the new text: there is no captured copy to go stale.
 
-The capture is bound to a fingerprint of the suite's declaration, its version and the hook command. If the suite changes, the row reports the capture as out of date, stops injecting it, and offers to capture again. Text from a version nobody approved never reaches the prompt.
+A suite that injects persona text by running a program at session start is not an output style here. That is a SessionStart hook, and the **Hooks** tab lists it with the command it runs.
 
 ## Turning a style off
 

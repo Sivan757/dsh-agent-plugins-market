@@ -12,13 +12,11 @@
  * composition root, which already owns the bounded dry run.
  * @module application/output-styles
  */
-import { createHash } from 'node:crypto'
 import { mkdir, readdir, readFile, rm } from 'node:fs/promises'
 import { dirname, join, resolve, sep } from 'node:path'
 import { writeFileAtomic } from '@deepseek-ai/dsh-atomic-write'
 import { stripFrontmatter } from '../../../market-catalog/src/index.js'
 import { parseFrontmatterRecord } from './panels/user-store.js'
-import type { OutputStyleHintCode } from '../../../market-contracts/src/contracts/output-styles.js'
 import type { OutputStyleRow } from '../../../market-contracts/src/contracts/output-styles.js'
 
 /** The directory inside the Agent layout root that holds user-authored styles. */
@@ -46,7 +44,9 @@ interface StyleDocument {
  */
 async function readStyleDocument(path: string, name: string): Promise<StyleDocument> {
   const text = await readFile(path, 'utf8')
-  const body = stripFrontmatter(text)
+  // A trailing newline is the file's habit, not part of the style text: the injected
+  // section is exactly the instructions.
+  const body = stripFrontmatter(text).trim()
   let description = ''
   try {
     const metadata = parseFrontmatterRecord(text)
@@ -153,66 +153,67 @@ export async function deleteUserStyle(agentsRoot: string, name: string): Promise
 }
 
 /** One suite that declares a SessionStart hook, as the styles list needs it. */
-export interface SuiteStyleCandidate {
-  /** `sourceId/suiteId`. */
+
+/** One Markdown style an enabled suite ships. */
+export interface SuiteStyleEntry {
+  /** The suite address, `sourceId/suiteId`. */
   suiteKey: string
-  label: string
-  /** A note the client translates; the server never writes reader-facing copy. */
-  hint: OutputStyleHintCode
-  /** Hash of the declaration the captured text was produced from. */
-  fingerprint: string
+  /** The suite's display name, so a row can say which suite it came from. */
+  suiteName: string
+  /** The style's name, from its frontmatter or its file stem. */
+  name: string
+  description: string
+  /** The instructions themselves. */
+  body: string
+  /** The Markdown file the style was read from. */
+  file: string
 }
 
-/**
- * Compute the fingerprint a suite's captured text is bound to.
- *
- * The identity covers everything a re-capture would read differently: the suite
- * address, its manifest version, where its files live, and the exact
- * SessionStart commands in declaration order. It deliberately does not hash the
- * hook script's own bytes: that would mean reading arbitrary executables on
- * every list read, and a suite that edits its script without changing its
- * declaration or version is caught the next time a person captures again, which
- * the page always offers.
- * @param input - the suite identity and its SessionStart commands.
- * @returns a stable hex digest.
- */
-export function suiteStyleFingerprint(input: { suiteKey: string; version?: string; root?: string; commands: readonly string[] }): string {
-  return createHash('sha256')
-    .update(JSON.stringify({ suiteKey: input.suiteKey, version: input.version ?? '', root: input.root ?? '', commands: [...input.commands] }))
-    .digest('hex')
-}
+/** The directory a workspace keeps its own styles in, Claude Code's project scope. */
+export const PROJECT_OUTPUT_STYLE_DIRECTORY = '.claude/output-styles'
 
 /**
- * Extract the style text one SessionStart hook produced.
+ * Read the styles a workspace keeps for itself.
  *
- * A Claude Code hook answers JSON with `hookSpecificOutput.additionalContext`;
- * that field is the style. A hook that prints prose instead is accepted too,
- * because a style is text and the dry run already bounded it. Anything else is
- * a capture that produced nothing usable, and the caller reports it rather than
- * storing an empty style.
- * @param stdout - the dry run's standard output.
- * @returns the captured text.
- * @throws when the output carries no text, or the JSON carries no context.
+ * Claude Code loads project styles from every `.claude/output-styles/` between the
+ * working directory and the repository root, and the directory closest to the working
+ * directory wins when two declare the same name. This walks the same chain outward and
+ * keeps the first hit for each name.
+ * @param workspace - the workspace's absolute directory.
+ * @returns the project rows, nearest first by name.
  */
-export function parseCapturedStyle(stdout: string): string {
-  const trimmed = stdout.trim()
-  if (trimmed === '') throw new Error('the SessionStart hook produced no output to capture')
-  if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
-    let parsed: unknown
+export async function readProjectStyles(workspace: string): Promise<OutputStyleRow[]> {
+  const found = new Map<string, OutputStyleRow>()
+  let directory = resolve(workspace)
+  for (let depth = 0; depth < 16; depth += 1) {
+    const styleDirectory = join(directory, PROJECT_OUTPUT_STYLE_DIRECTORY)
+    let names: string[]
     try {
-      parsed = JSON.parse(trimmed)
+      names = (await readdir(styleDirectory)).filter(entry => entry.endsWith('.md')).sort()
     } catch {
-      // Not JSON after all; a style may legitimately start with a brace, so the
-      // raw text is the answer rather than a parse failure.
-      return trimmed
+      names = []
     }
-    if (typeof parsed !== 'object' || parsed === null) return trimmed
-    const specific = (parsed as Record<string, unknown>)['hookSpecificOutput']
-    if (typeof specific === 'object' && specific !== null) {
-      const context = (specific as Record<string, unknown>)['additionalContext']
-      if (typeof context === 'string' && context.trim() !== '') return context.trim()
+    for (const entry of names) {
+      const name = entry.slice(0, -'.md'.length)
+      // The nearest directory wins, so an outer copy never replaces one already found.
+      if (found.has(name)) continue
+      try {
+        const document = await readStyleDocument(join(styleDirectory, entry), name)
+        found.set(name, {
+          id: `project:${name}`,
+          label: document.label,
+          description: document.description,
+          body: document.body,
+          source: 'project',
+          file: join(styleDirectory, entry)
+        })
+      } catch {
+        continue
+      }
     }
-    throw new Error('the SessionStart hook output carries no hookSpecificOutput.additionalContext text')
+    const parent = dirname(directory)
+    if (parent === directory) break
+    directory = parent
   }
-  return trimmed
+  return [...found.values()].sort((left, right) => left.label.localeCompare(right.label))
 }

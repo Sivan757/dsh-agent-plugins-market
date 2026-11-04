@@ -12,7 +12,6 @@ import { createRoot, type Root } from 'react-dom/client'
 vi.mock('../../../packages/market-ui/src/api.js', () => ({
   fetchOutputStyles: vi.fn(),
   selectOutputStyle: vi.fn(),
-  captureOutputStyle: vi.fn(),
   saveUserOutputStyle: vi.fn(),
   deleteUserOutputStyle: vi.fn()
 }))
@@ -31,7 +30,6 @@ import type { OutputStylesPayload } from '../../../packages/market-contracts/src
 interface MockedApi {
   fetchOutputStyles: ReturnType<typeof vi.fn>
   selectOutputStyle: ReturnType<typeof vi.fn>
-  captureOutputStyle: ReturnType<typeof vi.fn>
   saveUserOutputStyle: ReturnType<typeof vi.fn>
   deleteUserOutputStyle: ReturnType<typeof vi.fn>
 }
@@ -44,15 +42,22 @@ const PAYLOAD: OutputStylesPayload = {
   styles: [
     { id: 'user:brief', label: 'brief', description: 'Be brief', body: 'Be brief.', source: 'user' },
     {
-      id: 'suite:src/teaching',
+      id: 'suite:src/teaching:teaching-style',
       label: 'teaching-style',
-      description: '',
-      hint: 'suiteSessionStartCapture',
-      body: '',
+      description: 'Teach as you go',
+      body: 'Teach as you go.',
       source: 'suite',
       suiteKey: 'src/teaching',
-      fingerprint: 'fp-1',
-      capture: 'missing'
+      suiteName: 'Teaching suite',
+      file: '/suites/teaching/output-styles/teaching-style.md'
+    },
+    {
+      id: 'project:team-voice',
+      label: 'team-voice',
+      description: 'The team voice',
+      body: 'Write like the team does.',
+      source: 'project',
+      file: '/work/project/.claude/output-styles/team-voice.md'
     }
   ],
   selected: 'user:brief',
@@ -66,7 +71,6 @@ let host: HTMLDivElement | undefined
 beforeEach(() => {
   api.fetchOutputStyles.mockResolvedValue(PAYLOAD)
   api.selectOutputStyle.mockResolvedValue(PAYLOAD)
-  api.captureOutputStyle.mockResolvedValue({ suiteKey: 'src/teaching', fingerprint: 'fp-1', text: 'Teach as you go.' })
   api.saveUserOutputStyle.mockResolvedValue(PAYLOAD)
   api.deleteUserOutputStyle.mockResolvedValue(PAYLOAD)
 })
@@ -95,33 +99,8 @@ const button = (label: string, scope: HTMLElement | null = document.body): HTMLB
   [...(scope?.querySelectorAll<HTMLButtonElement>('button') ?? [])].find(node => node.textContent === label) ?? null
 
 describe('output style card actions', () => {
-  it('runs a missing capture on first view, so the page never asks for that click', async () => {
-    // A suite style's text is produced by its own SessionStart hook. The page runs that hook
-    // once on its own; the card only keeps the action as a retry after a failure.
+  it('selects a suite style from its switch and says the row is not selected yet', async () => {
     await mount()
-    expect(api.captureOutputStyle).toHaveBeenCalledWith('src/teaching', undefined)
-  })
-
-  it('names the missing capture on the card and offers the action beside it', async () => {
-    // The row says where it stands and what moves it on: an installed suite style looked
-    // inert when the only capture control lived inside the row's dialog.
-    await mount()
-    const suite = cardOf('teaching-style')
-    expect(suite.textContent).toContain('outputStylesStateUncaptured')
-    const capture = button('outputStylesCapture', suite)
-    expect(capture).not.toBeNull()
-    await act(async () => {
-      capture!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
-      await new Promise(resolve => setTimeout(resolve, 0))
-    })
-    expect(api.captureOutputStyle).toHaveBeenCalledWith('src/teaching', undefined)
-  })
-
-  it('selects a captured style from its switch and says the row is not selected yet', async () => {
-    await mount({
-      ...PAYLOAD,
-      styles: [PAYLOAD.styles[0]!, { ...PAYLOAD.styles[1]!, body: 'Teach as you go.', capture: 'current' }]
-    })
     const suite = cardOf('teaching-style')
     expect(suite.textContent).toContain('outputStylesStateNotSelected')
     const toggle = suite.querySelector<HTMLElement>('[role="switch"]')
@@ -130,12 +109,12 @@ describe('output style card actions', () => {
       toggle!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
       await new Promise(resolve => setTimeout(resolve, 0))
     })
-    expect(api.selectOutputStyle).toHaveBeenCalledWith('suite:src/teaching', undefined)
+    expect(api.selectOutputStyle).toHaveBeenCalledWith('suite:src/teaching:teaching-style', undefined)
     await act(async () => {
       toggle!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
       await new Promise(resolve => setTimeout(resolve, 0))
     })
-    expect(api.selectOutputStyle).toHaveBeenCalledWith('suite:src/teaching', undefined)
+    expect(api.selectOutputStyle).toHaveBeenCalledWith('suite:src/teaching:teaching-style', undefined)
   })
 })
 
@@ -164,12 +143,13 @@ describe('output styles panel', () => {
   })
 
   it('lists every style as a card, tagged by its source', async () => {
+    // Three sources, one list: the person's own style, a suite's file, and one the
+    // workspace keeps in .claude/output-styles.
     await mount()
-    expect(cards()).toHaveLength(2)
-    // Source is a chip on the card, not a section heading: one list, no groups.
+    expect(cards()).toHaveLength(3)
     expect(cardOf('brief').textContent).toContain('outputStylesGroupUser')
     expect(cardOf('teaching-style').textContent).toContain('outputStylesGroupSuite')
-    expect(host!.textContent).not.toContain('outputStylesGroupBuiltin')
+    expect(cardOf('team-voice').textContent).toContain('outputStylesGroupProject')
   })
 
   it('opens a card, shows its text, and selects it from the detail', async () => {
@@ -188,17 +168,6 @@ describe('output styles panel', () => {
     await act(async () => cardOf('brief').click())
     const preview = dialog()!.querySelector('[data-output-style-preview]')
     expect(preview?.textContent).toBe('## Output Style: brief\nBe brief.')
-  })
-
-  it('offers capture on a suite style with no text, and refuses selection until then', async () => {
-    await mount()
-    await act(async () => cardOf('teaching-style').click())
-    expect(dialog()!.textContent).toContain('outputStylesCaptureMissing')
-    expect(button('outputStylesSelect', dialog())!.disabled).toBe(true)
-
-    await act(async () => button('outputStylesCapture', dialog())!.click())
-    await act(async () => {})
-    expect(api.captureOutputStyle).toHaveBeenCalledWith('src/teaching', undefined)
   })
 
   it('edits a user style from its detail', async () => {

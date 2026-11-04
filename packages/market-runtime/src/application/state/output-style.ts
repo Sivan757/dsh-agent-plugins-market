@@ -18,7 +18,7 @@ import { mkdir } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { withFileLock } from '@deepseek-ai/dsh-atomic-write'
 import { readJsonFile, writeJsonDocument } from '../../../../market-catalog/src/index.js'
-import { OUTPUT_STYLE_NONE_ID, type OutputStyleCaptured } from '../../../../market-contracts/src/contracts/output-styles.js'
+import { OUTPUT_STYLE_NONE_ID } from '../../../../market-contracts/src/contracts/output-styles.js'
 
 /** Version of the persisted selection document this release reads and writes. */
 export const OUTPUT_STYLE_VERSION = 1
@@ -27,8 +27,6 @@ export const OUTPUT_STYLE_VERSION = 1
 export interface OutputStyleState {
   /** The selected style's id. */
   styleId: string
-  /** The suite text the selection relies on, when it is a suite style. */
-  captured?: OutputStyleCaptured
 }
 
 /** The default selection: the style that injects nothing. */
@@ -78,22 +76,7 @@ export async function loadOutputStyle(dataRoot: string, workspace: string): Prom
   const recorded = typeof record['styleId'] === 'string' ? record['styleId'] : ''
   // A selection recorded while the plugin still shipped styles of its own names a style
   // this release does not have, so it reads as no selection.
-  const styleId = recorded === '' || recorded.startsWith('builtin:') ? OUTPUT_STYLE_NONE_ID : recorded
-  const captured = parseCaptured(record['captured'])
-  return { styleId, ...(captured === undefined ? {} : { captured }) }
-}
-
-/** Read one captured record, or undefined when any field is unusable. */
-function parseCaptured(value: unknown): OutputStyleCaptured | undefined {
-  if (typeof value !== 'object' || value === null) return undefined
-  const record = value as Record<string, unknown>
-  const suiteKey = record['suiteKey']
-  const fingerprint = record['fingerprint']
-  const text = record['text']
-  if (typeof suiteKey !== 'string' || suiteKey === '') return undefined
-  if (typeof fingerprint !== 'string' || fingerprint === '') return undefined
-  if (typeof text !== 'string') return undefined
-  return { suiteKey, fingerprint, text }
+  return { styleId: recorded === '' || recorded.startsWith('builtin:') ? OUTPUT_STYLE_NONE_ID : recorded }
 }
 
 /**
@@ -117,8 +100,7 @@ export async function mutateOutputStyle(dataRoot: string, workspace: string, mut
     await writeJsonDocument(path, {
       version: OUTPUT_STYLE_VERSION,
       workspace,
-      styleId: next.styleId,
-      ...(next.captured === undefined ? {} : { captured: next.captured })
+      styleId: next.styleId
     })
     return next
   })
@@ -136,22 +118,5 @@ export async function mutateOutputStyle(dataRoot: string, workspace: string, mut
  * @returns the committed selection.
  */
 export async function saveOutputStyleSelection(dataRoot: string, workspace: string, styleId: string): Promise<OutputStyleState> {
-  return mutateOutputStyle(dataRoot, workspace, current => ({
-    styleId,
-    // The capture stays only while the selection is that same suite's style.
-    // Carrying another suite's text would report staleness for a style nobody
-    // selected, and replaying it is exactly the drift the fingerprint prevents.
-    ...(current.captured !== undefined && styleId === 'suite:' + current.captured.suiteKey ? { captured: current.captured } : {})
-  }))
-}
-
-/**
- * Record one captured suite text beside the current selection.
- * @param dataRoot - the plugin data root.
- * @param workspace - the workspace the selection belongs to.
- * @param captured - the captured text and the suite state it came from.
- * @returns the committed selection.
- */
-export async function saveOutputStyleCapture(dataRoot: string, workspace: string, captured: OutputStyleCaptured): Promise<OutputStyleState> {
-  return mutateOutputStyle(dataRoot, workspace, current => ({ styleId: current.styleId, captured }))
+  return mutateOutputStyle(dataRoot, workspace, () => ({ styleId }))
 }

@@ -6,6 +6,12 @@
  * text is injected as one system-prompt section. The rendering lives here, in
  * a module both the server and the page import, so the preview a person reads
  * is byte for byte the text the session receives.
+ *
+ * A style is a Markdown file in every case it can come from: one a person wrote
+ * in their own Agent layout, one a suite ships under `output-styles/`, or one the
+ * workspace keeps in `.claude/output-styles/`. A suite that injects persona text
+ * from a SessionStart hook is not a style here: that is a hook, and the hooks
+ * surface owns it.
  * @module contracts/output-styles
  */
 import { MARKET_API_PREFIX } from './market.js'
@@ -16,8 +22,6 @@ export const OUTPUT_STYLE_ROUTES = {
   read: `${MARKET_API_PREFIX}output-styles`,
   /** Select one style for this workspace. POST. */
   select: `${MARKET_API_PREFIX}output-styles/select`,
-  /** Capture one suite style's text through its own SessionStart hook. POST. */
-  capture: `${MARKET_API_PREFIX}output-styles/capture`,
   /**
    * Create or replace one user-authored style. POST.
    *
@@ -29,8 +33,8 @@ export const OUTPUT_STYLE_ROUTES = {
   deleteUser: `${MARKET_API_PREFIX}output-styles/user/delete`
 } as const
 
-/** Where a style comes from, in order of trust. */
-export type OutputStyleSource = 'user' | 'suite'
+/** Where a style comes from, in trust order: the person, a suite, the workspace. */
+export type OutputStyleSource = 'user' | 'suite' | 'project'
 
 /**
  * The selection that injects nothing.
@@ -71,45 +75,23 @@ export const OUTPUT_STYLE_HEADING_PREFIX = '## Output Style: '
  */
 export const OUTPUT_STYLE_SECTION_ORDER = 490
 
-/** How one suite style's capture relates to the suite on disk now. */
-export type OutputStyleCaptureState = 'missing' | 'current' | 'stale'
-
 /** One selectable style. */
 export interface OutputStyleRow {
-  /** Stable id: `builtin:<name>`, `user:<name>`, or `suite:<sourceId>/<suiteId>`. */
+  /** Stable id: `user:<name>`, `suite:<sourceId>/<suiteId>:<style>`, or `project:<name>`. */
   id: string
   /** The name the page shows and the heading carries. */
   label: string
   /** One line saying what the style changes, in the language the author wrote it in. */
   description: string
-  /** The authored text; for a suite style, the captured text. */
+  /** The authored text. */
   body: string
   source: OutputStyleSource
-  /** Suite rows: the suite's source-qualified id. */
+  /** Suite rows: the suite's source-qualified id, `sourceId/suiteId`. */
   suiteKey?: string
-  /** Suite rows: the note to show instead of a description, translated by the client. */
-  hint?: OutputStyleHintCode
-  /** Suite rows: the fingerprint the current declaration produces. */
-  fingerprint?: string
-  /** Suite rows: whether a capture exists, and whether it still matches the suite. */
-  capture?: OutputStyleCaptureState
-}
-
-/**
- * A note the client translates, instead of copy the server writes.
- *
- * A suite row cannot carry a sentence: the server that builds it does not know the
- * reader's language. A `hint` code is a typed union, so a hardcoded English sentence
- * cannot compile as one, and the panel maps it to a bilingual dictionary entry.
- */
-export type OutputStyleHintCode = 'suiteSessionStartCapture'
-
-/** One captured suite text, bound to the suite state it was captured from. */
-export interface OutputStyleCaptured {
-  suiteKey: string
-  /** The suite declaration fingerprint at capture time. */
-  fingerprint: string
-  text: string
+  /** Suite rows: the suite's display name, so a row can say which suite it came from. */
+  suiteName?: string
+  /** Suite and project rows: the file the text was read from. */
+  file?: string
 }
 
 /** The page's whole read. */
@@ -117,8 +99,6 @@ export interface OutputStylesPayload {
   styles: OutputStyleRow[]
   /** The selected style's id. */
   selected: string
-  /** The captured suite text the selection relies on, when it is a suite style. */
-  captured?: OutputStyleCaptured
   /** The workspace this selection belongs to. */
   workspace: string
   /** The exact section text the session prompt receives, or an empty string. */
@@ -143,11 +123,4 @@ export interface OutputStyleSaveRequest {
   description: string
   /** The style text itself. */
   body: string
-}
-
-/** What a capture answers: the text, and the fingerprint it is bound to. */
-export interface OutputStyleCaptureResult {
-  suiteKey: string
-  fingerprint: string
-  text: string
 }

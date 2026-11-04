@@ -481,13 +481,11 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
         id: 'outputStyles:' + style.id,
         face: 'outputStyles',
         name: style.label,
-        source: style.source === 'user' ? 'user' : ((style.suiteKey ?? '').split('/')[0] ?? ''),
+        source: style.source === 'user' ? 'user' : style.source === 'project' ? 'project' : ((style.suiteKey ?? '').split('/')[0] ?? ''),
         ...(style.description === undefined ? {} : { description: style.description }),
-        available: style.source === 'user' || style.capture !== 'missing',
-        // A suite style's text only exists once someone ran its hook. The row still lists,
-        // because a preset may carry it, but it says why it injects nothing yet instead of
-        // looking like a style that is simply off.
-        ...(style.source === 'suite' && style.capture === 'missing' ? { unavailableReason: 'style-uncaptured' } : {}),
+        // Every style is a file that exists, so every row is selectable: nothing has to be
+        // captured before it can inject.
+        available: true,
         globalEnabled: styles.selected === style.id,
         detail: { kind: 'outputStyle', entryId: style.id }
       })

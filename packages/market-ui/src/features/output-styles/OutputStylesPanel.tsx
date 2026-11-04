@@ -1,23 +1,17 @@
 /**
- * Output styles panel: choose, author and preview the instruction block the
- * session prompt receives.
+ * The output-styles surface: one card per style, the detail a card opens, and the
+ * text a person reads before any of it reaches the prompt.
  *
- * The preview is the point of the surface. It renders the server's own
- * `injected` string, which the server builds with the same function the prompt
- * section uses, so what a person reads here is byte for byte what the model
- * gets, heading included.
- *
- * A suite style is the one row whose text is not authored in place: a suite
- * delivers it by running a hook, so the text is captured once, explicitly, and
- * shown before it can be selected. A capture stops matching when the suite
- * changes, and the row says so instead of replaying text nobody re-approved.
+ * Every style is a Markdown file: one the person wrote, one a suite ships, or one the
+ * workspace keeps. Nothing is captured and nothing runs, so the page is a read of files
+ * the reader can also open in an editor.
  * @module features/output-styles/OutputStylesPanel
  */
-import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
 import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
-import type { OutputStyleRow, OutputStylesPayload } from '../../api.js'
-import { captureOutputStyle, deleteUserOutputStyle, fetchOutputStyles, saveUserOutputStyle, selectOutputStyle } from '../../api.js'
+import type { OutputStyleRow, OutputStylesPayload } from '../../../../market-contracts/src/contracts/output-styles.js'
+import { deleteUserOutputStyle, fetchOutputStyles, saveUserOutputStyle, selectOutputStyle } from '../../api.js'
 import type { Translate } from '../../i18n.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { CodeEditor } from '../../ui/CodeEditor.js'
@@ -29,7 +23,7 @@ import { ConfirmModal, PanelActions, PanelHeader, ReadFailed, type PanelConfirmS
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { surfaceProviderCuts } from '../../ui/surface-facets.js'
 import { BilingualToggle } from '../../ui/BilingualToggle.js'
-import { captureAction, isSelectable, suiteKeyOf, userNameOf } from './output-styles-view-model.js'
+import { groupLocaleKey, sourceMetaOf, userNameOf } from './output-styles-view-model.js'
 import css from './output-styles.module.css'
 import panelCss from '../../ui/panel.module.css'
 
@@ -59,39 +53,11 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
   const [detail, setDetail] = useState<OutputStyleRow | undefined>(undefined)
   const [showOriginal, setShowOriginal] = useState(false)
 
-  // One automatic capture pass per mounted panel: a suite style's text is produced by its own
-  // SessionStart hook, so the page runs that hook once instead of asking the reader to press a
-  // button per row. A failure leaves the row with its action, which is then a retry.
-  const captured = useRef(false)
-
   const refresh = (): void => {
     setLoading(true)
     setError(undefined)
     fetchOutputStyles(sessionId)
-      .then(next => {
-        setPayload(next)
-        if (captured.current) return
-        const missing = next.styles.filter(row => suiteKeyOf(row) !== undefined && row.capture === 'missing')
-        if (missing.length === 0) {
-          captured.current = true
-          return
-        }
-        captured.current = true
-        void (async () => {
-          for (const row of missing) {
-            const key = suiteKeyOf(row)
-            if (key === undefined) continue
-            try {
-              await captureOutputStyle(key, sessionId)
-            } catch {
-              // The row keeps its own action; one suite failing must not stop the others.
-            }
-          }
-          fetchOutputStyles(sessionId)
-            .then(setPayload)
-            .catch(() => undefined)
-        })()
-      })
+      .then(setPayload)
       .catch(caught => setError(clientErrorMessage(t, caught)))
       .finally(() => setLoading(false))
   }
@@ -108,21 +74,6 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
     setBusyStyle(row.id)
     selectOutputStyle(row.id, sessionId)
       .then(setPayload)
-      .catch(caught => setError(clientErrorMessage(t, caught)))
-      .finally(() => setBusyStyle(undefined))
-  }
-
-  const capture = (row: OutputStyleRow): void => {
-    const suiteKey = suiteKeyOf(row)
-    if (suiteKey === undefined) return
-    setNotice(undefined)
-    setError(undefined)
-    setBusyStyle(row.id)
-    captureOutputStyle(suiteKey, sessionId)
-      .then(result => {
-        setNotice(t('outputStylesCapturedAt') + ' ' + String(result.text.length) + ' · ' + row.label)
-        refresh()
-      })
       .catch(caught => setError(clientErrorMessage(t, caught)))
       .finally(() => setBusyStyle(undefined))
   }
@@ -195,8 +146,7 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
       },
       isOn: (id: string) => id === payload?.selected,
       // The shared builder paints the rail and writes the switch's verb; this face supplies
-      // its own words for the three states a style can be in, because "in force", "chosen but
-      // not in force" and "never captured" are this face's vocabulary.
+      // its own words for the two states a style can be in.
       entries: styles.map(row => ({
         ...buildFaceEntry(
           t,
@@ -205,30 +155,21 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
             provider: row.source === 'user' ? 'user' : 'suite',
             id: row.id,
             name: row.label,
-            tag: row.source === 'user' ? t('outputStylesGroupUser') : t('outputStylesGroupSuite'),
+            tag: t(groupLocaleKey(row.source)),
             ...(row.description === undefined ? {} : { description: row.description }),
-            meta: row.source === 'suite' ? (suiteKeyOf(row)?.split('/')[0] ?? '') : `output-styles/${userNameOf(row) ?? ''}.md`,
-            // Choosing a style is the one thing this face is for. The switch selects, and the
-            // state word says whether it already is; a row without a current capture cannot be
-            // selected, so its word names the step that is missing instead.
+            meta: row.source === 'user' ? `output-styles/${userNameOf(row) ?? ''}.md` : sourceMetaOf(row),
+            // Choosing a style is the one thing this face is for. The switch selects and the
+            // state word says whether it already is.
             showSwitch: true,
             on: row.id === payload?.selected,
-            liveWord: row.id === payload?.selected ? t('outputStylesStateSelected') : isSelectable(row) ? t('outputStylesStateNotSelected') : t('outputStylesStateUncaptured'),
-            // The same sentence the manager shows for the same condition: a suite style whose
-            // text was never captured injects nothing, and both pages say so in one voice.
-            ...(row.capture === 'missing' ? { note: t('outputStylesUncaptured') } : {})
+            liveWord: row.id === payload?.selected ? t('outputStylesStateSelected') : t('outputStylesStateNotSelected')
           },
           'settings'
         ),
         tagId: row.source,
         // The switch is a choice, not an on/off: the verb says so. Without a verb a screen
         // reader hears the style's own name twice, once for the row and once for the control.
-        toggleLabel: t('outputStylesSelect'),
-        // The step the state word names, offered where the word is: a row that cannot be
-        // selected because its text was never captured says so and gives the action that fixes
-        // it, instead of sending the reader into the dialog to find out.
-        ...(row.hint === undefined || isSelectable(row) ? {} : { primary: { label: t('outputStylesCapture'), onSelect: () => capture(row) } }),
-        disabled: !isSelectable(row)
+        toggleLabel: t('outputStylesSelect')
       })),
       emptyText: error !== undefined ? t('statusUnreadable') : loading ? t('loading') : t('outputStylesEmpty'),
       onOpen: id => setDetail(styles.find(row => row.id === id))
@@ -243,10 +184,6 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
           busy: busyStyle === detail.id,
           onSelect: () => {
             select(detail)
-            setDetail(undefined)
-          },
-          onCapture: () => {
-            capture(detail)
             setDetail(undefined)
           },
           onEdit: () => {
@@ -376,15 +313,12 @@ function StyleDetail(props: {
   injected: string
   busy: boolean
   onSelect: () => void
-  onCapture: () => void
   onEdit: () => void
   onDelete: () => void
   onClose: () => void
 }): ReactNode {
-  const { t, row, selected, injected, busy, onSelect, onCapture, onEdit, onDelete, onClose } = props
+  const { t, row, selected, injected, busy, onSelect, onEdit, onDelete, onClose } = props
   const userStyle = row.source === 'user'
-  const selectable = isSelectable(row)
-  const action = captureAction(row)
   // A selected style shows the bytes the prompt receives; another style shows its own
   // text, because that is what selecting it would send.
   const shown = selected && injected !== '' ? injected : row.body
@@ -401,20 +335,15 @@ function StyleDetail(props: {
         { className: css.footer },
         selected ? h(Tag, { tone: 'success' }, t('outputStylesSelected')) : null,
         h('div', { className: css.grow }),
-        action === 'none'
-          ? null
-          : h(Button, { variant: 'outline', disabled: busy, onClick: onCapture }, action === 'first' ? t('outputStylesCapture') : t('outputStylesRecapture')),
         userStyle ? h(Button, { variant: 'outline', disabled: busy, onClick: onEdit }, t('panelEdit')) : null,
         userStyle ? h(Button, { variant: 'ghost', disabled: busy, onClick: onDelete }, t('panelDelete')) : null,
-        h(Button, { variant: 'primary', disabled: busy || !selectable || selected, onClick: onSelect }, t('outputStylesSelect'))
+        h(Button, { variant: 'primary', disabled: busy || selected, onClick: onSelect }, t('outputStylesSelect'))
       )
     },
     h(
       'div',
       { className: css.editorStack },
       h('p', { className: css.rowDescription }, row.description),
-      row.capture === 'missing' ? h('p', { className: css.rowWarn }, t('outputStylesCaptureMissing')) : null,
-      row.capture === 'stale' ? h('p', { className: css.rowWarn }, t('outputStylesCaptureStale')) : null,
       // The block head every detail section uses: 11px, uppercase, its own bottom
       // margin. This one was 12px sentence case with the margin on the other side.
       h('h4', { className: panelCss.blockHead }, t('outputStylesPreviewTitle')),

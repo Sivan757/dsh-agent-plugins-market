@@ -26,7 +26,7 @@ import type {
 import type { McpStatusPayload } from '../../market-contracts/src/contracts/mcp-status.js'
 import type { LspStatusPayload } from '../../market-contracts/src/contracts/lsp-status.js'
 import type { SurfaceToggleKey, SurfaceToggles } from '../../market-contracts/src/contracts/surface-toggles.js'
-import { OUTPUT_STYLE_ROUTES } from '../../market-contracts/src/contracts/output-styles.js'
+import { OUTPUT_STYLE_ROUTES, type OutputStyleSaveRequest, type OutputStylesPayload } from '../../market-contracts/src/contracts/output-styles.js'
 import {
   AI_DRAFT_ROUTES,
   type AiDiagnoseFace,
@@ -38,7 +38,6 @@ import {
   type AiPresetSuggestion,
   type AiSessionRequest
 } from '../../market-contracts/src/contracts/ai-draft.js'
-import type { OutputStyleCaptureResult, OutputStylesPayload, OutputStyleSaveRequest } from '../../market-contracts/src/contracts/output-styles.js'
 import { resolveHiddenTabs, resolveTabOrder, type TabLayoutWire } from '../../market-contracts/src/contracts/tab-layout.js'
 import { INSTRUCTION_ROUTES } from '../../market-contracts/src/contracts/instructions.js'
 import type { InstructionDeleteResult, InstructionsPayload, InstructionSaveRequest } from '../../market-contracts/src/contracts/instructions.js'
@@ -69,7 +68,6 @@ export type {
 export type { McpStatusEntry, McpStatusPayload, McpStatusTool } from '../../market-contracts/src/contracts/mcp-status.js'
 export type { LspStatusEntry, LspStatusPayload, LspStatusState, LspLegacySeam, LspLegacySeamMigration } from '../../market-contracts/src/contracts/lsp-status.js'
 export type { McpBackendInfo }
-export type { OutputStyleCaptureResult, OutputStyleCaptured, OutputStyleRow, OutputStyleSource, OutputStylesPayload } from '../../market-contracts/src/contracts/output-styles.js'
 export type {
   InstructionDeleteResult,
   InstructionRow,
@@ -711,8 +709,7 @@ export async function selectOutputStyle(styleId: string, sessionId?: string): Pr
       styles: payload.styles,
       selected: payload.selected,
       workspace: payload.workspace,
-      injected: payload.injected,
-      ...(payload.captured === undefined ? {} : { captured: payload.captured })
+      injected: payload.injected
     }
   })
 }
@@ -726,12 +723,6 @@ export async function selectOutputStyle(styleId: string, sessionId?: string): Pr
  * @param sessionId - the live session whose workspace records the capture.
  * @returns the captured text and the fingerprint it is bound to.
  */
-export async function captureOutputStyle(suiteKey: string, sessionId?: string): Promise<OutputStyleCaptureResult> {
-  return withBusyOperation(async () => {
-    const payload = await postOkJson<OutputStyleCaptureResult>(sessionRoute(OUTPUT_STYLE_ROUTES.capture, sessionId), { suiteKey }, 'capture failed')
-    return { suiteKey: payload.suiteKey, fingerprint: payload.fingerprint, text: payload.text }
-  })
-}
 /**
  * Create or replace one user-authored output style.
  *

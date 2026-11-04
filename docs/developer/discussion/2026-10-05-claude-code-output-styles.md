@@ -1,5 +1,7 @@
 # Claude Code output styles: implementation mechanism
 
+> **Superseded in part (2026-11-04).** The plugin now reads a style as a Markdown file: a suite's `output-styles/` directory (or its manifest's `outputStyles` field), a workspace's `.claude/output-styles/`, or the person's own Agent layout. A suite that injects persona text from a SessionStart hook is listed by the hooks surface as a hook. The mechanism described below is still how the deprecated `outputStyle` setting works upstream, which is why the file format (frontmatter plus body) is the one this plugin reads.
+
 - Date: 2026-10-05
 - Subject: how Claude Code implements `output-style` / the `outputStyle` setting, and the design principles behind it.
 - Why it is here: this repository declares `output-styles/` in the Claude Code dialect contract ([spec.md](../../../packages/market-catalog/schemas/claude-code/spec.md)) but mounts no output-style surface at runtime. This note records what the upstream surface actually does, so a later decision to mount it (or not) starts from evidence.

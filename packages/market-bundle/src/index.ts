@@ -405,11 +405,11 @@ export async function apply(
   const catalog = new Catalog({ userRoot, dataRoot, agentsRoot, onChanged, ports, switchSettleMs, ...(config.git === undefined ? {} : { git: config.git }) })
   await catalog.load()
   // The output-style selection is the third document of the tab-layout shape and
-  // owns its own file for the same reason. Its suite rows come from the catalog
-  // and its captures run through the bounded dry run, so both arrive as a port
-  // the composition root supplies. The initial read is the process workspace;
-  // each agent's own workspace is read when that agent is created.
-  const outputStyles = new OutputStyleService(dataRoot, agentsRoot, createOutputStyleSuitePort({ catalog, hostCtx: ctx, dataRoot }))
+  // owns its own file for the same reason. Its suite rows are the Markdown files the
+  // enabled suites ship, so the catalog arrives as a port the composition root
+  // supplies. The initial read is the process workspace; each agent's own workspace is
+  // read when that agent is created.
+  const outputStyles = new OutputStyleService(dataRoot, agentsRoot, createOutputStyleSuitePort({ catalog }))
   void outputStyles.refresh(process.cwd()).catch(error => ctx.logger.warn('workspace output style: ' + String(error)))
   const readUserDeclarations = async (): Promise<ExtensionSuiteCandidate[]> => {
     const [installed, direct] = await Promise.all([catalog.installedSuiteDeclarations(), Promise.all([loadUserMcpSuite(agentsRoot), loadUserHooksSuite(agentsRoot)])])

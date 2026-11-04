@@ -7,40 +7,28 @@
  * memory, republishes it after every successful write, and refreshes it whenever
  * a read asks for the current truth.
  *
- * The three sources are merged here without reinterpreting any of them. A suite
- * style carries only text a person captured explicitly, bound to the fingerprint
- * of the declaration it came from, so a suite that changes shows as stale rather
- * than replaying text nobody re-approved.
+ * Every style is a Markdown file: one the person wrote in their Agent layout, one a
+ * suite ships under `output-styles/`, or one the workspace keeps in
+ * `.claude/output-styles/`. Nothing is captured and nothing runs: a suite that
+ * injects persona text from a SessionStart hook is a hook, and the hooks surface owns
+ * it.
  * @module runtime/host/output-style-service
  */
-import { deleteUserStyle, parseCapturedStyle, readUserStyles, suiteStyleFingerprint, writeUserStyle, type SuiteStyleCandidate } from '../../application/output-styles.js'
+import { deleteUserStyle, readProjectStyles, readUserStyles, writeUserStyle, type SuiteStyleEntry } from '../../application/output-styles.js'
 import { renderOutputStyleSection } from './output-style-render.js'
-import { loadOutputStyle, saveOutputStyleCapture, saveOutputStyleSelection, defaultOutputStyleState, type OutputStyleState } from '../../application/state/output-style.js'
-import {
-  OUTPUT_STYLE_NONE_ID,
-  type OutputStyleCaptureResult,
-  type OutputStyleCaptured,
-  type OutputStyleRow,
-  type OutputStylesPayload
-} from '../../../../market-contracts/src/contracts/output-styles.js'
+import { loadOutputStyle, saveOutputStyleSelection, type OutputStyleState } from '../../application/state/output-style.js'
+import { OUTPUT_STYLE_NONE_ID, type OutputStyleRow, type OutputStylesPayload } from '../../../../market-contracts/src/contracts/output-styles.js'
 
 /**
  * What this service needs from the catalog side.
  *
- * The runtime cannot list suites or run a hook: both belong to the composition
- * root, which owns the catalog and the shell seam. A profile that supplies no
- * port still has builtin and user styles, and simply offers no suite rows.
+ * The runtime cannot list suites: that belongs to the composition root, which owns
+ * the catalog. A profile that supplies no port still has the person's own styles and
+ * the workspace's project styles, and simply offers no suite rows.
  */
 export interface OutputStyleSuitePort {
-  /** Every enabled suite that declares a SessionStart hook, with its fingerprint. */
-  candidates(): Promise<SuiteStyleCandidate[]>
-  /**
-   * Run one suite's SessionStart hook once, bounded, and return its text.
-   * @param suiteKey - the suite address, `sourceId/suiteId`.
-   * @param fingerprint - the fingerprint the caller saw, so a suite that changed
-   * between the read and the capture is refused instead of stored under a stale key.
-   */
-  capture(suiteKey: string, fingerprint: string): Promise<string>
+  /** Every enabled suite that ships Markdown styles. */
+  styleFiles(): Promise<SuiteStyleEntry[]>
 }
 
 /** One workspace's resolved selection, kept for the synchronous section provider. */
@@ -48,16 +36,11 @@ interface CachedSelection {
   state: OutputStyleState
   /** The exact section text, or an empty string when the selection injects nothing. */
   injected: string
-  /** How the selection's capture relates to the suite on disk now. */
-  capture: 'current' | 'stale' | 'missing'
 }
 
-/** The service's own view of one workspace. */
-type WorkspaceState = CachedSelection
-
 export class OutputStyleService {
-  private readonly cache = new Map<string, WorkspaceState>()
-  /** Mutations run one at a time so a select and a capture cannot interleave. */
+  private readonly cache = new Map<string, CachedSelection>()
+  /** Mutations run one at a time so two selections cannot interleave. */
   private tail: Promise<void> = Promise.resolve()
 
   /**
@@ -84,8 +67,8 @@ export class OutputStyleService {
   /**
    * Re-read one workspace's selection and every style it may point at.
    *
-   * Called at mount, after every mutation, and by every read: a read is where
-   * the page learns that a suite changed, so the same pass updates the text the
+   * Called at mount, after every mutation, and by every read: a read is where the
+   * page learns that a style file changed, so the same pass updates the text the
    * session already holds.
    * @param workspace - the workspace whose selection to resolve.
    */
@@ -99,18 +82,56 @@ export class OutputStyleService {
     return this.cache.get(workspace)?.injected ?? ''
   }
 
-  /** The whole page read: every style, the selection, the capture, and the injected text. */
-  async payload(workspace: string): Promise<OutputStylesPayload> {
+  /**
+   * The whole page read: every style, the selection, and the injected text.
+   * @param workspace - the workspace whose selection is read.
+   * @param includeProject - whether project styles are listed; a page with no live
+   * session answers for no workspace, so it must not report one's files.
+   */
+  async payload(workspace: string, includeProject = true): Promise<OutputStylesPayload> {
     await this.refresh(workspace)
-    const cached = this.cache.get(workspace) ?? (await this.resolve(workspace, defaultOutputStyleState()))
-    const styles = await this.rows(workspace)
+    const cached = this.cache.get(workspace)
     return {
-      styles,
-      selected: cached.state.styleId,
-      ...(cached.state.captured === undefined ? {} : { captured: cached.state.captured }),
+      styles: await this.rows(workspace, includeProject),
+      selected: cached?.state.styleId ?? OUTPUT_STYLE_NONE_ID,
       workspace,
-      injected: cached.injected
+      injected: cached?.injected ?? ''
     }
+  }
+
+  /**
+   * Every selectable style, in trust order, from all three sources.
+   * @param workspace - the workspace whose project styles are read too.
+   * @param includeProject - false for a page that answers for no workspace.
+   */
+  async rows(workspace: string, includeProject = true): Promise<OutputStyleRow[]> {
+    const users = await readUserStyles(this.agentsRoot)
+    const suites = await this.suiteRows()
+    if (!includeProject) return [...users, ...suites]
+    const project = await readProjectStyles(workspace).catch(() => [])
+    return [...users, ...suites, ...project]
+  }
+
+  /** One row per suite style file. */
+  private async suiteRows(): Promise<OutputStyleRow[]> {
+    if (this.suites === undefined) return []
+    let entries: SuiteStyleEntry[]
+    try {
+      entries = await this.suites.styleFiles()
+    } catch {
+      // A catalog that cannot answer costs the suite rows, never the page.
+      return []
+    }
+    return entries.map(entry => ({
+      id: `suite:${entry.suiteKey}:${entry.name}`,
+      label: entry.name,
+      description: entry.description,
+      body: entry.body,
+      source: 'suite' as const,
+      suiteKey: entry.suiteKey,
+      suiteName: entry.suiteName,
+      file: entry.file
+    }))
   }
 
   /**
@@ -118,43 +139,20 @@ export class OutputStyleService {
    *
    * An unknown id is refused rather than stored: a selection nobody can render
    * would silently turn the previous style off, and the page would report a
-   * choice the prompt does not contain. A suite style needs a capture that still
-   * matches its declaration, because the text is the style.
+   * choice the prompt does not contain.
    * @param workspace - the workspace whose selection changes.
    * @param styleId - the requested style id.
    * @returns the committed page read.
    */
-  async select(workspace: string, styleId: string): Promise<OutputStylesPayload> {
+  async select(workspace: string, styleId: string, includeProject = true): Promise<OutputStylesPayload> {
     await this.enqueue(async () => {
-      const styles = await this.rows(workspace)
-      const target = styles.find(row => row.id === styleId)
-      if (target === undefined) throw new Error(`unknown output style "${styleId}"`)
-      if (target.source === 'suite' && target.capture !== 'current') throw new Error(`output style "${target.label}" has no current capture; capture it first`)
+      if (styleId !== OUTPUT_STYLE_NONE_ID) {
+        const styles = await this.rows(workspace, includeProject)
+        if (!styles.some(row => row.id === styleId)) throw new Error(`unknown output style "${styleId}"`)
+      }
       await saveOutputStyleSelection(this.dataRoot, workspace, styleId)
     })
-    return this.payload(workspace)
-  }
-
-  /**
-   * Capture one suite style's text through its own SessionStart hook.
-   *
-   * The page runs this on its own the first time the face is opened, so a reader
-   * who merely looks at the list does not have to press a button per row. The
-   * explicit step moved one place later and stayed a step a person takes: the
-   * captured text is shown in the preview and only a selection puts it in the
-   * prompt. A failed capture leaves the row with its action, which retries.
-   * @param workspace - the workspace whose capture record is updated.
-   * @param suiteKey - the suite address, `sourceId/suiteId`.
-   * @returns the captured text and the fingerprint it is bound to.
-   */
-  async capture(workspace: string, suiteKey: string): Promise<OutputStyleCaptureResult> {
-    const candidate = await this.candidate(suiteKey)
-    const text = normalizeCaptured(parseCapturedStyle(await this.requireSuites().capture(suiteKey, candidate.fingerprint)))
-    await this.enqueue(async () => {
-      await saveOutputStyleCapture(this.dataRoot, workspace, { suiteKey, fingerprint: candidate.fingerprint, text })
-    })
-    await this.refresh(workspace)
-    return { suiteKey, fingerprint: candidate.fingerprint, text }
+    return this.payload(workspace, includeProject)
   }
 
   /** Create or replace one user-authored style. */
@@ -165,141 +163,24 @@ export class OutputStyleService {
   /** Remove one user-authored style, restoring the default when it was selected. */
   async removeUserStyle(workspace: string, name: string): Promise<void> {
     await deleteUserStyle(this.agentsRoot, name)
-    await this.enqueue(async () => {
-      const state = await loadOutputStyle(this.dataRoot, workspace)
-      if (state.styleId === `user:${name}`) await saveOutputStyleSelection(this.dataRoot, workspace, OUTPUT_STYLE_NONE_ID)
-    })
+    const state = await loadOutputStyle(this.dataRoot, workspace)
+    if (state.styleId === `user:${name}`) await saveOutputStyleSelection(this.dataRoot, workspace, OUTPUT_STYLE_NONE_ID)
     await this.refresh(workspace)
-  }
-
-  /**
-   * Every selectable style, in trust order, from all three sources.
-   *
-   * A suite row's capture state is read against the given workspace, because
-   * that is what decides whether the row can be selected: the text `capture`
-   * is what the style is.
-   * @param workspace - the workspace whose captured record the suite rows compare to.
-   */
-  async rows(workspace: string): Promise<OutputStyleRow[]> {
-    const users = await readUserStyles(this.agentsRoot)
-    const captured = this.cache.get(workspace)?.state.captured
-    const suites = await this.suiteRows(captured)
-    // Styles come from plugins and from the person: the plugin ships none of its own.
-    return [...users, ...suites]
-  }
-
-  /** One suite's own row list, with its capture state. */
-  private async suiteRows(captured: OutputStyleCaptured | undefined): Promise<OutputStyleRow[]> {
-    const candidates = await this.candidates()
-    return candidates.map(candidate => ({
-      id: `suite:${candidate.suiteKey}`,
-      label: candidate.label,
-      // A suite row has no authored description: its note is the typed hint the client
-      // translates, because this server cannot know the reader's language.
-      description: '',
-      hint: candidate.hint,
-      // The body of a suite style is its captured text; a row without a current
-      // capture renders empty and offers the capture action.
-      body: captured?.suiteKey === candidate.suiteKey && captured.fingerprint === candidate.fingerprint ? captured.text : '',
-      source: 'suite' as const,
-      suiteKey: candidate.suiteKey,
-      fingerprint: candidate.fingerprint,
-      capture: captureState(captured, candidate)
-    }))
-  }
-
-  private async candidates(): Promise<SuiteStyleCandidate[]> {
-    if (this.suites === undefined) return []
-    try {
-      return await this.suites.candidates()
-    } catch {
-      // A catalog that cannot answer costs the suite rows, never the page: the
-      // builtin and user sources still list.
-      return []
-    }
-  }
-
-  private requireSuites(): OutputStyleSuitePort {
-    if (this.suites === undefined) throw new Error('no catalog is available, so suite output styles cannot be captured')
-    return this.suites
-  }
-
-  /** One candidate by address, or a stable refusal. */
-  private async candidate(suiteKey: string): Promise<SuiteStyleCandidate> {
-    const found = (await this.candidates()).find(candidate => candidate.suiteKey === suiteKey)
-    if (found === undefined) throw new Error(`no enabled suite "${suiteKey}" declares a SessionStart hook to capture`)
-    return found
   }
 
   /**
    * Resolve one selection against the styles that exist right now.
    *
    * An id nobody can render falls back to the default selection, which is how a
-   * deleted user style or an uninstalled suite stops injecting anything. The
-   * suite case additionally requires the capture's fingerprint to match the
-   * declaration in force, so a changed suite contributes nothing until someone
-   * captures it again.
+   * deleted user style, an uninstalled suite, or a removed project file stops
+   * injecting anything.
    */
-  private async resolve(workspace: string, state: OutputStyleState): Promise<WorkspaceState> {
-    const candidates = await this.candidates()
-    const users = await readUserStyles(this.agentsRoot)
+  private async resolve(workspace: string, state: OutputStyleState): Promise<CachedSelection> {
     const selected = state.styleId
-    const user = users.find(row => row.id === selected)
-    if (user !== undefined) {
-      return { state, injected: renderOutputStyleSection(user.label, user.body), capture: 'current' }
-    }
-    const suiteKey = selected.startsWith('suite:') ? selected.slice('suite:'.length) : undefined
-    const candidate = suiteKey === undefined ? undefined : candidates.find(entry => entry.suiteKey === suiteKey)
-    if (candidate !== undefined) {
-      const captured = state.captured
-      if (captured === undefined || captured.suiteKey !== candidate.suiteKey) {
-        return { state, injected: '', capture: 'missing' }
-      }
-      if (captured.fingerprint !== candidate.fingerprint) {
-        return { state, injected: '', capture: 'stale' }
-      }
-      return { state, injected: renderOutputStyleSection(candidate.label, captured.text), capture: 'current' }
-    }
-    // Nothing renders this id: fall back to the style that injects nothing, and
-    // report that selection so the page shows what the prompt actually carries.
-    // Nothing renders this id: the prompt carries no output-style section, and the
-    // selection records that rather than pointing at a style that is not there. A capture
-    // already on record stays with the workspace, because selecting the suite that owns it
-    // is what makes it current.
-    return {
-      state: state.captured === undefined ? { styleId: OUTPUT_STYLE_NONE_ID } : { styleId: OUTPUT_STYLE_NONE_ID, captured: state.captured },
-      injected: '',
-      capture: 'current'
-    }
+    if (selected === OUTPUT_STYLE_NONE_ID) return { state, injected: '' }
+    const styles = await this.rows(workspace)
+    const row = styles.find(entry => entry.id === selected)
+    if (row === undefined) return { state: { styleId: OUTPUT_STYLE_NONE_ID }, injected: '' }
+    return { state, injected: renderOutputStyleSection(row.label, row.body) }
   }
 }
-
-/**
- * How one suite's stored capture relates to the declaration in force.
- *
- * A capture for another suite is not this row's capture at all, so it reads as
- * missing rather than stale: there is nothing here to re-approve.
- * @param captured - the workspace's stored capture.
- * @param candidate - the suite as it stands now.
- * @returns the state the row reports.
- */
-function captureState(captured: OutputStyleCaptured | undefined, candidate: SuiteStyleCandidate): 'current' | 'stale' | 'missing' {
-  if (captured === undefined || captured.suiteKey !== candidate.suiteKey) return 'missing'
-  return captured.fingerprint === candidate.fingerprint ? 'current' : 'stale'
-}
-
-/**
- * Put the captured text in the form the stored record keeps.
- *
- * The stored text is what the page previewed and what the prompt receives, so
- * the only normalization is the document's own trailing newline: a capture that
- * ends with one would otherwise render an extra blank line before the next
- * prompt section.
- */
-function normalizeCaptured(text: string): string {
-  return text.replace(/\s+$/, '')
-}
-
-/** Re-export so the composition root can build a fingerprint without importing the application module twice. */
-export { suiteStyleFingerprint }
-export type { SuiteStyleCandidate }

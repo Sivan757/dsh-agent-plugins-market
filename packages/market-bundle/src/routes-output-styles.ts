@@ -86,14 +86,21 @@ export function mountOutputStyleRoutes(hostCtx: unknown, deps: OutputStyleRouteD
    * process working directory. An unknown session is a diagnostic, never a quiet
    * fallback to another workspace's style.
    */
-  const workspaceOf = (request: IncomingMessage): { workspace: string } | { error: string } => {
+  /**
+   * The workspace one request answers for, and whether project styles belong in it.
+   *
+   * A request with no session is the settings page: it belongs to no workspace, so it
+   * reads the user and suite styles only. Project styles are read for a session, from
+   * that session's workspace, exactly like the instruction chain.
+   */
+  const workspaceOf = (request: IncomingMessage): { workspace: string; includeProject: boolean } | { error: string } => {
     const sessionId = queryOf(request).get('sessionId')
-    if (sessionId === null || sessionId === '') return { workspace: process.cwd() }
+    if (sessionId === null || sessionId === '') return { workspace: process.cwd(), includeProject: false }
     const agent = deps.session?.agent(sessionId)
     if (agent === undefined) return { error: `no live session "${sessionId}"` }
     const cwd = agent.session.header.cwd
     if (typeof cwd !== 'string' || !isAbsolute(cwd)) return { error: `session "${sessionId}" has no absolute workspace` }
-    return { workspace: cwd }
+    return { workspace: cwd, includeProject: true }
   }
 
   get(OUTPUT_STYLE_ROUTES.read, async (request, response) => {
@@ -102,7 +109,7 @@ export function mountOutputStyleRoutes(hostCtx: unknown, deps: OutputStyleRouteD
       sendJson(response, 404, { ok: false, error: resolved.error })
       return
     }
-    sendJson(response, 200, await deps.service.payload(resolved.workspace))
+    sendJson(response, 200, await deps.service.payload(resolved.workspace, resolved.includeProject))
   })
 
   post(OUTPUT_STYLE_ROUTES.select, async (body, request) => {
@@ -110,15 +117,7 @@ export function mountOutputStyleRoutes(hostCtx: unknown, deps: OutputStyleRouteD
     if ('error' in resolved) throw new Error(resolved.error)
     const styleId = body['styleId']
     if (typeof styleId !== 'string' || styleId === '') throw new Error('styleId must be a non-empty string')
-    return { ...(await deps.service.select(resolved.workspace, styleId)) }
-  })
-
-  post(OUTPUT_STYLE_ROUTES.capture, async (body, request) => {
-    const resolved = workspaceOf(request)
-    if ('error' in resolved) throw new Error(resolved.error)
-    const suiteKey = body['suiteKey']
-    if (typeof suiteKey !== 'string' || suiteKey === '') throw new Error('suiteKey must be a non-empty string')
-    return { ...(await deps.service.capture(resolved.workspace, suiteKey)) }
+    return { ...(await deps.service.select(resolved.workspace, styleId, resolved.includeProject)) }
   })
 
   post(OUTPUT_STYLE_ROUTES.saveUser, async (body, request) => {

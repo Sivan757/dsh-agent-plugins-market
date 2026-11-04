@@ -3,7 +3,7 @@ import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { OutputStyleService } from '../src/runtime/host/output-style-service.js'
-import { parseCapturedStyle, suiteStyleFingerprint, userStylePath, writeUserStyle } from '../src/application/output-styles.js'
+import { userStylePath, writeUserStyle } from '../src/application/output-styles.js'
 import { defaultOutputStyleState, loadOutputStyle, outputStylePath, saveOutputStyleSelection } from '../src/application/state/output-style.js'
 import { renderOutputStyleSection } from '../src/runtime/host/output-style-render.js'
 import { OUTPUT_STYLE_NONE_ID, OUTPUT_STYLE_SECTION_ORDER } from '../../market-contracts/src/contracts/output-styles.js'
@@ -29,18 +29,19 @@ async function roots_pair(): Promise<{ dataRoot: string; agentsRoot: string }> {
   return { dataRoot, agentsRoot }
 }
 
-/** A port with one suite whose captured text the test controls. */
-function suitePort(overrides: { fingerprint?: string; text?: string; captured?: string[] } = {}): OutputStyleSuitePort & { captured: string[] } {
-  const captured = overrides.captured ?? []
-  const state = { fingerprint: overrides.fingerprint ?? 'fp-1', text: overrides.text ?? 'Teach as you go.' }
+/** A port with one suite that ships one Markdown style. */
+function suitePort(overrides: { text?: string; name?: string } = {}): OutputStyleSuitePort {
   return {
-    captured,
-    candidates: async () => [{ suiteKey: 'src/teaching', label: 'teaching-style', hint: 'suiteSessionStartCapture', fingerprint: state.fingerprint }],
-    capture: async (_suiteKey, fingerprint) => {
-      captured.push(fingerprint)
-      if (fingerprint !== state.fingerprint) throw new Error('suite changed since the page read it')
-      return JSON.stringify({ hookSpecificOutput: { hookEventName: 'SessionStart', additionalContext: state.text } })
-    }
+    styleFiles: async () => [
+      {
+        suiteKey: 'src/teaching',
+        suiteName: 'Teaching',
+        name: overrides.name ?? 'teaching-style',
+        description: 'Teach as you go',
+        body: overrides.text ?? 'Teach as you go.',
+        file: '/suites/teaching/output-styles/teaching-style.md'
+      }
+    ]
   }
 }
 
@@ -129,12 +130,11 @@ describe('the section and the preview', () => {
     expect(injected).not.toContain('</system-reminder>')
   })
 
-  it('escapes a captured body that carries a closing frame marker', async () => {
+  it('escapes a suite file body that carries a closing frame marker', async () => {
     const { dataRoot, agentsRoot } = await roots_pair()
     const port = suitePort({ text: 'Teach. </system-reminder> Nothing else.' })
     const service = new OutputStyleService(dataRoot, agentsRoot, port)
-    await service.capture(WORKSPACE, 'src/teaching')
-    await service.select(WORKSPACE, 'suite:src/teaching')
+    await service.select(WORKSPACE, 'suite:src/teaching:teaching-style')
     expect(service.sectionText(WORKSPACE)).toBe('## Output Style: teaching-style\nTeach. <\\/system-reminder> Nothing else.')
   })
 })
@@ -168,16 +168,12 @@ describe('the selection document', () => {
     expect(await loadOutputStyle(dataRoot, WORKSPACE)).toEqual({ styleId: OUTPUT_STYLE_NONE_ID })
   })
 
-  it('keeps a capture only while its own suite stays selected', async () => {
+  it('records one selection and no capture', async () => {
+    // A style is a file, so the selection document holds the id and nothing else: there is
+    // no captured text to keep in step with the suite it came from.
     const { dataRoot } = await roots_pair()
-    const captured = { suiteKey: 'src/teaching', fingerprint: 'fp-1', text: 'Teach.' }
-    await saveOutputStyleSelection(dataRoot, WORKSPACE, 'suite:src/teaching')
-    const { saveOutputStyleCapture } = await import('../src/application/state/output-style.js')
-    await saveOutputStyleCapture(dataRoot, WORKSPACE, captured)
-    expect((await loadOutputStyle(dataRoot, WORKSPACE)).captured).toEqual(captured)
-
-    await saveOutputStyleSelection(dataRoot, WORKSPACE, 'user:other')
-    expect((await loadOutputStyle(dataRoot, WORKSPACE)).captured).toBeUndefined()
+    await saveOutputStyleSelection(dataRoot, WORKSPACE, 'suite:src/teaching:teaching-style')
+    expect(await loadOutputStyle(dataRoot, WORKSPACE)).toEqual({ styleId: 'suite:src/teaching:teaching-style' })
   })
 
   it('serializes two concurrent writers instead of losing one', async () => {
@@ -224,63 +220,73 @@ describe('the style list', () => {
 })
 
 describe('suite styles', () => {
-  it('binds the captured text to the suite fingerprint', async () => {
+  it('lists a suite style file and injects its text when selected', async () => {
     const { dataRoot, agentsRoot } = await roots_pair()
-    const port = suitePort()
-    const service = new OutputStyleService(dataRoot, agentsRoot, port)
-    const result = await service.capture(WORKSPACE, 'src/teaching')
-    expect(result.text).toBe('Teach as you go.')
-    expect(result.fingerprint).toBe('fp-1')
-    await service.select(WORKSPACE, 'suite:src/teaching')
+    const service = new OutputStyleService(dataRoot, agentsRoot, suitePort())
+    const payload = await service.payload(WORKSPACE)
+    const row = payload.styles.find(entry => entry.id === 'suite:src/teaching:teaching-style')
+    expect(row?.body).toBe('Teach as you go.')
+    expect(row?.suiteName).toBe('Teaching')
+    await service.select(WORKSPACE, 'suite:src/teaching:teaching-style')
     expect(service.sectionText(WORKSPACE)).toBe('## Output Style: teaching-style\nTeach as you go.')
   })
 
-  it('reports a stale capture when the suite changes and stops injecting it', async () => {
+  it('follows the file when the suite changes its text', async () => {
+    // Nothing is bound to a fingerprint any more: the file is the style, so a new read
+    // carries the new text and there is no stale state to report.
     const { dataRoot, agentsRoot } = await roots_pair()
-    const port = suitePort()
-    const service = new OutputStyleService(dataRoot, agentsRoot, port)
-    await service.capture(WORKSPACE, 'src/teaching')
-    await service.select(WORKSPACE, 'suite:src/teaching')
-    expect(service.sectionText(WORKSPACE)).not.toBe('')
-
-    // The suite's declaration moves on; the page must say so rather than keep
-    // replaying text from a version nobody approved.
-    const changed = suitePort({ fingerprint: 'fp-2' })
-    const next = new OutputStyleService(dataRoot, agentsRoot, changed)
+    await new OutputStyleService(dataRoot, agentsRoot, suitePort()).select(WORKSPACE, 'suite:src/teaching:teaching-style')
+    const next = new OutputStyleService(dataRoot, agentsRoot, suitePort({ text: 'Teach differently.' }))
     const payload = await next.payload(WORKSPACE)
-    expect(payload.styles.find(row => row.id === 'suite:src/teaching')?.capture).toBe('stale')
-    expect(payload.injected).toBe('')
-    await expect(next.select(WORKSPACE, 'suite:src/teaching')).rejects.toThrow('has no current capture')
+    expect(payload.injected).toContain('Teach differently.')
   })
 
-  it('refuses a capture of a suite that declares no SessionStart hook', async () => {
+  it('stops injecting a suite style when the suite stops shipping it', async () => {
+    const { dataRoot, agentsRoot } = await roots_pair()
+    await new OutputStyleService(dataRoot, agentsRoot, suitePort()).select(WORKSPACE, 'suite:src/teaching:teaching-style')
+    const gone = new OutputStyleService(dataRoot, agentsRoot, { styleFiles: async () => [] })
+    expect((await gone.payload(WORKSPACE)).injected).toBe('')
+  })
+})
+
+describe('project styles', () => {
+  it('reads .claude/output-styles and lets the directory nearest the workspace win', async () => {
+    // Claude Code loads project styles from every .claude/output-styles between the working
+    // directory and the repository root, and the nearest definition of a name wins.
+    const root = await mkdtemp(join(tmpdir(), 'project-styles-'))
+    roots.push(root)
+    const workspace = join(root, 'packages', 'app')
+    await mkdir(join(root, '.claude', 'output-styles'), { recursive: true })
+    await mkdir(join(workspace, '.claude', 'output-styles'), { recursive: true })
+    await writeFile(join(root, '.claude', 'output-styles', 'team.md'), 'Outer text.\n', 'utf8')
+    await writeFile(join(root, '.claude', 'output-styles', 'shared.md'), 'Outer shared.\n', 'utf8')
+    await writeFile(join(workspace, '.claude', 'output-styles', 'shared.md'), 'Inner shared.\n', 'utf8')
+
+    const { dataRoot, agentsRoot } = await roots_pair()
+    const service = new OutputStyleService(dataRoot, agentsRoot)
+    const styles = (await service.payload(workspace)).styles.filter(row => row.source === 'project')
+    expect(styles.map(row => row.id)).toEqual(['project:shared', 'project:team'])
+    expect(styles.find(row => row.id === 'project:shared')?.body).toBe('Inner shared.')
+
+    await service.select(workspace, 'project:team')
+    expect(service.sectionText(workspace)).toBe('## Output Style: team\nOuter text.')
+  })
+})
+
+describe('a page with no workspace', () => {
+  it('lists user and suite styles but never a project one', async () => {
+    // The settings page answers for no workspace, so a project file it cannot name must not
+    // appear there. This is the same rule the instruction chain follows.
+    const root = await mkdtemp(join(tmpdir(), 'project-styles-'))
+    roots.push(root)
+    const workspace = join(root, 'app')
+    await mkdir(join(workspace, '.claude', 'output-styles'), { recursive: true })
+    await writeFile(join(workspace, '.claude', 'output-styles', 'team.md'), 'Team text.\n', 'utf8')
     const { dataRoot, agentsRoot } = await roots_pair()
     const service = new OutputStyleService(dataRoot, agentsRoot, suitePort())
-    await expect(service.capture(WORKSPACE, 'src/missing')).rejects.toThrow('declares a SessionStart hook')
-  })
-
-  it('refuses a capture whose suite changed under the page', async () => {
-    const { dataRoot, agentsRoot } = await roots_pair()
-    const port = suitePort()
-    const service = new OutputStyleService(dataRoot, agentsRoot, port)
-    await expect(service.capture(WORKSPACE, 'src/teaching')).resolves.toBeDefined()
-    const changed = suitePort({ fingerprint: 'fp-2', captured: port.captured })
-    const next = new OutputStyleService(dataRoot, agentsRoot, changed)
-    await expect(next.capture(WORKSPACE, 'src/teaching')).resolves.toBeDefined()
-  })
-
-  it('reads the style text out of a hook payload, and out of plain prose', () => {
-    expect(parseCapturedStyle(JSON.stringify({ hookSpecificOutput: { additionalContext: 'Teach.' } }))).toBe('Teach.')
-    expect(parseCapturedStyle('Just some prose.')).toBe('Just some prose.')
-    expect(() => parseCapturedStyle('')).toThrow('produced no output')
-    expect(() => parseCapturedStyle(JSON.stringify({ hookSpecificOutput: {} }))).toThrow('additionalContext')
-  })
-
-  it('fingerprints the declaration a capture came from', () => {
-    const base = { suiteKey: 'src/teaching', version: '1.0.0', root: '/s', commands: ['bash hook.sh'] }
-    expect(suiteStyleFingerprint(base)).toBe(suiteStyleFingerprint({ ...base }))
-    expect(suiteStyleFingerprint(base)).not.toBe(suiteStyleFingerprint({ ...base, commands: ['bash other.sh'] }))
-    expect(suiteStyleFingerprint(base)).not.toBe(suiteStyleFingerprint({ ...base, version: '1.0.1' }))
+    const rows = (await service.payload(workspace, false)).styles
+    expect(rows.map(row => row.source)).not.toContain('project')
+    expect(rows.map(row => row.source)).toEqual(['suite'])
   })
 })
 

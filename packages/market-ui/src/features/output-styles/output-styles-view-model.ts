@@ -18,14 +18,13 @@ export interface OutputStyleGroup {
 /**
  * Group the styles by source, keeping the trust order.
  *
- * The order is fixed rather than derived from the header: user styles are the
- * person's own, and a suite style carries text a person captured, so the list
- * reads from most to least certain.
+ * The order is fixed rather than derived from the header: the person's own styles come
+ * first, then the suites they installed, then the ones the workspace keeps for itself.
  * @param rows - every style the server returned.
  * @returns the groups that hold at least one row.
  */
 export function groupOutputStyles(rows: readonly OutputStyleRow[]): OutputStyleGroup[] {
-  const order: OutputStyleSource[] = ['user', 'suite']
+  const order: OutputStyleSource[] = ['user', 'suite', 'project']
   return order.map(source => ({ source, rows: rows.filter(row => row.source === source) })).filter(group => group.rows.length > 0)
 }
 
@@ -36,36 +35,25 @@ export function groupLocaleKey(source: OutputStyleSource): LocaleKey {
       return 'outputStylesGroupUser'
     case 'suite':
       return 'outputStylesGroupSuite'
+    case 'project':
+      return 'outputStylesGroupProject'
   }
 }
 
 /**
- * Whether a style can be selected right now.
+ * Where a row's text came from, as the meta line spells it.
  *
- * A suite style is usable only while its capture matches the declaration in
- * force: its text is the style, so a stale capture is not a style at all.
+ * A suite style names its suite; a file-backed style names the file it was read from.
  * @param row - one style.
- * @returns true when selecting it would inject that style's text.
+ * @returns the meta text, or an empty string when the row is the person's own.
  */
-export function isSelectable(row: OutputStyleRow): boolean {
-  return row.source !== 'suite' || row.capture === 'current'
-}
-
-/** Whether a row offers a capture action, and whether it is the first one. */
-export function captureAction(row: OutputStyleRow): 'none' | 'first' | 'again' {
-  if (row.source !== 'suite') return 'none'
-  if (row.capture === 'missing') return 'first'
-  if (row.capture === 'stale') return 'again'
-  return 'none'
+export function sourceMetaOf(row: OutputStyleRow): string {
+  if (row.source === 'suite') return row.suiteName ?? row.suiteKey ?? ''
+  if (row.source === 'project') return row.file ?? ''
+  return ''
 }
 
 /** A user style name from its row id, or undefined for another source. */
 export function userNameOf(row: OutputStyleRow): string | undefined {
-  return row.source === 'user' ? row.id.slice('user:'.length) : undefined
-}
-
-/** A suite address from its row id, or undefined for another source. */
-export function suiteKeyOf(row: OutputStyleRow): string | undefined {
-  if (row.source !== 'suite') return undefined
-  return row.suiteKey ?? row.id.slice('suite:'.length)
+  return row.id.startsWith('user:') ? row.id.slice('user:'.length) : undefined
 }

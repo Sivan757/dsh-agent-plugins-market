@@ -1,7 +1,8 @@
 /** Resolve all plugin component declarations into the same normalized resources used by runtime consumers. */
-import { readFile } from 'node:fs/promises'
-import { relative } from 'node:path'
-import type { ProjectHooks, SuiteManifest, LspSuiteConfig } from '../../../market-contracts/src/model/types.js'
+import { readFile, readdir, stat } from 'node:fs/promises'
+import { extname, join, relative, resolve } from 'node:path'
+import { parse as parseYaml } from 'yaml'
+import type { ProjectHooks, SuiteManifest, LspSuiteConfig, SuiteStyleFile } from '../../../market-contracts/src/model/types.js'
 import { componentDocuments, componentPath, firstComponentFile, isRecord, isStringArray, isUnknownArray } from './component-files.js'
 import { parseLspServers } from './lsp-spec.js'
 import { normalizeHookDocuments } from './project-hooks.js'
@@ -119,4 +120,108 @@ export async function discoverSystemPrompt(root: string, manifest: SuiteManifest
     return undefined
   }
   return content === '' ? undefined : content
+}
+
+/** Split one style file into its frontmatter object and its body. */
+function splitStyleSource(text: string): { meta: Record<string, unknown>; body: string } {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/.exec(text)
+  if (match === null) return { meta: {}, body: text.trim() }
+  let meta: Record<string, unknown> = {}
+  try {
+    const parsed: unknown = parseYaml(match[1] ?? '')
+    if (isRecord(parsed)) meta = parsed
+  } catch {
+    // A broken block still yields the body: the file's instructions are the style.
+  }
+  return { meta, body: text.slice(match[0].length).trim() }
+}
+
+/**
+ * Read the Markdown output styles a suite ships.
+ *
+ * The declaration follows the same shapes the other markdown components take: a
+ * directory, a file, a list of either, or a name-keyed table with `source` or
+ * `content`. Without a declaration the conventional `output-styles/` directory is
+ * read, which is what a Claude Code plugin ships by default.
+ * @param root - the suite root.
+ * @param manifest - the suite manifest, for its component declaration.
+ * @param errors - the rejection list the caller reports.
+ * @returns the styles, in name order; empty when the suite ships none.
+ */
+export async function discoverSuiteStyles(root: string, manifest: SuiteManifest, errors: string[]): Promise<SuiteStyleFile[]> {
+  const styles: SuiteStyleFile[] = []
+  const seen = new Set<string>()
+  const add = (file: string, body: string, fallbackName: string): void => {
+    const { meta, body: instructions } = splitStyleSource(body)
+    const declaredName = typeof meta['name'] === 'string' && meta['name'].trim() !== '' ? meta['name'].trim() : fallbackName
+    if (instructions === '') {
+      errors.push(`output style "${declaredName}" has no instructions`)
+      return
+    }
+    if (seen.has(declaredName)) return
+    seen.add(declaredName)
+    styles.push({
+      name: declaredName,
+      description: typeof meta['description'] === 'string' ? meta['description'] : '',
+      keepCodingInstructions: meta['keep-coding-instructions'] === true,
+      file,
+      body: instructions
+    })
+  }
+  async function visit(path: string, container: string): Promise<void> {
+    const valid = await componentPath(root, relative(root, path), errors)
+    if (valid === undefined) return
+    const info = await stat(valid)
+    if (info.isFile()) {
+      if (extname(valid) === '.md') add(valid, await readFile(valid, 'utf8'), relative(container, valid).replace(/\.md$/u, '').replace(/\\/g, '/'))
+      return
+    }
+    if (!info.isDirectory()) return
+    for (const entry of (await readdir(valid, { withFileTypes: true })).sort((a, b) => a.name.localeCompare(b.name))) {
+      if (entry.name.startsWith('.') || entry.name === 'node_modules' || entry.isSymbolicLink()) continue
+      await visit(join(valid, entry.name), container)
+    }
+  }
+  const declaration = manifest.components?.outputStyles
+  if (declaration === undefined) {
+    // The conventional directory is optional: a suite that ships no styles says so by
+    // having no directory, and that is not a rejection to report.
+    const conventional = join(root, 'output-styles')
+    const present = await stat(conventional).then(
+      info => info.isDirectory(),
+      () => false
+    )
+    if (!present) return []
+  }
+  const items = declaration === undefined ? ['output-styles'] : Array.isArray(declaration) ? declaration : [declaration]
+  for (const item of items) {
+    if (typeof item === 'string') {
+      const path = await componentPath(root, item, errors, declaration !== undefined)
+      if (path === undefined) continue
+      const info = await stat(path)
+      if (info.isDirectory()) await visit(path, path)
+      else await visit(path, resolve(path, '..'))
+      continue
+    }
+    if (!isRecord(item)) {
+      errors.push('outputStyles: invalid component declaration')
+      continue
+    }
+    for (const [name, spec] of Object.entries(item)) {
+      if (!isRecord(spec)) {
+        errors.push(`outputStyles.${name}: invalid entry`)
+        continue
+      }
+      if (typeof spec.source === 'string') {
+        const file = await componentPath(root, spec.source, errors)
+        if (file !== undefined) add(file, await readFile(file, 'utf8'), name)
+      } else if (typeof spec.content === 'string') {
+        const metadata = Object.fromEntries(Object.entries(spec).filter(([key]) => key !== 'content' && key !== 'source'))
+        add(`${manifest.id}:${name}`, `---\n${JSON.stringify({ name, ...metadata })}\n---\n${spec.content}`, name)
+      } else {
+        errors.push(`outputStyles.${name}: requires a source or content`)
+      }
+    }
+  }
+  return styles.sort((a, b) => a.name.localeCompare(b.name))
 }

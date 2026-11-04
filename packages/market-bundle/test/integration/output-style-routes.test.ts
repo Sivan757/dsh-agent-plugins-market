@@ -31,14 +31,19 @@ async function service(port?: OutputStyleSuitePort): Promise<OutputStyleService>
   return new OutputStyleService(dataRoot, agentsRoot, port)
 }
 
-/** A suite whose SessionStart hook the test controls. */
+/** A suite that ships one Markdown style file. */
 function port(text = 'Teach as you go.'): OutputStyleSuitePort {
   return {
-    candidates: async () => [{ suiteKey: 'src/teaching', label: 'teaching-style', hint: 'suiteSessionStartCapture', fingerprint: 'fp-1' }],
-    capture: async (_suiteKey, fingerprint) => {
-      if (fingerprint !== 'fp-1') throw new Error('suite changed')
-      return JSON.stringify({ hookSpecificOutput: { additionalEvent: 'SessionStart', additionalContext: text } })
-    }
+    styleFiles: async () => [
+      {
+        suiteKey: 'src/teaching',
+        suiteName: 'Teaching',
+        name: 'teaching-style',
+        description: 'Teach as you go',
+        body: text,
+        file: '/suites/teaching/output-styles/teaching-style.md'
+      }
+    ]
   }
 }
 
@@ -118,19 +123,17 @@ describe('output-style routes', () => {
     // rather than leaving the reader to guess from an empty preview.
     expect(payload.selected).toBe('')
     expect(payload.injected).toBe('')
-    expect(payload.styles.map(row => row.id)).toContain('suite:src/teaching')
-    expect(payload.styles.find(row => row.id === 'suite:src/teaching')?.capture).toBe('missing')
+    expect(payload.styles.map(row => row.id)).toContain('suite:src/teaching:teaching-style')
+    expect(payload.styles.find(row => row.id === 'suite:src/teaching:teaching-style')?.body).toBe('Teach as you go.')
   })
 
   it('selects a style and answers the committed read', async () => {
     const { ctx, routes } = host()
-    const outputStyles = await service(port())
-    mountOutputStyleRoutes(ctx, { service: outputStyles, session: session() })
-    await outputStyles.capture(WORKSPACE, 'src/teaching')
-    const answer = await post(routes, post_(OUTPUT_STYLE_ROUTES.select), { styleId: 'suite:src/teaching' })
+    mountOutputStyleRoutes(ctx, { service: await service(port()), session: session() })
+    const answer = await post(routes, post_(OUTPUT_STYLE_ROUTES.select), { styleId: 'suite:src/teaching:teaching-style' })
 
     expect(answer.status).toBe(200)
-    expect(answer.body['selected']).toBe('suite:src/teaching')
+    expect(answer.body['selected']).toBe('suite:src/teaching:teaching-style')
     expect(String(answer.body['injected'])).toContain('## Output Style: teaching-style')
   })
 
@@ -150,37 +153,6 @@ describe('output-style routes', () => {
 
     expect(answer.status).toBe(403)
     expect(answer.body['error']).toContain('cross-origin')
-  })
-
-  it('fails a capture of a suite that does not exist with a stable error', async () => {
-    const { ctx, routes } = host()
-    mountOutputStyleRoutes(ctx, { service: await service(port()), session: session() })
-    const answer = await post(routes, post_(OUTPUT_STYLE_ROUTES.capture), { suiteKey: 'src/missing' })
-
-    expect(answer.status).toBe(400)
-    expect(answer.body['error']).toContain('SessionStart hook')
-  })
-
-  it('captures a suite style, then selects it', async () => {
-    const { ctx, routes } = host()
-    const owner = await service(port())
-    mountOutputStyleRoutes(ctx, { service: owner, session: session() })
-
-    const captured = await post(routes, post_(OUTPUT_STYLE_ROUTES.capture), { suiteKey: 'src/teaching' })
-    expect(captured.status).toBe(200)
-    expect(captured.body['text']).toBe('Teach as you go.')
-
-    const selected = await post(routes, post_(OUTPUT_STYLE_ROUTES.select), { styleId: 'suite:src/teaching' })
-    expect(selected.status).toBe(200)
-    expect(String(selected.body['injected'])).toBe('## Output Style: teaching-style\nTeach as you go.')
-  })
-
-  it('refuses a suite style nobody captured yet', async () => {
-    const { ctx, routes } = host()
-    mountOutputStyleRoutes(ctx, { service: await service(port()), session: session() })
-    const answer = await post(routes, post_(OUTPUT_STYLE_ROUTES.select), { styleId: 'suite:src/teaching' })
-    expect(answer.status).toBe(400)
-    expect(answer.body['error']).toContain('capture it first')
   })
 
   it('writes and removes a user style through its own fields', async () => {

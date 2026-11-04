@@ -28,7 +28,7 @@ import { componentDeclarations, hasSuiteManifest, readManifest, readMarketplaces
 import { countSurfaces, discoverMcp, discoverSkills, listMdFiles } from './surfaces.js'
 import { discoverMarkdownResources, isUnknownArray } from './component-files.js'
 import type { SuiteMarkdownResource } from '../../../market-contracts/src/model/types.js'
-import { discoverSuiteHooks, discoverSuiteLsp, discoverSystemPrompt } from './suite-components.js'
+import { discoverSuiteHooks, discoverSuiteLsp, discoverSuiteStyles, discoverSystemPrompt } from './suite-components.js'
 import { parseLspServers } from './lsp-spec.js'
 import { normalizeHookDocuments } from './project-hooks.js'
 import type { LspSuiteConfig } from '../../../market-contracts/src/model/types.js'
@@ -484,13 +484,16 @@ export async function readSuite(
           ),
           agents: await discoverMarkdownResources(root, 'agents', manifest.components?.agents, manifest.path, errors)
         }
+  const styles = portable ? [] : await discoverSuiteStyles(root, manifest, errors)
   const systemPrompt = portable ? undefined : await discoverSystemPrompt(root, manifest, errors)
   const surfaces = await countSurfaces(root, skills, mcp, lsp)
   surfaces.commands = resources.commands.length
   surfaces.agents = resources.agents.length
+  if (styles.length > 0) surfaces.outputStyles = styles.length
   surfaces.hooks = Object.values(hooks?.events ?? {}).reduce((count, groups) => count + groups.reduce((sum, group) => sum + group.hooks.length, 0), 0)
   return {
     resources,
+    ...(styles.length === 0 ? {} : { styles }),
     ...(hooks === undefined ? {} : { hooks }),
     ...(systemPrompt === undefined ? {} : { systemPrompt }),
     sourceId,
