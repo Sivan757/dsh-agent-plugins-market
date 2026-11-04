@@ -15,6 +15,14 @@ export interface ExtensionSelection {
   presetRevision: number | null
   modified: boolean
   enabledIds: string[]
+  /**
+   * True when the capture is the authority and the live catalog must not add to it.
+   *
+   * A selection that names no preset follows the catalog, so a suite installed mid-session
+   * joins it. One captured from the pre-preset resource filters is the exception: those
+   * filters were the person's own switches, and re-deriving the set would turn them back on.
+   */
+  frozen?: boolean
 }
 
 /** One workspace's preset library; null default captures current global choices at session creation. */

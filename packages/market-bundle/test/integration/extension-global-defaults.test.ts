@@ -90,10 +90,14 @@ async function setup() {
   await ctx.plugin(Persistence, { root: join(root, 'sessions') })
   await ctx.plugin(TestQuery)
   await ctx.plugin(AgentLoop, { agents: [] })
+  // The applied selection is what every injection is built from: record it.
+  const applied: string[][] = []
   const runtime = new ExtensionRuntime(ctx, {
     dataRoot: root,
     inventory,
-    applySelection: async () => {},
+    applySelection: async (_agent, selection) => {
+      applied.push([...selection.enabledIds])
+    },
     eligible: agent => {
       const cwd = agent.session.header.cwd
       // Any absolute cwd, not only a POSIX one: a Windows temp dir does not
@@ -104,8 +108,68 @@ async function setup() {
   cleanups.push(() => runtime.dispose())
   await runtime.start()
   const create = async (id: string) => (await ctx.agents.create({ sessionId: SessionId(id), meta: { cwd: root }, agentOptions: { provider: 'mock', model: 'test' } })).agent
-  return { runtime, create }
+  return { runtime, create, applied }
 }
+
+describe('a session on the default selection follows the catalog', () => {
+  it('grants and injects a resource the catalog gains, without a preset switch', async () => {
+    // The core promise: installing a suite or a skill shows up in the running session on
+    // the next read. The default selection is a snapshot of ids, and a snapshot cannot
+    // contain a resource that did not exist when it was taken; the update has to come from
+    // the selection following the live catalog instead.
+    const { runtime, create, applied } = await setup()
+    const agent = await create('follows-catalog')
+    await vi.waitFor(() => expect(runtime.ready(agent)).toBe(true), { timeout: 10_000 })
+    expect((await runtime.window(agent.id)).state.selection.enabledIds).toEqual([ENABLED])
+
+    // A new skill lands in the user's layout root: the inventory reads one row more.
+    skillRows.push(entry('delta', false))
+    try {
+      runtime.invalidate()
+      await runtime.refreshAll()
+      await vi.waitFor(() => expect(runtime.allows(agent, 'skills:delta')).toBe(true), { timeout: 10_000 })
+      expect((await runtime.window(agent.id)).state.selection.enabledIds).toEqual([ENABLED, 'skills:delta'])
+      // The pass that granted it also handed it to the injection path.
+      expect(applied.at(-1)).toContain('skills:delta')
+    } finally {
+      skillRows.splice(
+        skillRows.findIndex(row => row.name === 'delta'),
+        1
+      )
+    }
+  })
+})
+
+describe('a session on a preset keeps the preset', () => {
+  it('does not let the catalog add a resource to a preset selection', async () => {
+    // The default follows the catalog because the catalog is what it means. A preset is a
+    // choice: a suite installed later does not join it behind the reader's back.
+    const { runtime, create } = await setup()
+    const agent = await create('preset-list')
+    await vi.waitFor(() => expect(runtime.ready(agent)).toBe(true), { timeout: 10_000 })
+    const library = (await runtime.window(agent.id)).library
+    await runtime.create(agent.id, library.revision, { name: 'pinned', enabledIds: [ENABLED] })
+    const preset = (await runtime.window(agent.id)).library.presets.find(row => row.name === 'pinned')
+    expect(preset).toBeDefined()
+    await runtime.select(agent.id, (await runtime.window(agent.id)).state.revision, preset!.id)
+
+    skillRows.push(entry('delta', false))
+    try {
+      runtime.invalidate()
+      await runtime.refreshAll()
+      // The new row exists in the inventory...
+      await vi.waitFor(async () => expect((await runtime.window(agent.id)).resources.some(row => row.id === 'skills:delta')).toBe(true), { timeout: 10_000 })
+      // ...but the preset still names what it names, so the row is not granted.
+      expect(runtime.allows(agent, 'skills:delta')).toBe(false)
+      expect((await runtime.window(agent.id)).state.selection.enabledIds).toEqual([ENABLED])
+    } finally {
+      skillRows.splice(
+        skillRows.findIndex(row => row.name === 'delta'),
+        1
+      )
+    }
+  })
+})
 
 describe('globally disabled capabilities are never a session default', () => {
   it('keeps a globally disabled but valid resource available and out of the default selection', async () => {

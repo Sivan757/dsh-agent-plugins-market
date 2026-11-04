@@ -26,7 +26,9 @@ const selectionSchema = z
     presetName: z.string().min(1).max(80).nullable(),
     presetRevision: z.number().int().positive().max(Number.MAX_SAFE_INTEGER).nullable(),
     modified: z.boolean(),
-    enabledIds: z.array(z.string()).transform(ids => parseExtensionIds(ids))
+    enabledIds: z.array(z.string()).transform(ids => parseExtensionIds(ids)),
+    /** See ExtensionSelection.frozen. */
+    frozen: z.boolean().optional()
   })
   .strict()
   .refine(value => (value.presetId === null) === (value.presetName === null) && (value.presetId === null) === (value.presetRevision === null))

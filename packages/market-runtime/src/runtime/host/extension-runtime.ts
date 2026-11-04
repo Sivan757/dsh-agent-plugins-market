@@ -174,6 +174,27 @@ export class ExtensionRuntime implements ExtensionRouteService {
   private availableIds(agent: Agent): Set<string> {
     return new Set((this.resources.get(agent) ?? []).filter(row => row.available && row.control !== 'global-only').map(row => row.id))
   }
+  /**
+   * The selection a default capture follows the catalog to.
+   *
+   * A selection that names no preset is a snapshot of ids, and a snapshot cannot contain a
+   * resource that did not exist when it was taken. The rows the catalog offers now join it,
+   * so a suite or a skill installed mid-session is granted, injected and shown without a
+   * manual preset switch. The committed rows stay: a row the inventory has not read yet is
+   * not a row the catalog withdrew.
+   *
+   * A preset selection is the preset's own list and never moves, and a capture taken from
+   * the pre-preset resource filters is frozen: those filters were the person's own switches.
+   */
+  private followingSelection(agent: Agent, selection: ExtensionSelection): ExtensionSelection {
+    if (selection.presetId !== null || selection.frozen === true) return selection
+    const resources = this.resources.get(agent) ?? []
+    const usable = (row: { available?: boolean; control?: string; globalEnabled?: boolean }): boolean =>
+      row.available !== false && row.control !== 'global-only' && row.globalEnabled !== false
+    const added = resources.filter(row => usable(row) && !selection.enabledIds.includes(row.id)).map(row => row.id)
+    return { ...selection, enabledIds: [...selection.enabledIds, ...added] }
+  }
+
   /** Registration alone may inspect a pending target; execution must call allows. */
   registrationAllows(agent: Agent, resourceId: string, suiteId?: string): boolean {
     if (this.stale.has(agent)) return false
@@ -272,6 +293,8 @@ export class ExtensionRuntime implements ExtensionRouteService {
 
   private async refreshAgent(agent: Agent): Promise<void> {
     if (this.disposed || !this.dirty.has(agent) || this.refreshing.has(agent)) return
+    /** The selection the catalog asked for, committed once the maintenance slot is free. */
+    let follow: ExtensionSelection | undefined
     const work = async (): Promise<void> => {
       const epoch = this.epoch
       await agent.runMaintenance(async signal => {
@@ -291,10 +314,20 @@ export class ExtensionRuntime implements ExtensionRouteService {
           this.scheduleRetry(agent)
           return
         }
-        this.targets.set(agent, snapshot.selection)
+        // A default capture follows the catalog: the rows the catalog gained join it. The
+        // commit that follows grants them, injects them and shows them in one step, and it
+        // runs outside this maintenance block: a commit inside it would wait for the very
+        // maintenance it is running in.
+        const followed = this.followingSelection(agent, snapshot.selection)
+        if (followed.enabledIds.length !== snapshot.selection.enabledIds.length) {
+          follow = followed
+          return
+        }
+        const selection = snapshot.selection
+        this.targets.set(agent, selection)
         let receipt: void | ExtensionApplyReceipt = undefined
         try {
-          receipt = await this.ports.applySelection(agent, snapshot.selection)
+          receipt = await this.ports.applySelection(agent, selection)
           signal.throwIfAborted()
           if (epoch !== this.epoch) {
             const staleReceipt = receipt
@@ -357,6 +390,21 @@ export class ExtensionRuntime implements ExtensionRouteService {
     this.refreshing.set(agent, pending)
     await pending
     this.refreshing.delete(agent)
+    // The catalog asked for rows this selection did not name: commit the followed selection
+    // now that the maintenance slot is free, so the grant, the injection and the panel all
+    // move in one step.
+    if (follow !== undefined && !this.disposed) {
+      const followed = follow
+      const committed = this.state.read(agent)
+      if (committed !== undefined) {
+        try {
+          await this.state.change(agent, committed.revision, followed)
+        } catch (error) {
+          this.ctx.logger.warn('extension refresh: ' + String(error))
+          this.scheduleRetry(agent)
+        }
+      }
+    }
     if (!this.disposed && this.dirty.has(agent) && startedEpoch !== this.epoch) await this.refreshAgent(agent)
   }
 
@@ -421,10 +469,13 @@ export class ExtensionRuntime implements ExtensionRouteService {
     // the published selection drops a configuration parent, whose grant is
     // derived from the selected children at read time.
     const ids = new Set(available.map(row => row.id))
-    return captureExtensionSelection(
+    const captured = captureExtensionSelection(
       null,
       available.filter(row => row.suiteResourceId === undefined || ids.has(row.suiteResourceId)).map(row => row.id)
     )
+    // The pre-preset filters were this workspace's own switches: a later catalog change must
+    // not add to what they left on, or the session would silently outgrow the person's choice.
+    return legacy === undefined ? captured : { ...captured, frozen: true }
   }
   async window(sessionId: string): Promise<ExtensionWindowPayload> {
     const agent = this.agent(sessionId)
