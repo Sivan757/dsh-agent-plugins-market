@@ -403,9 +403,6 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
               transition(() => importText(text))
             }}
           >
-            {/* The same two lines every settings page opens with: what this is, and
-                what went wrong when it could not be read. */}
-            <p className={panelCss.subtitle}>{t('epManageSubtitle')}</p>
             {error === undefined || error === '' ? null : h(ReadFailed, { message: t('epLoadFailed') + ' ' + error, retryLabel: t('readRetry'), onRetry: retry })}
             {/* What this preset covers, in the reader's own units: capabilities that are
                 on, the style it carries, and the prompt files it lists. */}

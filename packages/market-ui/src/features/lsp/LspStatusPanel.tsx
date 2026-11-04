@@ -199,6 +199,12 @@ export function LspStatusPanel({ t }: LspStatusPanelProps): ReactNode {
         // sibling.
         ...(entry.state === 'failed' ? { primary: { label: t('lspRestart'), title: t('lspRestartHint'), onSelect: () => void restart(entry) } } : {})
       })),
+      // The toolbar carries the search field and the two provider cuts; without it the face
+      // would answer "all, suite, user" nowhere while every other list does.
+      searchLabel: t('lspSearch'),
+      searchPlaceholder: t('lspSearch'),
+      toListLabel: t('switchToList'),
+      toGridLabel: t('switchToGrid'),
       filters: surfaceProviderCuts('lsp', t, (id: string) => (payload.entries.find(entry => entry.id === id)?.kind === 'plugin' ? 'suite' : 'user')),
       // Nothing read is not nothing mounted: the alert says the read failed.
       emptyText: payload.entries.length === 0 && error !== undefined ? t('statusUnreadable') : loading && payload.entries.length === 0 ? t('loading') : t('lspEmpty'),

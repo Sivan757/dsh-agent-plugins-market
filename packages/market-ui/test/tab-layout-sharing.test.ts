@@ -111,7 +111,6 @@ describe('shared tab layout', () => {
     // listed without a switch; both belong in this row rather than a keyboard-short row.
     stubServer([], ['market', 'skills', 'instructions', 'outputStyles', 'commands', 'personas', 'mcp', 'lsp', 'hooks'])
     await mountBoth()
-    expect(document.querySelector('[data-preset-faces-note]')).not.toBeNull()
     expect(presetVisible()).toContain('workspaceTabInstructions')
     expect(presetVisible()).toContain('workspaceTabOutputStyles')
   })

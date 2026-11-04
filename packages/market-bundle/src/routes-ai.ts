@@ -11,6 +11,8 @@
  *
  * @module routes-ai
  */
+import { randomUUID } from 'node:crypto'
+import { createUserMessage } from '@deepseek-ai/dsh-llm'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import {
   AI_DIAGNOSE_FACES,
@@ -24,8 +26,10 @@ import {
   type AiDraftFace,
   type AiDraftRequest,
   type AiPresetCandidate,
-  type AiPresetRequest
+  type AiPresetRequest,
+  type AiSessionRequest
 } from '../../market-contracts/src/contracts/ai-draft.js'
+import { buildSessionTask, FACE_SUBDIR } from './application/ai-draft.js'
 import type { AiDiagnoseService } from './application/ai-diagnose.js'
 import type { AiDraftService } from './application/ai-draft.js'
 import type { AiPresetService } from './application/ai-preset.js'
@@ -44,6 +48,25 @@ export interface AiDraftRouteDeps {
   presets: AiPresetService
   /** The failure explainer, which reads the facts the panel already shows. */
   diagnose: AiDiagnoseService
+  /**
+   * The host session store.
+   *
+   * A message event is surface-eligible, so the host requires the placement marker the GUI's
+   * own append uses: `surfaceOp: 'append'` means "this is a new message in the transcript".
+   */
+  sessions: {
+    create(
+      id?: string,
+      options?: { meta?: { cwd?: string } }
+    ): {
+      append(type: string, data: unknown, intent?: { surfaceOp: 'append' }): unknown
+      header: { id: string }
+    }
+  }
+  /** A live agent lookup, so the assist session joins the workspace the reader is working in. */
+  session?: { agent(id: string): { session: { header: { cwd?: string } } } | undefined }
+  /** The Agent layout root, where every authored face's user files live. */
+  agentsRoot: string
   /**
    * The catalogue, read only when a request asks which suites to install.
    *
@@ -214,11 +237,110 @@ export function mountAiDraftRoutes(ctx: { get(name: string): unknown }, deps: Ai
       }
     }
   })
+  const disposeSession = server.register({
+    kind: 'exact',
+    path: AI_DRAFT_ROUTES.session,
+    handler: async (request: IncomingMessage, response: ServerResponse) => {
+      if (request.method !== 'POST') {
+        sendJson(response, 405, { error: 'method not allowed' })
+        return
+      }
+      if (!isTrustedMutation(request)) {
+        sendJson(response, 403, { error: 'untrusted request' })
+        return
+      }
+      const body = (await readJsonBody(request)) as Partial<AiSessionRequest>
+      if (!isFace(body.face)) {
+        sendJson(response, 400, { error: 'unknown face' })
+        return
+      }
+      if (typeof body.intent !== 'string' || body.intent.trim().length === 0 || body.intent.length > AI_DRAFT_LIMITS.intentChars) {
+        sendJson(response, 400, { error: 'write what you want drafted' })
+        return
+      }
+      const face = body.face
+      const target = sessionTarget(face, body, deps.agentsRoot)
+      if (target === undefined) {
+        sendJson(response, 400, { error: 'this face needs a file path to adjust' })
+        return
+      }
+      try {
+        // The session is the reader's own: the task is its first message, and the reader edits
+        // the requirement, switches the model, and sends when it reads right.
+        // The new session joins the reader's own workspace when the caller named one: that is
+        // where it shows up in the sidebar, beside the work it belongs to.
+        const workspace = typeof body.sessionId === 'string' ? deps.session?.agent(body.sessionId)?.session.header.cwd : undefined
+        // A unique id per creation: the store mints `session-<n>` from a counter that restarts
+        // with the process, so two drafts from two boots would land on the same session and the
+        // second transcript would overwrite the first.
+        const id = `session-${randomUUID()}`
+        const session = deps.sessions.create(id, workspace === undefined ? undefined : { meta: { cwd: workspace } })
+        session.append(
+          'user/message',
+          createUserMessage({
+            content: [
+              {
+                type: 'text',
+                text: buildSessionTask({
+                  face,
+                  intent: body.intent.trim(),
+                  target,
+                  ...(typeof body.name === 'string' && body.name.trim() !== '' ? { name: body.name.trim().slice(0, 80) } : {}),
+                  locale: body.locale === 'en' ? 'en' : 'zh'
+                })
+              }
+            ],
+            source: { kind: 'user' }
+          }),
+          // A transcript message has to say where it goes; the GUI's own append uses this.
+          { surfaceOp: 'append' }
+        )
+        // The client's note names the workspace, because the session is listed under it and a
+        // reader who does not know that will not find the session the plugin just opened.
+        sendJson(response, 200, { ok: true, sessionId: session.header.id, ...(workspace === undefined ? {} : { workspace }) })
+      } catch (error) {
+        const payload = routeFailurePayload(error, 'ai session', deps.logger)
+        sendJson(response, 502, payload)
+      }
+    }
+  })
   return () => {
     disposeDraft()
     disposePreset()
     disposeDiagnose()
+    disposeSession()
   }
+}
+
+/**
+ * Resolve where one assist session's artifact lives.
+ *
+ * A face with a known directory is answered from the Agent layout root; a face whose editor
+ * knows a file passes that file through. Both are checked, because a task that names a
+ * relative or invented path would send the session's agent writing somewhere nobody asked for.
+ * @param face - the face asking.
+ * @param body - the request, carrying an optional path or name.
+ * @param agentsRoot - the Agent layout root.
+ * @returns the target, or undefined when the request cannot name a safe one.
+ */
+function sessionTarget(face: AiDraftFace, body: Partial<AiSessionRequest>, agentsRoot: string): { kind: 'dir'; dir: string } | { kind: 'file'; path: string } | undefined {
+  if (typeof body.path === 'string' && body.path !== '' && isSafeAbsolutePath(body.path)) return { kind: 'file', path: body.path }
+  const subdir = FACE_SUBDIR[face]
+  if (subdir === '') return undefined
+  const dir = joinNormal(agentsRoot, subdir)
+  return isSafeAbsolutePath(dir) ? { kind: 'dir', dir } : undefined
+}
+
+/** An absolute path with no traversal and no empty segments beyond the root. */
+function isSafeAbsolutePath(value: string): boolean {
+  if (!value.startsWith('/')) return false
+  const segments = value.split('/').slice(1)
+  return segments.length > 0 && segments.every(segment => segment !== '' && segment !== '.' && segment !== '..')
+}
+
+/** Join without depending on the host's path module: the segments are already checked. */
+function joinNormal(root: string, sub: string): string {
+  return root.endsWith('/') ? root + sub : root + '/' + sub
 }
 
 /**

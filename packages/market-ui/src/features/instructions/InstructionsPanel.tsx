@@ -339,6 +339,7 @@ function InstructionEditor(props: {
       face: 'instructions',
       documentText: draft.text,
       disabled: busy,
+      session: { path: `${draft.directory.replace(/\/+$/, '')}/${draft.candidate}` },
       onDrafted: (text: string) => onChange({ ...draft, text })
     }),
     h(CodeEditor, {

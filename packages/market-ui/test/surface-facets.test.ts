@@ -27,12 +27,13 @@ describe('shared surface facet', () => {
   })
 
   it('draws no facet for a face with a single provider', () => {
-    // The market and the hook list can only ever hold suite rows: a 套件 cut beside 全部
-    // would be the same list twice.
+    // The market can only ever hold suite rows: a 套件 cut beside 全部 would be the same list
+    // twice. The hook face is not in that group: a declaration can be a suite's or the
+    // reader's own hoos.json entry, so it carries the same pair as every other list.
     expect(SURFACE_PROVIDERS.market).toBeUndefined()
-    expect(SURFACE_PROVIDERS.hooks).toBeUndefined()
+    expect(SURFACE_PROVIDERS.hooks).toBeDefined()
     expect(surfaceProviderCuts('market', t, () => 'suite')).toEqual([])
-    expect(surfaceProviderCuts('hooks', t, () => 'suite')).toEqual([])
+    expect(surfaceProviderCuts('hooks', t, () => 'suite')).toHaveLength(2)
   })
 
   it('matches a row by the provider it reports', () => {

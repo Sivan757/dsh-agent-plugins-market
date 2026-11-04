@@ -18,7 +18,7 @@
  */
 import { createElement as h, useState, type ReactNode } from 'react'
 import { Button, Input } from '@deepseek-ai/dsh-client-ui-primitives'
-import { requestAiDraft } from '../api.js'
+import { requestAiDraft, requestAiSession } from '../api.js'
 import type { AiDraftFace, AiUsage } from '../../../market-contracts/src/contracts/ai-draft.js'
 import { clientErrorMessage } from './error-message.js'
 import type { Translate } from '../i18n.js'
@@ -40,6 +40,14 @@ export interface AiDraftFieldProps {
   onDrafted: (text: string) => void
   /** Restores what the editor held before the draft, for a face that unpacks it. */
   onRestore?: () => void
+  /**
+   * Where a session's artifact lands, when this face has one.
+   *
+   * The button that opens a session is the way to adjust a requirement and pick a model: the
+   * task is written as the session's first message, and the rest is the reader's own
+   * conversation. Absent where a session has no file to land in.
+   */
+  session?: { dir?: string; path?: string; name?: string }
   /** Disabled while the editor is saving. */
   disabled?: boolean
 }
@@ -56,13 +64,47 @@ function costLine(t: Translate, model: string, usage: AiUsage | undefined): stri
 }
 
 export function AiDraftField(props: AiDraftFieldProps): ReactNode {
-  const { t, face, sessionId, documentText, onDrafted, onRestore, disabled } = props
+  const { t, face, sessionId, documentText, onDrafted, onRestore, disabled, session: sessionTarget } = props
   const [intent, setIntent] = useState('')
   const [busy, setBusy] = useState(false)
   const [note, setNote] = useState<string | undefined>(undefined)
   const [error, setError] = useState<string | undefined>(undefined)
   // The restore step for the answer on screen, if it has one.
   const [undo, setUndo] = useState<(() => void) | undefined>(undefined)
+  const [sessionNote, setSessionNote] = useState<string | undefined>(undefined)
+  const openSession = (): void => {
+    if (intent.trim() === '' || busy || sessionTarget === undefined) return
+    setBusy(true)
+    setError(undefined)
+    setSessionNote(undefined)
+    requestAiSession({
+      face,
+      intent,
+      locale: draftLocale(t),
+      ...(sessionId === undefined ? {} : { sessionId }),
+      mode: sessionTarget.path === undefined ? 'create' : 'edit',
+      ...(sessionTarget.dir === undefined ? {} : { dir: sessionTarget.dir }),
+      ...(sessionTarget.path === undefined ? {} : { path: sessionTarget.path }),
+      ...(sessionTarget.name === undefined ? {} : { name: sessionTarget.name })
+    })
+      .then(started => {
+        // The session is listed under its workspace; naming that workspace is what lets the
+        // reader find it.
+        const where =
+          started.workspace === undefined
+            ? undefined
+            : started.workspace
+                .split('/')
+                .filter(segment => segment !== '')
+                .pop()
+        setSessionNote(where === undefined ? t('aiSessionOpened') : t('aiSessionOpenedIn', { workspace: where }))
+      })
+      .catch(caught => {
+        const code = typeof caught === 'object' && caught !== null ? (caught as { code?: unknown }).code : undefined
+        setError(code === 'ai-provider-limited' ? t('aiDraftLimited') : clientErrorMessage(t, caught))
+      })
+      .finally(() => setBusy(false))
+  }
   const draft = (): void => {
     if (intent.trim() === '' || busy) return
     const before = documentText
@@ -111,6 +153,19 @@ export function AiDraftField(props: AiDraftFieldProps): ReactNode {
       }
     }),
     h(Button, { variant: 'outline', size: 'sm', disabled: disabled === true || busy || intent.trim() === '', onClick: draft }, busy ? t('aiDraftBusy') : t('aiDraftAction')),
+    sessionTarget === undefined
+      ? null
+      : h(
+          Button,
+          {
+            variant: 'ghost',
+            size: 'sm',
+            disabled: disabled === true || busy || intent.trim() === '',
+            title: t('aiDraftSessionHint'),
+            onClick: openSession
+          },
+          t('aiDraftSession')
+        ),
     undo === undefined
       ? null
       : h(
@@ -126,6 +181,8 @@ export function AiDraftField(props: AiDraftFieldProps): ReactNode {
           },
           t('aiDraftUndo')
         ),
-    (error ?? note) === undefined ? null : h('span', { className: error === undefined ? css.aiNote : css.aiError, role: error === undefined ? 'status' : 'alert' }, error ?? note)
+    (error ?? note ?? sessionNote) === undefined
+      ? null
+      : h('span', { className: error === undefined ? css.aiNote : css.aiError, role: error === undefined ? 'status' : 'alert' }, error ?? note ?? sessionNote)
   )
 }

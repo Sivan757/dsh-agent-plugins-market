@@ -354,8 +354,9 @@ describe('MCP status actions', () => {
     const el = await mountPanel()
     expect(el.textContent).toContain('statusUnreadable')
     expect(el.textContent).not.toContain('mcpEmpty')
-    // Three tabs reading 0 would restate the same false fact.
-    expect(el.querySelectorAll('[data-panel-toolbar] [role="tab"]')).toHaveLength(0)
+    // The three conditions stay (they are a fixed grammar across faces); the honest fact is
+    // the empty text, which says the read failed rather than that nothing matches.
+    expect(el.textContent).toContain('filterAll')
   })
 
   it('says on the card why a connector failed, keeping the advice in the detail', async () => {

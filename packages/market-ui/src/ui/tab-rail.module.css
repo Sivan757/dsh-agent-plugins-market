@@ -84,7 +84,12 @@
 
 .tab {
   position: relative;
-  flex: none;
+  /* Spare width is shared, so a short row of tabs fills the strip it sits in instead of
+     stopping half way; min-width keeps the labels unwrapped, and the rail keeps scrolling
+     when the row genuinely overflows. */
+  flex: 1 1 auto;
+  min-width: fit-content;
+  text-align: center;
   border: 0;
   border-radius: 8px;
   padding: 5px 10px;

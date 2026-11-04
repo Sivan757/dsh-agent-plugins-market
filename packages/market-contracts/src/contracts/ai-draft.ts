@@ -19,7 +19,9 @@ export const AI_DRAFT_ROUTES = {
   /** Suggest a preset selection from an intent and the rows the manager shows. POST. */
   suggestPreset: `${MARKET_API_PREFIX}ai-preset`,
   /** Explain one service failure and name the next step. POST. */
-  diagnose: `${MARKET_API_PREFIX}ai-diagnose`
+  diagnose: `${MARKET_API_PREFIX}ai-diagnose`,
+  /** Open a session whose first message carries a drafting task. POST. */
+  session: `${MARKET_API_PREFIX}ai-session`
 } as const
 
 /**
@@ -190,4 +192,47 @@ export const AI_DIAGNOSE_LIMITS = {
   maxTokens: 800,
   /** Milliseconds one explanation may take. */
   timeoutMs: 45_000
+} as const
+
+/**
+ * One session-assist request.
+ *
+ * The task is written as the session's first message, so the reader can edit the requirement,
+ * switch the model the way they would for any session, and send when it reads right. The
+ * server resolves where the artifact lives; the browser never guesses a path.
+ */
+export interface AiSessionRequest {
+  face: AiDraftFace
+  /** What the artifact should do, in the person's own words. */
+  intent: string
+  /** The language the task message is written in. */
+  locale?: 'zh' | 'en'
+  /** Create in the face's directory, or change the named file. */
+  mode?: 'create' | 'edit'
+  /** A name to prefer, when the row being adjusted already has one. */
+  name?: string
+  /** The file to change, for a face whose editor knows one. */
+  path?: string
+  /** The directory to create in, when the caller knows it. */
+  dir?: string
+  /**
+   * The live session the reader is working in.
+   *
+   * The assist session joins that session's workspace, which is what makes it appear in the
+   * sidebar beside the work it belongs to instead of in the server's own directory.
+   */
+  sessionId?: string
+}
+
+/** The session a task was written into. */
+export interface AiSessionStarted {
+  sessionId: string
+  /** The workspace the session belongs to: the store lists it under this directory. */
+  workspace?: string
+}
+
+/** Bounds one session-assist request is measured against. */
+export const AI_SESSION_LIMITS = {
+  /** Characters of intent one request may carry. */
+  intentChars: AI_DRAFT_LIMITS.intentChars
 } as const

@@ -40,7 +40,7 @@ export interface AiDraftPort {
  * `argument-hint` is the command's signature, and a command's body address its arguments as
  * `$ARGUMENTS`. Stating them here is what keeps a draft saveable without repair.
  */
-const FACE_FORMAT: Record<AiDraftFace, string> = {
+export const FACE_FORMAT: Record<AiDraftFace, string> = {
   skills: [
     'A skill: YAML frontmatter with a single `description` line saying when the model should',
     'use this skill, then a Markdown body of the instructions themselves. Write the body for',
@@ -125,4 +125,83 @@ export function createAiDraftService(port: AiDraftPort | undefined): AiDraftServ
       return { ...result, text }
     }
   }
+}
+
+/** The face's own noun, in the language the task is written in. */
+const FACE_NOUN: Record<AiDraftFace, { zh: string; en: string }> = {
+  skills: { zh: '技能', en: 'skill' },
+  commands: { zh: '快捷指令', en: 'command' },
+  agents: { zh: '专家', en: 'expert role' },
+  outputStyles: { zh: '输出风格', en: 'output style' },
+  instructions: { zh: '系统提示词文件', en: 'system-prompt file' }
+}
+
+/** Where one face's user files live, relative to the Agent layout root. */
+export const FACE_SUBDIR: Record<AiDraftFace, string> = {
+  skills: 'skills',
+  commands: 'commands',
+  agents: 'agents',
+  outputStyles: 'output-styles',
+  instructions: ''
+}
+
+/**
+ * Build the task message one assist session starts with.
+ *
+ * The session is the reader's own: they will edit this requirement, switch the model, and send
+ * when it reads right. The task therefore says what the artifact must look like, where it must
+ * land, and that the agent writes the file itself rather than printing it at them.
+ * @param input.face - which artifact is wanted.
+ * @param input.intent - what the person asked for.
+ * @param input.target - the directory to create in, or the file to change.
+ * @param input.name - a name to prefer, when one exists.
+ * @param input.locale - the language the task is written in.
+ * @returns the task text.
+ */
+export function buildSessionTask(input: {
+  face: AiDraftFace
+  intent: string
+  target: { kind: 'dir'; dir: string } | { kind: 'file'; path: string }
+  name?: string
+  locale: 'zh' | 'en'
+}): string {
+  const noun = FACE_NOUN[input.face][input.locale]
+  const format = FACE_FORMAT[input.face]
+  const lines =
+    input.target.kind === 'file'
+      ? input.locale === 'zh'
+        ? [
+            `请把这份${noun}文件改成满足下面需求的版本：`,
+            `文件：${input.target.path}`,
+            `需求：${input.intent}`,
+            '保持该文件既有的 frontmatter 结构。直接用文件工具改写并保存；不要只把内容贴在对话里。',
+            '完成后用一句话说明你改了什么。'
+          ]
+        : [
+            `Rewrite this ${noun} file to satisfy the request below.`,
+            `File: ${input.target.path}`,
+            `Request: ${input.intent}`,
+            "Keep the file's existing frontmatter shape. Write the file with your file tools; do not just print it here.",
+            'Finish with one sentence saying what you changed.'
+          ]
+      : input.locale === 'zh'
+        ? [
+            `请在本工作区创建一个满足下面需求的${noun}。`,
+            `格式要求：${format}`,
+            `目录：${input.target.dir}`,
+            `需求：${input.intent}`,
+            input.name === undefined ? '命名从用途推导。' : `优先使用这个名字：${input.name}`,
+            input.face === 'skills' ? '技能是一个以名字命名的目录，里面一个 SKILL.md。命令与专家是 <名字>.md。' : '',
+            '直接用文件工具把成品写入磁盘；不要只贴在对话里。完成后用一句话说明你创建了什么、路径在哪。'
+          ]
+        : [
+            `Create a ${noun} in this workspace that satisfies the request below.`,
+            `Format: ${format}`,
+            `Directory: ${input.target.dir}`,
+            `Request: ${input.intent}`,
+            input.name === undefined ? 'Derive the name from the purpose.' : `Prefer this name: ${input.name}`,
+            input.face === 'skills' ? 'A skill is a directory named for it containing one SKILL.md; commands and expert roles are <name>.md.' : '',
+            'Write the result to disk with your file tools; do not just print it here. Finish with one sentence saying what you created and where.'
+          ]
+  return lines.filter(line => line !== '').join('\n')
 }

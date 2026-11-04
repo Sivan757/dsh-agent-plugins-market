@@ -21,6 +21,25 @@ interface Answer {
 
 const logger = { warn: (): void => {}, info: (): void => {}, error: (): void => {} }
 
+/** A session store that records what a task was written into. */
+const sessionStub = {
+  sessions: {
+    create: (id?: string) => {
+      const written: Array<{ type: string; text?: string }> = []
+      const store = {
+        append: (type: string, data: unknown) => {
+          written.push({ type, text: JSON.stringify(data).slice(0, 200) })
+          return data
+        },
+        header: { id: id ?? 'session-fixture' },
+        written
+      }
+      return store
+    }
+  },
+  agentsRoot: '/agents-root'
+}
+
 /** The catalogue an install recommendation reads: two suites, one of them already on. */
 const catalogueStub = {
   catalogue: {
@@ -97,6 +116,7 @@ describe('ai draft route', () => {
     const { ctx, routes } = host()
     const fake = port()
     mountAiDraftRoutes(ctx, {
+      ...sessionStub,
       ...catalogueStub,
       service: createAiDraftService(fake.port),
       presets: createAiPresetService(fake.port),
@@ -121,6 +141,7 @@ describe('ai draft route', () => {
     const { ctx, routes } = host()
     const fake = port()
     mountAiDraftRoutes(ctx, {
+      ...sessionStub,
       ...catalogueStub,
       service: createAiDraftService(fake.port),
       presets: createAiPresetService(fake.port),
@@ -139,6 +160,7 @@ describe('ai draft route', () => {
   it('answers 409 when the deployment has no model, and 502 when the call fails', async () => {
     const { ctx, routes } = host()
     mountAiDraftRoutes(ctx, {
+      ...sessionStub,
       ...catalogueStub,
       service: createAiDraftService(undefined),
       presets: createAiPresetService(undefined),
@@ -156,6 +178,7 @@ describe('ai draft route', () => {
     }
     const second = host()
     mountAiDraftRoutes(second.ctx, {
+      ...sessionStub,
       ...catalogueStub,
       service: createAiDraftService(failing),
       presets: createAiPresetService(failing),
@@ -177,6 +200,7 @@ describe('ai draft route', () => {
     }
     const { ctx, routes } = host()
     mountAiDraftRoutes(ctx, {
+      ...sessionStub,
       ...catalogueStub,
       service: createAiDraftService(limited),
       presets: createAiPresetService(limited),
@@ -191,6 +215,7 @@ describe('ai draft route', () => {
   it('refuses a read method and a cross-origin write', async () => {
     const { ctx, routes } = host()
     mountAiDraftRoutes(ctx, {
+      ...sessionStub,
       ...catalogueStub,
       service: createAiDraftService(port().port),
       presets: createAiPresetService(port().port),
@@ -206,6 +231,7 @@ describe('ai draft route', () => {
       const { ctx, routes } = host()
       const fake = port('draft')
       mountAiDraftRoutes(ctx, {
+        ...sessionStub,
         ...catalogueStub,
         service: createAiDraftService(fake.port),
         presets: createAiPresetService(fake.port),
@@ -241,7 +267,14 @@ describe('ai preset suggestion', () => {
     const port = answering(
       '{"name":"前端开发","reason":"覆盖前端常用的东西","picks":["market:src/frontend","market:src/frontend","market:src/ghost","skills:src/frontend/review"]}'
     )
-    mountAiDraftRoutes(ctx, { ...catalogueStub, service: createAiDraftService(port), presets: createAiPresetService(port), diagnose: createAiDiagnoseService(port), logger })
+    mountAiDraftRoutes(ctx, {
+      ...catalogueStub,
+      ...sessionStub,
+      service: createAiDraftService(port),
+      presets: createAiPresetService(port),
+      diagnose: createAiDiagnoseService(port),
+      logger
+    })
     const answer = await suggest(routes, { intent: '前端开发用', candidates, locale: 'zh' })
     expect(answer.status).toBe(200)
     expect(answer.body['ok']).toBe(true)
@@ -266,7 +299,14 @@ describe('ai preset suggestion', () => {
         return { text: '{"name":"x"}', provider: 'p', model: 'm' }
       }
     }
-    mountAiDraftRoutes(ctx, { ...catalogueStub, service: createAiDraftService(port), presets: createAiPresetService(port), diagnose: createAiDiagnoseService(port), logger })
+    mountAiDraftRoutes(ctx, {
+      ...catalogueStub,
+      ...sessionStub,
+      service: createAiDraftService(port),
+      presets: createAiPresetService(port),
+      diagnose: createAiDiagnoseService(port),
+      logger
+    })
     expect((await suggest(routes, { intent: '  ', candidates })).status).toBe(400)
     expect((await suggest(routes, { intent: '前端', candidates: [] })).status).toBe(400)
     expect(called).toBe(0)
@@ -275,7 +315,14 @@ describe('ai preset suggestion', () => {
   it('names a provider limit on the preset route too', async () => {
     const { ctx, routes } = host()
     const port = answering('{"message":"usage limit has been reached (429)"}')
-    mountAiDraftRoutes(ctx, { ...catalogueStub, service: createAiDraftService(port), presets: createAiPresetService(port), diagnose: createAiDiagnoseService(port), logger })
+    mountAiDraftRoutes(ctx, {
+      ...catalogueStub,
+      ...sessionStub,
+      service: createAiDraftService(port),
+      presets: createAiPresetService(port),
+      diagnose: createAiDiagnoseService(port),
+      logger
+    })
     const answer = await suggest(routes, { intent: '前端开发', candidates })
     // The model answered prose where JSON was required: that is an unusable answer, not a
     // limit, because the text carries no limit signal from the provider.
@@ -288,6 +335,7 @@ describe('ai preset suggestion', () => {
     }
     const second = host()
     mountAiDraftRoutes(second.ctx, {
+      ...sessionStub,
       ...catalogueStub,
       service: createAiDraftService(limited),
       presets: createAiPresetService(limited),
@@ -302,7 +350,14 @@ describe('ai preset suggestion', () => {
   it('reports an unusable answer as unprocessable, not as a provider failure', async () => {
     const { ctx, routes } = host()
     const port = answering('I would pick the frontend suite.')
-    mountAiDraftRoutes(ctx, { ...catalogueStub, service: createAiDraftService(port), presets: createAiPresetService(port), diagnose: createAiDiagnoseService(port), logger })
+    mountAiDraftRoutes(ctx, {
+      ...catalogueStub,
+      ...sessionStub,
+      service: createAiDraftService(port),
+      presets: createAiPresetService(port),
+      diagnose: createAiDiagnoseService(port),
+      logger
+    })
     const answer = await suggest(routes, { intent: '前端开发', candidates })
     expect(answer.status).toBe(422)
     expect(answer.body['code']).toBe('ai-invalid-suggestion')
@@ -322,6 +377,7 @@ describe('ai failure diagnosis', () => {
     const { ctx, routes } = host()
     const fake = port('连不上这台服务。先确认地址在同一网络内可达，再检查服务是否要求认证。')
     mountAiDraftRoutes(ctx, {
+      ...sessionStub,
       ...catalogueStub,
       service: createAiDraftService(fake.port),
       presets: createAiPresetService(fake.port),
@@ -344,6 +400,7 @@ describe('ai failure diagnosis', () => {
     const { ctx, routes } = host()
     const fake = port('x')
     mountAiDraftRoutes(ctx, {
+      ...sessionStub,
       ...catalogueStub,
       service: createAiDraftService(fake.port),
       presets: createAiPresetService(fake.port),
@@ -359,6 +416,7 @@ describe('ai failure diagnosis', () => {
     const { ctx, routes } = host()
     const fake = port('x')
     mountAiDraftRoutes(ctx, {
+      ...sessionStub,
       ...catalogueStub,
       service: createAiDraftService(fake.port),
       presets: createAiPresetService(fake.port),
@@ -384,7 +442,14 @@ describe('install recommendation', () => {
         model: 'm'
       })
     }
-    mountAiDraftRoutes(ctx, { ...catalogueStub, service: createAiDraftService(port), presets: createAiPresetService(port), diagnose: createAiDiagnoseService(port), logger })
+    mountAiDraftRoutes(ctx, {
+      ...catalogueStub,
+      ...sessionStub,
+      service: createAiDraftService(port),
+      presets: createAiPresetService(port),
+      diagnose: createAiDiagnoseService(port),
+      logger
+    })
     const { response, read } = recorded()
     await routes.get(AI_DRAFT_ROUTES.suggestPreset)?.(request({ intent: '前端开发', purpose: 'install', locale: 'zh' }), response)
     const answer = read()
@@ -399,6 +464,7 @@ describe('install recommendation', () => {
     const { ctx, routes } = host()
     const empty = { catalogue: { overview: async () => ({ suites: [{ sourceId: 'market', suiteId: 'on', name: 'already-on', enabled: true }] }) } }
     mountAiDraftRoutes(ctx, {
+      ...sessionStub,
       ...empty,
       service: createAiDraftService(port().port),
       presets: createAiPresetService(port().port),
@@ -408,5 +474,56 @@ describe('install recommendation', () => {
     const { response, read } = recorded()
     await routes.get(AI_DRAFT_ROUTES.suggestPreset)?.(request({ intent: '前端开发', purpose: 'install' }), response)
     expect(read().status).toBe(400)
+  })
+})
+
+describe('assist session route', () => {
+  async function open(routes: Map<string, Handler>, body: unknown): Promise<Answer> {
+    const { response, read } = recorded()
+    await routes.get(AI_DRAFT_ROUTES.session)?.(request(body), response)
+    return read()
+  }
+
+  it('opens a session whose first message carries the format, the intent and the target', async () => {
+    const { ctx, routes } = host()
+    mountAiDraftRoutes(ctx, {
+      ...catalogueStub,
+      ...sessionStub,
+      service: createAiDraftService(undefined),
+      presets: createAiPresetService(undefined),
+      diagnose: createAiDiagnoseService(undefined),
+      logger
+    })
+    const answer = await open(routes, { face: 'skills', intent: '审查 TypeScript 改动', locale: 'zh' })
+
+    expect(answer.status).toBe(200)
+    expect(answer.body['ok']).toBe(true)
+    // Each creation mints its own id, so a second draft can never overwrite the first one's
+    // transcript in a store whose counter restarts with the process.
+    expect(String(answer.body['sessionId'])).toMatch(/^session-/)
+  })
+
+  it('refuses a relative or traversing path before any session exists', async () => {
+    const { ctx, routes } = host()
+    let created = 0
+    mountAiDraftRoutes(ctx, {
+      ...sessionStub,
+      ...catalogueStub,
+      sessions: {
+        create: () => {
+          created += 1
+          return sessionStub.sessions.create()
+        }
+      },
+      agentsRoot: '/agents-root',
+      service: createAiDraftService(undefined),
+      presets: createAiPresetService(undefined),
+      diagnose: createAiDiagnoseService(undefined),
+      logger
+    })
+    expect((await open(routes, { face: 'instructions', intent: 'x', path: 'relative/path' })).status).toBe(400)
+    expect((await open(routes, { face: 'instructions', intent: 'x', path: '/a/../b/c.md' })).status).toBe(400)
+    expect((await open(routes, { face: 'instructions', intent: 'x' })).status).toBe(400)
+    expect(created).toBe(0)
   })
 })

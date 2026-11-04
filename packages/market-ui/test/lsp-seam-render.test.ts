@@ -178,4 +178,13 @@ describe('LSP card actions', () => {
     })
     expect(document.body.textContent).toContain('lspEditTitle')
   })
+
+  it('offers the same three conditions every other list offers', async () => {
+    // The face used to render no toolbar at all, so the cut strip every other list carries was
+    // simply absent here. It draws the shared pair now, at any count.
+    const el = await mountPanel()
+    const tabs = [...el.querySelectorAll('[data-panel-toolbar] [role="tab"]')].map(tab => (tab.textContent ?? '').trim())
+    expect(tabs[0]).toBe('filterAll 1')
+    expect(tabs).toHaveLength(3)
+  })
 })

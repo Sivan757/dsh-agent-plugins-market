@@ -339,7 +339,9 @@ it('gives the settings workspace a ninth Hooks tab on the shared scrolling rail'
   expect(railRule).toMatch(/overflow-x:\s*auto/)
   expect(railRule).toMatch(/min-width:\s*0/)
   const tabRule = /\.tab\s*\{[^}]*/.exec(railCss)?.[0] ?? ''
-  expect(tabRule).toMatch(/flex:\s*none/)
+  // Spare width is shared so a short row fills the strip; the label stays whole and the
+  // rail still slides when the row genuinely overflows.
+  expect(tabRule).toMatch(/flex:\s*1\s+1\s+auto/)
   expect(tabRule).toMatch(/white-space:\s*nowrap/)
   const workspaceCss = readFileSync('packages/market-ui/src/workspace/workspace.module.css', 'utf8')
   expect(workspaceCss).not.toMatch(/tabRow/)

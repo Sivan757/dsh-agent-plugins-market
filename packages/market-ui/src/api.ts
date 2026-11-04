@@ -35,13 +35,15 @@ import {
   type AiDraftFace,
   type AiDraftResult,
   type AiPresetCandidate,
-  type AiPresetSuggestion
+  type AiPresetSuggestion,
+  type AiSessionRequest
 } from '../../market-contracts/src/contracts/ai-draft.js'
 import type { OutputStyleCaptureResult, OutputStylesPayload, OutputStyleSaveRequest } from '../../market-contracts/src/contracts/output-styles.js'
 import { resolveHiddenTabs, resolveTabOrder, type TabLayoutWire } from '../../market-contracts/src/contracts/tab-layout.js'
 import { INSTRUCTION_ROUTES } from '../../market-contracts/src/contracts/instructions.js'
 import type { InstructionDeleteResult, InstructionsPayload, InstructionSaveRequest } from '../../market-contracts/src/contracts/instructions.js'
 import type { DocumentTranslation } from '../../market-contracts/src/contracts/translation.js'
+import { USER_HOOKS_ROUTES, type UserHookSaveRequest } from '../../market-contracts/src/contracts/user-hooks.js'
 
 export type {
   HookPreview,
@@ -832,4 +834,69 @@ export async function requestAiPreset(input: {
  */
 export async function requestAiDiagnosis(input: { face: AiDiagnoseFace; failure: AiDiagnoseFailure; locale: 'zh' | 'en' }): Promise<AiDiagnosis> {
   return withBusyOperation(() => postOkJson<AiDiagnosis>(AI_DRAFT_ROUTES.diagnose, { face: input.face, failure: { ...input.failure }, locale: input.locale }, 'explanation failed'))
+}
+
+/**
+ * Open a session whose first message carries a drafting task.
+ *
+ * The session belongs to the reader: they edit the requirement, switch the model the way they
+ * would for any session, and send when it reads right. The server resolves where the artifact
+ * lives, so the browser never guesses a path.
+ *
+ * @param input - the face, the intent, and where the artifact lives when the caller knows it.
+ * @returns the session to open from the sidebar.
+ */
+export async function requestAiSession(input: Omit<AiSessionRequest, 'intent'> & { intent: string }): Promise<{ sessionId: string; workspace?: string }> {
+  return withBusyOperation(() =>
+    postOkJson<{ sessionId: string; workspace?: string }>(
+      `${AI_DRAFT_ROUTES.session}`,
+      {
+        face: input.face,
+        intent: input.intent,
+        locale: input.locale,
+        mode: input.mode,
+        ...(input.sessionId === undefined ? {} : { sessionId: input.sessionId }),
+        ...(input.dir === undefined ? {} : { dir: input.dir }),
+        ...(input.path === undefined ? {} : { path: input.path }),
+        ...(input.name === undefined ? {} : { name: input.name })
+      },
+      'session failed'
+    )
+  )
+}
+
+/* ---- User hooks --------------------------------------------------------- */
+
+/**
+ * Draft one hook entry from an intent.
+ *
+ * The answer is a proposal for the form: the event and the command both stay editable, and
+ * nothing is saved until the reader presses save.
+ * @param input - what the hook should do.
+ * @param input.intent - the reader's own words.
+ * @param input.locale - the language the exchange is written in.
+ * @returns the proposed entry, with the route that produced it.
+ */
+export async function draftUserHook(input: { intent: string; locale: 'zh' | 'en' }): Promise<UserHookSaveRequest & { provider: string; model: string }> {
+  return withBusyOperation(() =>
+    postOkJson<UserHookSaveRequest & { provider: string; model: string }>(USER_HOOKS_ROUTES.draft, { intent: input.intent, locale: input.locale }, 'hook draft failed')
+  )
+}
+
+/**
+ * Append one entry to the reader's own hook document.
+ *
+ * The append merges into whatever shape the file already has and never rewrites the rest, so a
+ * hand-written document survives this call untouched but for the one new entry.
+ * @param entry - the event, the command, and an optional matcher.
+ * @returns the file the entry landed in.
+ */
+export async function saveUserHook(entry: UserHookSaveRequest): Promise<{ file: string }> {
+  return withBusyOperation(() =>
+    postOkJson<{ file: string }>(
+      USER_HOOKS_ROUTES.save,
+      { event: entry.event, command: entry.command, ...(entry.matcher === undefined ? {} : { matcher: entry.matcher }) },
+      'hook save failed'
+    )
+  )
 }

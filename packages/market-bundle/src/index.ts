@@ -55,6 +55,7 @@ import { mountAiDraftRoutes } from './routes-ai.js'
 import { createAiDraftService } from './application/ai-draft.js'
 import { createAiPresetService } from './application/ai-preset.js'
 import { createAiDiagnoseService } from './application/ai-diagnose.js'
+import { mountUserHooksRoutes } from './routes-user-hooks.js'
 import { createLlmDraftPort } from './platform/llm-draft.js'
 import { createOutputStyleSuitePort } from './application/output-styles-suites.js'
 import { OutputStyleService, mountOutputStyleSection } from '../../market-runtime/src/index.js'
@@ -531,6 +532,8 @@ export async function apply(
       // The AI draft: one route, one deployment model. The port reads the model at call
       // time, so a deployment that configures one later starts drafting without a restart.
       const draftPort = createLlmDraftPort(hostCtx)
+      // The reader's own hook document: draft an entry, append an entry, never rewrite the rest.
+      const disposeUserHooks = mountUserHooksRoutes(hostCtx, { agentsRoot, port: draftPort, logger: ctx.logger })
       const disposeAiDraft = mountAiDraftRoutes(hostCtx, {
         service: createAiDraftService(draftPort),
         presets: createAiPresetService(draftPort),
@@ -538,6 +541,13 @@ export async function apply(
         // The catalogue is already the server's; a recommendation reads it instead of asking the
         // browser to post a thousand ids.
         catalogue: { overview: () => catalog.overview() },
+        // An assist session is opened on the same store the sidebar reads, so it shows up in the
+        // reader's list the moment it exists.
+        sessions: hostCtx.get('sessions') as {
+          create(id?: string, options?: { meta?: { cwd?: string } }): { append(type: string, data: unknown, intent?: { surfaceOp: 'append' }): unknown; header: { id: string } }
+        },
+        session: sessionExtensions.session(),
+        agentsRoot,
         logger: ctx.logger
       })
       const disposeResources = mountResourceRoutes(hostCtx, {
@@ -574,6 +584,7 @@ export async function apply(
         disposeInstructions()
         disposeOutputStyles()
         disposeAiDraft()
+        disposeUserHooks()
         disposeResources()
       }
     }, 'dsh-agent-plugins-market: http routes')

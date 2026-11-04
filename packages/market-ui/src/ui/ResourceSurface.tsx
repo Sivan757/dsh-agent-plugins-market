@@ -246,29 +246,24 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
     return () => observer.disconnect()
   }, [remaining, visible.length])
   const grow = (): void => setPage(current => current + 1)
-  // A surface with no cut of its own gets no filter segment at all: a tab strip
-  // with one tab ("all") is chrome that says nothing.
-  // A cut that nothing falls into is dropped below; when every cut is dropped the strip
-  // is a single "all" tab, which is the case this surface already refuses to render.
-  const cuts = filters.filter(entry => entries.some(item => entry.match(item)))
+  // Every declared cut stays, even at zero: the three conditions (all, suite, user) are a
+  // fixed grammar across faces, and a tab that vanishes because its rows went away reads as
+  // the surface hiding a question the reader learned to ask. A surface with no cut of its
+  // own still gets no strip: one tab ("all") is chrome that says nothing.
+  const cuts = filters
   const hasFilters = cuts.length > 0
   const segments = !hasFilters
     ? []
     : [
         { id: 'all', label: t('filterAll'), count: entries.length, active: filter === 'all', onSelect: () => setFilter('all') },
-        ...cuts
-          .map(entry => ({
-            id: entry.id,
-            label: entry.label,
-            count: entries.filter(item => entry.match(item)).length,
-            active: filter === entry.id,
-            onSelect: () => setFilter(entry.id),
-            ...(entry.hint === undefined ? {} : { hint: entry.hint })
-          }))
-          // A cut nothing falls into cannot help anyone query: it reads as a filter and
-          // lands on an empty list. The active one stays whatever its count, so a
-          // selection never disappears from under the pointer.
-          .filter(segment => segment.count > 0 || segment.active)
+        ...cuts.map(entry => ({
+          id: entry.id,
+          label: entry.label,
+          count: entries.filter(item => entry.match(item)).length,
+          active: filter === entry.id,
+          onSelect: () => setFilter(entry.id),
+          ...(entry.hint === undefined ? {} : { hint: entry.hint })
+        }))
       ]
   return h(
     'div',

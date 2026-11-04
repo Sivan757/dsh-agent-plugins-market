@@ -178,17 +178,17 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
             id: row.id,
             name: row.label,
             tag: row.source === 'user' ? t('outputStylesGroupUser') : t('outputStylesGroupSuite'),
-            // A suite row carries a typed hint, not a sentence: the words live in the client's
-            // dictionaries because the server that built the row cannot know the reader's
-            // language.
-            ...(row.hint === undefined && row.description === undefined ? {} : { description: row.hint === undefined ? row.description : t('outputStylesSuiteCaptureHint') }),
+            ...(row.description === undefined ? {} : { description: row.description }),
             meta: row.source === 'suite' ? (suiteKeyOf(row)?.split('/')[0] ?? '') : `output-styles/${userNameOf(row) ?? ''}.md`,
             // Choosing a style is the one thing this face is for. The switch selects, and the
             // state word says whether it already is; a row without a current capture cannot be
             // selected, so its word names the step that is missing instead.
             showSwitch: true,
             on: row.id === payload?.selected,
-            liveWord: row.id === payload?.selected ? t('outputStylesStateSelected') : isSelectable(row) ? t('outputStylesStateNotSelected') : t('outputStylesStateUncaptured')
+            liveWord: row.id === payload?.selected ? t('outputStylesStateSelected') : isSelectable(row) ? t('outputStylesStateNotSelected') : t('outputStylesStateUncaptured'),
+            // The same sentence the manager shows for the same condition: a suite style whose
+            // text was never captured injects nothing, and both pages say so in one voice.
+            ...(row.capture === 'missing' ? { note: t('outputStylesUncaptured') } : {})
           },
           'settings'
         ),
@@ -310,6 +310,7 @@ function StyleEditor(props: {
         t,
         face: 'outputStyles',
         disabled: busy,
+        session: { name: draft.name },
         // The draft is unpacked into two fields, so the undo step is the pair it replaced
         // rather than a document this editor does not hold.
         onRestore: () => {

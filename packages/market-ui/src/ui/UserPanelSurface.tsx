@@ -391,7 +391,8 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
           face: kind === 'commands' ? 'commands' : kind === 'agents' ? 'agents' : 'skills',
           documentText: text,
           onDrafted: onChange,
-          disabled: busy
+          disabled: busy,
+          session: editor?.mode === 'edit' && editor.name !== '' ? { name: editor.name } : {}
         }),
       onClose: () => setEditor(undefined),
       onSave: saveEditor

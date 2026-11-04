@@ -11,6 +11,8 @@ import type { ExtensionDetail, ExtensionResource } from '../../../../market-cont
 import { PanelHeader, PanelActions, ReadFailed } from '../../ui/panel.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { buildFaceEntry } from '../../ui/face-entry.js'
+import { surfaceProviderCuts } from '../../ui/surface-facets.js'
+import { HookCreateModal } from './HookCreateModal.js'
 import { HookDetailModal } from '../../ui/HookDetailModal.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import css from '../mcp/mcp-status.module.css'
@@ -58,6 +60,7 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | undefined>(undefined)
   const [detail, setDetail] = useState<HookDetail | undefined>(undefined)
+  const [creating, setCreating] = useState(false)
 
   const refresh = (): void => {
     setLoading(true)
@@ -84,7 +87,13 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
     { className: css.surface },
     h(PanelHeader, {
       subtitle: t('hooksPanelSubtitle'),
-      actions: h(PanelActions, { refreshLabel: t('refresh'), onRefresh: refresh, busy: loading })
+      actions: h(PanelActions, {
+        addLabel: t('hooksCreateTitle'),
+        onAdd: () => setCreating(true),
+        refreshLabel: t('refresh'),
+        onRefresh: refresh,
+        busy: loading
+      })
     }),
     error === undefined ? null : h(ReadFailed, { message: error, retryLabel: t('readRetry'), onRetry: refresh }),
     // The shared renderer draws the list; this panel only supplies entries and the detail.
@@ -124,6 +133,13 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
           'settings'
         )
       ),
+      // The reader's own declarations live in the synthetic @user-hooks suite: the id names it
+      // and the source carries it, with or without the @ the layout uses.
+      filters: surfaceProviderCuts('hooks', t, id => {
+        const row = rows.find(item => item.id === id)
+        const own = row !== undefined && (row.id.startsWith('hooks:@user-hooks/') || row.source === '@user-hooks' || row.source === 'user-hooks')
+        return own ? 'user' : 'suite'
+      }),
       searchLabel: t('hooksPanelSearch'),
       searchPlaceholder: t('hooksPanelSearch'),
       // No tabs: "supported" equals "all" whenever nothing is limited, and the
@@ -134,6 +150,7 @@ export function HooksStatusPanel({ t }: { t: ExtensionTranslate }): ReactNode {
         if (row !== undefined) openDetail(row)
       }
     }),
+    creating ? h(HookCreateModal, { t, onSaved: refresh, onClose: () => setCreating(false) }) : null,
     detail === undefined ? null : h(HookDetailModal, { detail, t, onClose: () => setDetail(undefined) })
   )
 }

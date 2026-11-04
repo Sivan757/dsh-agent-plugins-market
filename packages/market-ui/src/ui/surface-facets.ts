@@ -23,8 +23,10 @@ export type SurfaceProvider = 'suite' | 'user'
 /**
  * The provider words one face uses, or undefined when the face has only one provider.
  *
- * A face whose rows all come from suites (the market, the hook list) gets no facet at all:
- * two chips reading 全部 1000 and 套件 1000 ask the reader to choose between the same list.
+ * A face whose rows can only come from one place (the market, where every row is a suite) gets
+ * no facet at all: two chips reading 全部 1000 and 套件 1000 ask the reader to choose between the
+ * same list. The hook face does have two providers — a declaration a suite ships, and one the
+ * reader wrote in their own hooks.json — so it carries the same pair as the rest.
  */
 export const SURFACE_PROVIDERS: Partial<Record<WorkspaceTabKey, Record<SurfaceProvider, LocaleKey>>> = {
   skills: { suite: 'panelSourcePlugin', user: 'panelSourceUser' },
@@ -35,7 +37,8 @@ export const SURFACE_PROVIDERS: Partial<Record<WorkspaceTabKey, Record<SurfacePr
   outputStyles: { suite: 'panelSourcePlugin', user: 'panelSourceUser' },
   // The prompt layer's two halves are a scope, not an owner, so this face words them the
   // way the page does: a file in the checkout, or one in the person's own directory.
-  instructions: { suite: 'instructionsGroupProject', user: 'instructionsGroupGlobal' }
+  instructions: { suite: 'instructionsGroupProject', user: 'instructionsGroupGlobal' },
+  hooks: { suite: 'panelSourcePlugin', user: 'panelSourceUser' }
 }
 
 /** One facet cut, as the shared renderer takes it. */

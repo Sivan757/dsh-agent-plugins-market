@@ -436,7 +436,10 @@ describe('user hooks configuration row', () => {
     expect(railRule).toMatch(/overflow-x:\s*auto/)
     expect(railRule).toMatch(/min-width:\s*0/)
     const tabRule = /\.tab\s*\{[^}]*/.exec(railCss)?.[0] ?? ''
-    expect(tabRule).toMatch(/flex:\s*none/)
+    // Spare width is shared so a short row fills the strip; min-width keeps a label whole,
+    // which is what still stops a ninth tab from being cut off at the edge.
+    expect(tabRule).toMatch(/flex:\s*1\s+1\s+auto/)
+    expect(tabRule).toMatch(/min-width:\s*(fit-content|max-content)/)
     expect(tabRule).toMatch(/white-space:\s*nowrap/)
     // The face row is one tablist holding every face directly, and it is not the host's
     // equal-column grid: no inline grid template is set on it.

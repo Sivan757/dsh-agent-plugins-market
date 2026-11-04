@@ -8,9 +8,6 @@ export const extensionPresetsEn = {
   epConfigurationUnavailable: 'No valid capabilities in this configuration.',
   epGlobal: 'Default',
   epManageTitle: 'Manage extension presets',
-  epManageSubtitle: 'A preset saves one set of switches; the selected one applies to this session.',
-  epFacesNote:
-    'A preset saves the switches for what is installed and which parts are on. An output style is one choice rather than a set of switches, so switching it here selects it. An instruction file has no switch at all: a file is injected because it exists, so the preset lists it and cannot turn it off.',
   epInstructionsNoSwitch: 'A file is injected because it exists; the host has no per-file switch. The preset records it and cannot change it.',
   epStyleUncaptured: 'This suite style has no captured text yet, so selecting it injects nothing. Capture it on the Output styles page.',
   epStyleChoiceNote: 'An output style is a single choice: turning this one on makes it the session’s style and turns the others off.',
@@ -116,9 +113,6 @@ export const extensionPresetsZh: Record<ExtensionPresetLocaleKey, string> = {
   epConfigurationUnavailable: '此配置中没有有效的可用能力。',
   epGlobal: '默认',
   epManageTitle: '管理扩展预设',
-  epManageSubtitle: '每个预设保存一组启停选择，选中的那个用于本会话。',
-  epFacesNote:
-    '预设保存的是「装了什么、哪部分开着」这类开关。输出风格是单选而不是一组开关，所以在这里切换就是选中它；提示词文件根本没有开关——文件存在就会被注入——所以预设记录它，但关不掉它。',
   epInstructionsNoSwitch: '文件存在就会被注入，宿主没有按文件关闭的开关。预设记录它，但不改变它。',
   epStyleUncaptured: '这个套件风格还没有抓取到文本，选中它不会注入任何内容。请到输出风格面抓取一次。',
   epStyleChoiceNote: '输出风格是单选：开启这一个就会把它设为会话的风格，并关掉其它。',
