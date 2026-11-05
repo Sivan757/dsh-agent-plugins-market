@@ -7,6 +7,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { bindTranslationEnabled } from '../../../../packages/market-ui/src/ui/translation-enabled.js'
 import { ResourceList } from '../../../../packages/market-ui/src/features/extension-presets/ResourceList.js'
+import { SURFACE_STATE_CUTS } from '../../../../packages/market-ui/src/ui/surface-facets.js'
 import { ExtensionPresetEntry } from '../../../../packages/market-ui/src/features/extension-presets/ExtensionPresetEntry.js'
 import { extensionPresetsEn as en, extensionPresetsZh } from '../../../../packages/market-ui/src/locales-extension-presets.js'
 import type { ExtensionDetailProps } from '../../../../packages/market-ui/src/features/extension-presets/details.js'
@@ -196,10 +197,17 @@ it('coalesces same-id project cards and toggles the unnamed draft', async () => 
   await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards().map(card => card.getAttribute('data-resource-state'))).toEqual(['disabled'])
   expect(posts).toHaveLength(0)
-  // The manager's filter strip is the workspace's provider facet, and this face has one
-  // provider, so there is no strip at all: the switched-on cut the manager used to draw is
-  // gone, and so is the "nothing is enabled" chip it produced.
-  expect([...document.querySelectorAll<HTMLElement>('[data-panel-toolbar] [role="tab"]')]).toHaveLength(0)
+  // The manager's filter strip is the workspace's facet, read from the one shared table:
+  // this face has one provider, so it draws no provider cut, and the two state cuts are the
+  // ones the workspace page draws too. The two surfaces agree by construction, and the
+  // strip says how many rows each cut would leave.
+  const cuts = SURFACE_STATE_CUTS.market ?? []
+  const tabs = [...document.querySelectorAll<HTMLElement>('[data-panel-toolbar] [role="tab"]')]
+  const stateOf = (card: HTMLElement): string | null => card.getAttribute('data-resource-state')
+  expect(tabs.map(tab => tab.textContent)).toEqual([
+    settingsEn.filterAll + ' ' + cards().length,
+    ...cuts.map(cut => settingsEn[cut.label] + ' ' + cards().filter(card => stateOf(card) === cut.state).length)
+  ])
   expect(cards()).toHaveLength(1)
   await act(async () => cards()[0]!.querySelector<HTMLButtonElement>('[role="switch"]')!.click())
   expect(cards().map(card => card.getAttribute('data-resource-state'))).toEqual(['active'])
