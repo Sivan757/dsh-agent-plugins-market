@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
+import { IconTrashOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import { ConfirmModal, PanelActions, PanelHeader, ReadFailed, type PanelConfirmState } from '../../ui/panel.js'
 import type { Translate } from '../../i18n.js'
 import type { CredentialApi } from '../../credentials.js'
@@ -255,7 +256,26 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
         : {}),
       canEdit: switchable,
       ...(switchable ? {} : { hideToggle: true }),
-      ...(disabled ? {} : {})
+      ...(disabled ? {} : {}),
+      // The card is the panel's entry point to the one irreversible action: a flat
+      // danger icon that opens the shared confirmation, never the removal itself.
+      // Only a user-owned declaration qualifies — the same rule the detail used.
+      ...(deletable(entry)
+        ? {
+            actions: [
+              {
+                id: 'delete',
+                // The accessible name says the verb and the row; the tooltip is
+                // the bare verb, the way the switch and the edit button do it.
+                label: t('mcpDelete') + ' ' + mcpDisplayName(entry),
+                title: t('mcpDelete'),
+                icon: h(IconTrashOutlineMedium),
+                danger: true,
+                onSelect: () => askDelete(entry)
+              }
+            ]
+          }
+        : {})
     }
   })
   return h(
@@ -336,8 +356,8 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
           onRetry: retry,
           onReauthorize: reauthorize,
           onRefresh: observe,
-          // Deleting belongs to the dialog the card opens: the card's click means
-          // "open", and the one irreversible action waits one step inside it.
+          // The detail keeps its own delete button, so the action still has a path
+          // from inside the dialog; the card's icon opens the same confirmation.
           ...(deletable(selected) ? { onDelete: () => askDelete(selected) } : {})
         }),
     // The editor is the dialog the add flow uses, opened from the card's own

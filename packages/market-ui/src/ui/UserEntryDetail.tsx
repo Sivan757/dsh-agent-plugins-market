@@ -29,9 +29,9 @@ export interface UserEntryDetailProps {
   showOriginal?: boolean
   onClose: () => void
   /**
-   * Removes this entry's file. Offered only for a user-authored entry, and only
-   * here: the card's click opens this dialog, and the one irreversible action
-   * waits one step inside it behind the panel's confirmation.
+   * Removes this entry's file. Offered only for a user-authored entry, and the
+   * dialog keeps it as well as the card's own danger icon: both open the panel's
+   * confirmation, so the action has a path from either place.
    */
   onDelete?: () => void
 }
@@ -132,8 +132,9 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
         ),
         h('p', { className: css.heroMono }, entry.path)
       ),
-      // The one destructive action sits with the facts it deletes, not on the
-      // card that opened this dialog.
+      // The destructive action sits with the facts it deletes. The card that
+      // opened this dialog carries the same action, so nothing is lost by
+      // having both.
       props.onDelete === undefined
         ? null
         : h(

@@ -200,20 +200,36 @@ describe('unified Markdown resource panel', () => {
     expect(host.querySelector('[role="dialog"] h2')?.textContent).toBe('git-commit')
   })
 
-  it('offers the document edit on user and persona cards, and the delete only in a user entry detail', async () => {
+  it('carries the delete on a user entry card, and leaves a suite entry without one', async () => {
     api.fetchUserPanel.mockResolvedValue([plugin, user])
     await mountPanel()
     // The cards themselves: the controls beside the opener are siblings of it.
     const [pluginCard, userCard] = [...host.querySelectorAll<HTMLElement>('article')]
-    // The card's click means "open": no destructive action sits on either card.
-    expect(pluginCard?.querySelector('button[aria-label="panelDelete"]')).toBeNull()
-    expect(userCard?.querySelector('button[aria-label="panelDelete"]')).toBeNull()
+    // A suite-owned file uninstalls with its suite, so its card carries no delete.
+    expect(pluginCard?.querySelector('button[aria-label^="panelDelete "]')).toBeNull()
+    // A user-authored entry's card carries the danger icon that opens the panel's
+    // confirmation. The click removes nothing by itself.
+    const remove = userCard?.querySelector<HTMLButtonElement>('button[aria-label^="panelDelete "]')
+    expect(remove).not.toBeNull()
+    expect(remove!.className).toContain('iconBtnDanger')
+    // The accessible name says the verb and the row; the tooltip is the bare verb.
+    expect(remove!.getAttribute('aria-label')).toBe('panelDelete reviewer')
+    expect(remove!.getAttribute('title')).toBe('panelDelete')
     // The persona's pencil edits routing only; a user entry's pencil edits its own
     // document. The next test covers the document surface a persona leaves out.
     expect(pluginCard?.querySelector('button[aria-label^="panelEdit "]')).not.toBeNull()
     expect(userCard?.querySelector('button[aria-label^="panelEdit "]')).not.toBeNull()
+    await act(async () => remove!.click())
+    expect(host.querySelector('[role="dialog"]')?.textContent).toContain('panelDeleteTitle')
+    expect(api.deleteUserPanelEntry).not.toHaveBeenCalled()
+  })
+
+  it('keeps the delete in the detail of a user entry, and out of a suite entry detail', async () => {
+    api.fetchUserPanel.mockResolvedValue([plugin, user])
+    await mountPanel()
+    const [pluginCard] = [...host.querySelectorAll<HTMLElement>('article')]
     // Suite-owned files uninstall with their suite, so their detail carries no
-    // delete; a user entry's detail is where that one action lives.
+    // delete; a user entry's detail keeps the button it always had.
     await act(async () => pluginCard!.querySelector<HTMLElement>('[data-card-open]')!.click())
     expect(host.querySelector('[role="dialog"] button[aria-label="panelDelete"]')).toBeNull()
     await act(async () => root.unmount())

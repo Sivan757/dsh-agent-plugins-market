@@ -257,11 +257,31 @@ describe('instructions panel', () => {
     expect(api.saveInstructionFile).toHaveBeenCalledWith({ scope: 'user-global', directory: '.', candidate: 'AGENTS.md', text: '' }, undefined)
   })
 
+  it('carries the delete on the card, and the card opens the shared confirmation', async () => {
+    await mount()
+    const card = cards()[0]!
+    const remove = card.querySelector<HTMLButtonElement>('button[aria-label^="instructionsDelete "]')
+    expect(remove).not.toBeNull()
+    // The danger hover is what tells the reader this one is irreversible.
+    expect(remove!.className).toContain('iconBtnDanger')
+    // The accessible name says the verb and the file; the tooltip is the bare verb.
+    expect(remove!.getAttribute('aria-label')).toBe('instructionsDelete $DSH_HOME/AGENTS.md')
+    expect(remove!.getAttribute('title')).toBe('instructionsDelete')
+    await act(async () => remove!.click())
+    // The shared danger dialog is what opened; the file is still on disk.
+    expect(document.body.textContent).toContain('instructionsDeleteTitle')
+    expect(api.deleteInstructionFile).not.toHaveBeenCalled()
+    const confirm = [...document.querySelectorAll('button')].filter(button => button.textContent === 'panelDelete').at(-1)!
+    await act(async () => confirm.click())
+    await act(async () => {})
+    expect(api.deleteInstructionFile).toHaveBeenCalledWith({ scope: 'user-global', directory: '.', candidate: 'AGENTS.md' }, undefined)
+  })
+
   it('warns about the other names a deletion leaves behind', async () => {
     api.deleteInstructionFile.mockResolvedValue({ aliases: ['CLAUDE.md'], targetIsLink: false })
     await mount()
     await act(async () => cards()[0]!.click())
-    // The destructive action sits inside the dialog the card opened.
+    // The detail keeps its own delete button beside the facts it deletes.
     const remove = [...document.querySelectorAll('button')].find(button => button.textContent === 'panelDelete')
     await act(async () => remove!.click())
     const confirm = [...document.querySelectorAll('button')].filter(button => button.textContent === 'panelDelete').at(-1)

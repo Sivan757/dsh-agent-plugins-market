@@ -11,7 +11,7 @@
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, Menu, IconPlusOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, Menu, IconPlusOutlineMedium, IconTrashOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { InstructionDeleteResult, InstructionRow, InstructionsPayload, InstructionScope } from '../../api.js'
 import { deleteInstructionFile, fetchInstructions, saveInstructionFile } from '../../api.js'
 import type { Translate } from '../../i18n.js'
@@ -223,7 +223,22 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
           meta: row.size === undefined ? scopeName(t, row) : t('instructionsRowMeta', { scope: scopeName(t, row), bytes: String(row.size) }),
           // The filter reads the scope without showing it twice: keywords is search text the
           // card does not render.
-          keywords: row.scope === 'project' ? 'project' : 'user'
+          keywords: row.scope === 'project' ? 'project' : 'user',
+          // Every listed file is one the reader's own chain loads, so every listed file
+          // can be removed. The icon opens the panel's existing confirmation; it never
+          // removes the file by itself.
+          actions: [
+            {
+              id: 'delete',
+              // The accessible name says the verb and the file; the tooltip is
+              // the bare verb, the way the switch and the edit button do it.
+              label: t('instructionsDelete') + ' ' + row.displayPath,
+              title: t('instructionsDelete'),
+              icon: h(IconTrashOutlineMedium),
+              danger: true,
+              onSelect: () => askDelete(row)
+            }
+          ]
         })),
       emptyText: error !== undefined || payload?.error !== undefined ? t('statusUnreadable') : loading ? t('loading') : t('instructionsPreviewEmpty'),
       onOpen: id => {
@@ -262,8 +277,8 @@ export function InstructionsPanel({ t, sessionId }: InstructionsPanelProps): Rea
           onClose: () => setEditor(undefined),
           onSave: save,
           error,
-          // Deleting lives in the dialog the card opened, the way every other panel keeps its
-          // destructive action one step inside the entry rather than on the list.
+          // The editor keeps its own delete button, the way the detail does: the card's
+          // icon and the dialog's button both open the same confirmation.
           onDelete: editor.exists
             ? () => {
                 const target = editor

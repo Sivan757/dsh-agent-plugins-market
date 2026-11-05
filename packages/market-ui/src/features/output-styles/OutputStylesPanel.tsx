@@ -9,7 +9,7 @@
  */
 import { useEffect, useState, type ReactNode } from 'react'
 import { createElement as h } from 'react'
-import { Button, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconTrashOutlineMedium, Tag } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { OutputStyleRow, OutputStylesPayload } from '../../../../market-contracts/src/contracts/output-styles.js'
 import { deleteUserOutputStyle, fetchOutputStyles, saveUserOutputStyle, selectOutputStyle } from '../../api.js'
 import type { Translate } from '../../i18n.js'
@@ -145,30 +145,52 @@ export function OutputStylesPanel({ t, sessionId }: OutputStylesPanelProps): Rea
       isOn: (id: string) => id === payload?.selected,
       // The shared builder paints the rail and writes the switch's verb; this face supplies
       // its own words for the two states a style can be in.
-      entries: styles.map(row => ({
-        ...buildFaceEntry(
-          t,
-          {
-            surface: 'commands',
-            provider: row.source === 'user' ? 'user' : 'suite',
-            id: row.id,
-            name: row.label,
-            tag: t(groupLocaleKey(row.source)),
-            ...(row.description === undefined ? {} : { description: row.description }),
-            meta: row.source === 'user' ? `output-styles/${userNameOf(row) ?? ''}.md` : sourceMetaOf(row),
-            // Choosing a style is the one thing this face is for. The switch selects and the
-            // state word says whether it already is.
-            showSwitch: true,
-            on: row.id === payload?.selected,
-            liveWord: row.id === payload?.selected ? t('outputStylesStateSelected') : t('outputStylesStateNotSelected')
-          },
-          'settings'
-        ),
-        tagId: row.source,
-        // The switch is a choice, not an on/off: the verb says so. Without a verb a screen
-        // reader hears the style's own name twice, once for the row and once for the control.
-        toggleLabel: t('outputStylesSelect')
-      })),
+      entries: styles.map(row => {
+        const userName = userNameOf(row)
+        return {
+          ...buildFaceEntry(
+            t,
+            {
+              surface: 'commands',
+              provider: row.source === 'user' ? 'user' : 'suite',
+              id: row.id,
+              name: row.label,
+              tag: t(groupLocaleKey(row.source)),
+              ...(row.description === undefined ? {} : { description: row.description }),
+              meta: row.source === 'user' ? `output-styles/${userName ?? ''}.md` : sourceMetaOf(row),
+              // Choosing a style is the one thing this face is for. The switch selects and the
+              // state word says whether it already is.
+              showSwitch: true,
+              on: row.id === payload?.selected,
+              liveWord: row.id === payload?.selected ? t('outputStylesStateSelected') : t('outputStylesStateNotSelected')
+            },
+            'settings'
+          ),
+          tagId: row.source,
+          // The switch is a choice, not an on/off: the verb says so. Without a verb a screen
+          // reader hears the style's own name twice, once for the row and once for the control.
+          toggleLabel: t('outputStylesSelect'),
+          // A style the person wrote is theirs to remove; a suite's or the workspace's is
+          // not. The icon opens the panel's existing confirmation, never the removal.
+          ...(row.source === 'user' && userName !== undefined
+            ? {
+                actions: [
+                  {
+                    id: 'delete',
+                    // The accessible name says the verb and the row; the tooltip
+                    // is the bare verb, the way the switch and the edit button
+                    // do it.
+                    label: t('outputStylesDelete') + ' ' + userName,
+                    title: t('outputStylesDelete'),
+                    icon: h(IconTrashOutlineMedium),
+                    danger: true,
+                    onSelect: () => askDelete(row)
+                  }
+                ]
+              }
+            : {})
+        }
+      }),
       emptyText: error !== undefined ? t('statusUnreadable') : loading ? t('loading') : t('outputStylesEmpty'),
       onOpen: id => setDetail(styles.find(row => row.id === id))
     }),
