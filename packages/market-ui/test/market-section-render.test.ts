@@ -282,4 +282,81 @@ describe('MarketSection rendering', () => {
     })
     expect(chips()).toEqual(['tabAll 1', 'zeta 0', 'alpha 0'])
   })
+
+  it('cuts the market by state, and leaves the uninstalled suites under 全部', async () => {
+    // Every row here is a suite, so the face draws the two state cuts and no
+    // provider cut: a suite that is switched on and one that is switched off
+    // are two lists a reader asks for separately.
+    const base = overviewPayload.suites[0]!
+    await stubOverview({
+      ...overviewPayload,
+      suites: [
+        { ...base, suiteId: 'running', name: 'Running Suite', installed: true, enabled: true },
+        { ...base, suiteId: 'switched-off', name: 'Off Suite', installed: true, enabled: false },
+        { ...base, suiteId: 'absent', name: 'Absent Suite', installed: false, enabled: false }
+      ]
+    })
+    const el = await mountSection()
+    const tabs = (): string[] => [...el.querySelectorAll('[role="tab"]')].map(tab => tab.textContent ?? '')
+    expect(tabs()).toContain('filterAll 3')
+    expect(tabs()).toContain('enabledLabel 1')
+    expect(tabs()).toContain('disabledLabel 1')
+
+    // The uninstalled suite is listed but not here yet: it belongs to neither
+    // state cut, so it stays visible under 全部 and in no other cut.
+    const enabled = [...el.querySelectorAll<HTMLButtonElement>('[role="tab"]')].find(tab => (tab.textContent ?? '').startsWith('enabledLabel'))
+    expect(enabled).toBeDefined()
+    await act(async () => {
+      enabled?.click()
+    })
+    expect(el.textContent ?? '').toContain('Running Suite')
+    expect(el.textContent ?? '').not.toContain('Absent Suite')
+  })
+
+  it('offers the uninstall on the card, and the click only opens the risk acknowledgement', async () => {
+    // The card is the entry point to the uninstall again, the way it was
+    // before the one-renderer refactor: a hover-revealed danger button beside
+    // the refresh action. The click opens the page's own acknowledgement and
+    // removes nothing by itself.
+    const base = overviewPayload.suites[0]!
+    await stubOverview({
+      ...overviewPayload,
+      suites: [{ ...base, installed: true, enabled: true }]
+    })
+    const el = await mountSection()
+    const card = [...el.querySelectorAll('article')].find(node => (node.textContent ?? '').includes('Demo Suite'))
+    expect(card).toBeDefined()
+    // The accessible name says the verb and the row; the tooltip is the bare
+    // verb, because the row it acts on is already on screen.
+    const trash = [...card!.querySelectorAll('button')].find(button => (button.getAttribute('aria-label') ?? '').startsWith('uninstall'))
+    expect(trash).toBeDefined()
+    expect(trash!.getAttribute('aria-label')).toBe('uninstall Demo Suite')
+    expect(trash!.getAttribute('title')).toBe('uninstall')
+    // The shared renderer paints a destructive action in its danger hover.
+    expect(trash!.className).toMatch(/iconBtnDanger/)
+    // The refresh action beside it carries the same two shapes.
+    const refresh = [...card!.querySelectorAll('button')].find(button => (button.getAttribute('aria-label') ?? '').startsWith('refresh'))
+    expect(refresh!.getAttribute('aria-label')).toBe('refresh Demo Suite')
+    expect(refresh!.getAttribute('title')).toBe('refresh')
+    await act(async () => {
+      trash!.click()
+    })
+    expect(document.body.textContent ?? '').toContain('uninstallAcknowledge')
+    const api = await import('../../../packages/market-ui/src/api.js')
+    expect(vi.mocked(api.postAction)).not.toHaveBeenCalled()
+
+    // The suite goes only when the reader acknowledges the risk and confirms.
+    const checkbox = document.body.querySelector<HTMLInputElement>('input[type="checkbox"]')
+    expect(checkbox).not.toBeNull()
+    await act(async () => {
+      checkbox?.click()
+    })
+    const confirm = [...document.body.querySelectorAll('button')].find(button => (button.textContent ?? '').includes('confirmDelete'))
+    expect(confirm).toBeDefined()
+    expect(confirm!.disabled).toBe(false)
+    await act(async () => {
+      confirm!.click()
+    })
+    expect(vi.mocked(api.postAction)).toHaveBeenCalledWith('uninstall', { sourceId: 'demo', suiteId: 'demo-suite' })
+  })
 })

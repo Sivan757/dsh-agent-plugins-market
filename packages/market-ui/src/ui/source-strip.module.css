@@ -253,48 +253,67 @@
   color: var(--dsw-alias-label-primary-foreground, #fff);
 }
 
-/* Trailing edit/delete controls reveal on hover (or keyboard focus) like the
-   card action cluster; the selected pill keeps them on its own foreground. */
-/* Trailing edit/delete controls ride as one plate hugging the buttons, over
-   the label's trailing edge — the same treatment ResourceCard gives its
-   action cluster (opaque plate + spread shadow feathering the edge), so a
-   long name stays readable except right under the controls. Revealed on
-   hover or keyboard focus; the plate is click-transparent except for its
-   buttons, so clicking the visible label keeps selecting the source. */
+/* The trailing edit/delete controls reveal on hover (or keyboard focus) like
+   the card action cluster; the selected pill keeps them on its own foreground.
+   They are the chip's own last item, not a plate laid over the name: at rest
+   they take no room at all, so a chip is exactly as wide as its name — the
+   width the chips-hug-their-ids note promises. When they open they claim their
+   own width beside the name instead of on top of it, so the name is never
+   hidden and a click on it always selects the source: a chip with room grows
+   by the controls' width, and a chip already at its cap gives the label
+   exactly the width the old plate used to cover. */
 .srcTabControls {
-  position: absolute;
-  top: 0;
-  right: 0;
-  height: 100%;
+  flex: 0 0 auto;
+  width: auto;
+  /* Closed: the controls take no room, so the chip stays as wide as its
+     name. The cap is the opening's end point; the controls are narrower
+     than it, so the chip grows by their own width and no more. */
+  max-width: 0;
+  align-self: stretch;
   display: inline-flex;
   align-items: center;
+  /* The buttons sit at the chip's trailing edge, the place the card's own
+     action cluster takes, and the opening wipes them in from there. */
+  justify-content: flex-end;
   gap: 2px;
   padding: 0 6px 0 8px;
-  border-radius: inherit;
   background: inherit;
-  box-shadow: 0 0 6px 6px var(--dsw-alias-bg-layer-1);
+  /* Closed, the controls are clipped away: an invisible button is neither
+     painted nor a hit target. */
+  overflow: hidden;
   opacity: 0;
-  transition: opacity 120ms ease;
+  transition:
+    max-width 120ms ease,
+    opacity 120ms ease;
   pointer-events: none;
 }
 
+/* The buttons stay inert until the controls are open: an invisible control
+   must never take a click the reader meant for the name. */
 .srcTabControls > button {
-  pointer-events: auto;
+  pointer-events: none;
 }
 
-/* Hover reveals the plate; keyboard focus keeps it too, but only for
-   focus-visible — a mouse click's plain focus would otherwise pin the plate
-   on the selected chip after the pick, which must stay hover-only. */
+/* Hover opens the controls; keyboard focus keeps them too, but only for
+   focus-visible — a mouse click's plain focus would otherwise pin them
+   open on the selected chip after the pick, which must stay hover-only. */
 .srcTab:hover .srcTabControls,
 .srcTab:has(:focus-visible) .srcTabControls,
 .srcTabOn:hover .srcTabControls,
 .srcTabOn:has(:focus-visible) .srcTabControls {
+  max-width: 80px;
   opacity: 1;
+}
+
+.srcTab:hover .srcTabControls > button,
+.srcTab:has(:focus-visible) .srcTabControls > button,
+.srcTabOn:hover .srcTabControls > button,
+.srcTabOn:has(:focus-visible) .srcTabControls > button {
+  pointer-events: auto;
 }
 
 .srcTabOn .srcTabControls {
   background: var(--dsw-alias-brand-primary, #0f1115);
-  box-shadow: 0 0 6px 6px var(--dsw-alias-brand-primary, #0f1115);
 }
 
 @media (prefers-reduced-motion: reduce) {
