@@ -26,7 +26,7 @@ import type { ExtensionTranslate } from './types.js'
 import { ResourceList } from './ResourceList.js'
 import type { RenderExtensionDetail } from './details.js'
 import { useExtensionWindow, type ExtensionWindowObserver } from './use-window.js'
-import { presetCoverage, resourceSelected, toggleResource, uniquePresetName } from './resource.js'
+import { canonicalPresetSelection, presetCoverage, presetSuggestionCandidates, resourceSelected, uniquePresetName } from './resource.js'
 import { AiSelectionModal } from '../../ui/AiSelectionModal.js'
 import css from './presets.module.css'
 import { AgentExtensionIcon } from '../../ui/AgentExtensionIcon.js'
@@ -63,6 +63,9 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
     [writes, setWrites] = useState(0)
   const [toast, setToast] = useState<{ id: number; text: string; success: boolean }>()
   const sequence = useRef(0)
+  // The suggestion path reports its own outcome: the manager's report keeps its token to
+  // itself, and a suggestion that lands or does not is told apart from every other write.
+  const aiToken = useRef(0)
   const [actionsOpen, setActionsOpen] = useState(false)
   const [naming, setNaming] = useState<'save' | 'default' | 'rename' | null>(null),
     [newName, setNewName] = useState('')
@@ -183,15 +186,9 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
   }
   const patch = (row: ExtensionResource, enabled: boolean) => {
     if (!row.available || row.control === 'global-only') return
-    // An output style is a single choice: turning one on turns the others off, the way
-    // the styles panel itself selects exactly one.
-    let base = draftRef.current.enabledIds
-    if (row.face === 'outputStyles' && enabled) base = base.filter(id => !id.startsWith('outputStyles:'))
-    let ids = toggleResource(row, base, enabled)
-    if (row.face === 'market')
-      for (const child of data?.resources ?? []) {
-        if (child.suiteResourceId === row.id && child.available && child.control !== 'global-only') ids = toggleResource(child, ids, enabled)
-      }
+    // The closure a selection keeps — a row under a suite carries the suite, a suite
+    // carries the rows under it — is the one the suggestion path uses too.
+    const ids = canonicalPresetSelection(data?.resources ?? [], draftRef.current.enabledIds, [{ id: row.id, enabled }])
     const next = { ...draftRef.current, enabledIds: ids }
     setLocal(next)
     if (editing) saveNamed(next)
@@ -658,13 +655,50 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
       {suggesting
         ? h(AiSelectionModal, {
             t,
-            // The rows a preset can carry: everything the manager lists that the runtime has.
-            candidates: (data?.resources ?? []).filter(row => row.configuration === undefined && row.available).map(row => ({ id: row.id, label: row.name })),
+            // The rows a preset can carry: everything the manager lists that the runtime
+            // has, in the order that keeps the ones that carry a selection when the list
+            // is cut at the bound the contract states.
+            candidates: presetSuggestionCandidates(data?.resources ?? []),
             onApply: async suggestion => {
-              const next = await mutate('create', { name: suggestion.name, enabledIds: suggestion.enabledIds })
-              const created = next.library.presets.find(preset => preset.name === suggestion.name)
-              if (created !== undefined) loadEditor(next.library, created.id)
-              setSuggesting(false)
+              // The suggestion names rows the way a person does, so the preset has to carry
+              // the same closure the manager's switches build. A row under a suite carries
+              // the suite that owns it, and a suite carries the rows under it: without
+              // that the rows it named are stored and read back as nothing selected.
+              const enabledIds = canonicalPresetSelection(
+                data?.resources ?? [],
+                [],
+                suggestion.enabledIds.map(id => ({ id, enabled: true }))
+              )
+              // The name the model chose may already be taken. A conflict would fail the
+              // create and lose the suggestion, so the name is made unique first.
+              let name: string
+              try {
+                name = parseExtensionName(suggestion.name)
+              } catch {
+                setToast({ id: ++aiToken.current, text: t('epInvalid'), success: false })
+                return
+              }
+              const presetName = uniquePresetName(name, data?.library.presets.map(preset => preset.name) ?? [])
+              const before = new Set(data?.library.presets.map(preset => preset.id))
+              setWrites(value => value + 1)
+              try {
+                const next = await mutate('create', { name: presetName, enabledIds })
+                // The new preset is the one that appeared, not one found by the name the
+                // model asked for: the name may have been changed to make room for it.
+                const created = next.library.presets.find(preset => !before.has(preset.id))
+                if (created === undefined) throw new Error(t('epLoadFailed'))
+                loadEditor(next.library, created.id)
+                setToast({ id: ++aiToken.current, text: t('epSaved'), success: true })
+                setSuggesting(false)
+              } catch (reason) {
+                // A refused save has to say so. The suggestion is still on screen, and
+                // nothing else would tell the reader that it did not land.
+                const text = t('epFailed') + ' ' + String(reason)
+                setFeedback(text)
+                setToast({ id: ++aiToken.current, text, success: false })
+              } finally {
+                setWrites(value => value - 1)
+              }
             },
             onClose: () => setSuggesting(false)
           })
