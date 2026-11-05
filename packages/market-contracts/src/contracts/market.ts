@@ -200,6 +200,12 @@ export interface UnmanagedSource {
 /** A configured source row returned to the market client. */
 export interface SourceOverview {
   id: string
+  /**
+   * The name a reader recognizes this source by, when the id alone does not say
+   * which repository it is (`jeecgboot/skills` for a source stored as `skills`).
+   * Absent when the id already carries the owner or the source is not remote.
+   */
+  displayName?: string
   url: string
   branch?: string
   local?: boolean

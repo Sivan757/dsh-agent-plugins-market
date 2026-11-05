@@ -189,6 +189,44 @@ function stripSourceSuffix(base: string): string {
 }
 
 /**
+ * The owner and the repository a remote URL names.
+ *
+ * The owner is the directory above the repository (`jeecgboot` for
+ * `github.com/jeecgboot/skills`); the repository keeps its own name without a
+ * `.git` or archive suffix.
+ */
+export interface RemoteRepository {
+  /** The directory the repository sits in. */
+  owner: string
+  /** The repository's own name. */
+  base: string
+}
+
+/**
+ * The owner and the repository a remote URL names, or undefined when the URL
+ * is a local path.
+ *
+ * Both the owner-prefixed source id and the qualified display name read this
+ * one parse, so the two cannot drift apart over what a URL says.
+ *
+ * @param url - a git URL or a local path.
+ * @returns the owner and repository, or undefined for a local path.
+ */
+export function parseRemoteRepository(url: string): RemoteRepository | undefined {
+  const trimmed = url.trim().replace(/\/+$/, '')
+  const isRemote = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) || /^[\w.-]+@[\w.-]+:/.test(trimmed)
+  if (!isRemote) return undefined
+  const hostPath = trimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/^[\w.-]+@([\w.-]+):/, '$1/')
+  const segments = hostPath.split(/[/\\]/).filter(Boolean)
+  const owner = segments.at(-2)
+  const baseSegment = segments.at(-1)
+  if (owner === undefined || baseSegment === undefined) return undefined
+  const base = stripSourceSuffix(baseSegment)
+  if (owner === '' || base === '') return undefined
+  return { owner, base }
+}
+
+/**
  * Derive candidate source ids from a git URL or local path, most preferred
  * first: the sanitized basename, then an owner-prefixed variant (`owner-repo`)
  * for remote URLs so same-named repositories from different owners
@@ -199,16 +237,11 @@ export function deriveSourceIdCandidates(url: string): string[] {
   const trimmed = url.trim().replace(/\/+$/, '')
   const base = stripSourceSuffix(trimmed.split(/[/\\]/).at(-1) ?? '')
   const primary = sanitizeId(base)
-  const isRemote = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) || /^[\w.-]+@[\w.-]+:/.test(trimmed)
   const candidates = [primary]
-  if (isRemote) {
-    const hostPath = trimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/^[\w.-]+@([\w.-]+):/, '$1/')
-    const segments = hostPath.split(/[/\\]/).filter(Boolean)
-    const ownerSegment = segments.at(-2)
-    if (ownerSegment !== undefined) {
-      const owner = sanitizeId(ownerSegment)
-      if (owner !== '' && owner !== primary) candidates.push(`${owner}-${primary}`)
-    }
+  const remote = parseRemoteRepository(url)
+  if (remote !== undefined) {
+    const owner = sanitizeId(remote.owner)
+    if (owner !== '' && owner !== primary) candidates.push(`${owner}-${primary}`)
   }
   return [...new Set(candidates)]
 }
