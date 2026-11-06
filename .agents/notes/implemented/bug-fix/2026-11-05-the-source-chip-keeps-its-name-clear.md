@@ -22,7 +22,7 @@ The name was also the raw source id, which for a skills collection stored under 
 
 ## Supersession
 
-This note is superseded by [the source chip masks its controls over a room of its own](2026-11-06-the-source-chip-masks-its-controls-over-its-own-room.md): the controls are the published plate again, laid over the chip's trailing edge with the internal mask, and the chip no longer grows when they open. The name stays clear of them by a different means — the label reserves the room the controls need — and the invisible controls are inert until the plate is open, which this note also required. The decision below is kept as it stood.
+This note is superseded by [the source chip masks its controls over its name](2026-11-06-the-source-chip-masks-its-controls-over-its-name.md): the controls are the published plate, laid over the chip's trailing edge with the internal mask, the chip is as wide as its label and does not grow when they open, and the invisible controls are inert until the plate is open, which this note also required. The decision below is kept as it stood.
 
 ## Alternatives considered
 

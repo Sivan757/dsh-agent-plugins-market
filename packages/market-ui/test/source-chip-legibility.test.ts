@@ -158,7 +158,7 @@ describe('the source chip', () => {
     expect(onSelect).toHaveBeenCalledTimes(2)
   })
 
-  it('keeps the controls an inert overlay over the name’s own room', async () => {
+  it('keeps the controls the published inert overlay over the name', async () => {
     const { readFileSync } = await import('node:fs')
     const css = readFileSync('packages/market-ui/src/ui/source-strip.module.css', 'utf8')
 
@@ -186,21 +186,18 @@ describe('the source chip', () => {
     expect(ruleFor(css, '.srcTabOn:has(:focus-visible) .srcTabControls > button')).toMatch(/pointer-events: auto/)
     expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/:focus-within/)
 
-    // The room is on the chip, not on the label. The label carries the 220px
-    // text budget, and padding it would ellipsize the longest names 47px
-    // earlier than the published build, where they read in full.
-    expect(ruleFor(css, '.srcTabOn:has(.srcTabControls)')).toMatch(/padding-right: calc\(10px \+ var\(--src-tab-controls-room\)\)/)
-    expect(css).not.toMatch(/\.srcTabMain[^{]*\{[^}]*padding-right/)
-
-    // The room is a measured number: the plate covers 41px of the content box
-    // and the mask's feather reaches 6px further left.
-    const room = /--src-tab-controls-room: (\d+)px/.exec(css)
-    expect(room).not.toBeNull()
-    expect(Number(room![1])).toBeGreaterThanOrEqual(47)
-
-    // A chip without controls keeps the symmetric padding: the room is added
-    // on top of it, not in place of it.
+    // The chip reserves no room: the plate covers the name's trailing edge
+    // directly, the way the published build did, so a chip stays as wide as
+    // its label. No rule may give a chip that holds controls a trailing
+    // padding of its own, and the base rule keeps the symmetric 10px.
+    expect(css).not.toMatch(/\.srcTab:has\([^)]*srcTabControls[^)]*\)[^{]*\{[^}]*padding-right/)
+    expect(css).not.toMatch(/--src-tab-controls-room/)
     expect(css).toMatch(/\.srcTab,\s*\.srcTabOn \{[^}]*padding: 0 10px/)
+
+    // The label gets no padding-right of its own either: it carries the
+    // chip's 220px text budget, and padding it would ellipsize the longest
+    // names earlier than the published build, where they read in full.
+    expect(css).not.toMatch(/\.srcTabMain[^{]*\{[^}]*padding-right/)
   })
 
   it('names the source the way a reader recognizes it', async () => {

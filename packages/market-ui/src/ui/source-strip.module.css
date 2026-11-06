@@ -186,11 +186,6 @@
   width: auto;
   max-width: 100%;
   height: 24px;
-  /* The room the trailing plate needs, measured: with no room the plate's
-     left edge sits 41px inside the content box (the plate is 51px wide and
-     is placed against the padding box), and the mask's feather reaches 6px
-     further left. 47px keeps both of them out of the name. */
-  --src-tab-controls-room: 47px;
   /* The pill owns the horizontal padding so the label keeps the same gap on
      both sides whether or not trailing edit/delete controls are present. */
   padding: 0 10px;
@@ -261,10 +256,9 @@
 /* The trailing edit/delete controls reveal on hover (or keyboard focus) like
    the card action cluster; the selected pill keeps them on its own foreground.
    They ride as one plate over the chip's trailing edge, with the internal mask
-   (the opaque plate and the spread shadow that feathers its edge). The plate
-   is out of the flow, so the chip does not grow when they appear, and the
-   chip reserves the room they need in its trailing padding, so the plate
-   covers that room and never a letter of the name. */
+   (the opaque plate and the spread shadow that feathers its edge): the name
+   slides under the plate while it is open, and the chip neither grows nor
+   reserves room for it. */
 
 .srcTabControls {
   position: absolute;
@@ -313,16 +307,6 @@
   box-shadow: 0 0 6px 6px var(--dsw-alias-brand-primary, #0f1115);
 }
 
-/* The name ends before the plate. The chip's trailing padding reserves the
-   room the plate and its feather need, so the plate covers the chip's own
-   padding and never a letter of the name, at any name length. The room sits
-   on the chip, not on the label: the label carries the 220px text budget, and
-   padding it would ellipsize the longest names 47px earlier than the
-   published build. A chip without controls keeps the symmetric padding. */
-.srcTab:has(.srcTabControls),
-.srcTabOn:has(.srcTabControls) {
-  padding-right: calc(10px + var(--src-tab-controls-room));
-}
 @media (prefers-reduced-motion: reduce) {
   .srcTabControls {
     transition: none;

@@ -22,7 +22,7 @@ Status: implemented
 
 ## Supersession
 
-这条记录已被[来源胶囊用自带的余量遮住自己的控件](2026-11-06-the-source-chip-masks-its-controls-over-its-own-room.zh.md)取代：控件又是发布版的那块板，盖在胶囊尾缘、用内部遮罩，胶囊不再因它们打开而变宽。名字离控件的远法换了——标签为控件预留所需的空间——而看不见的控件在板打开之前保持惰性，这也是这条记录本来就要求的。下面的决策原样保留。
+这条记录已被[来源胶囊把控件遮在自己的名字上](2026-11-06-the-source-chip-masks-its-controls-over-its-name.zh.md)取代：控件是发布版的那块板，盖在胶囊尾缘、用内部遮罩，胶囊和自己的名字一样宽、因而不因它们打开而变宽，而看不见的控件在板打开之前保持惰性，这也是这条记录本来就要求的。下面的决策原样保留。
 
 ## Alternatives considered
 
