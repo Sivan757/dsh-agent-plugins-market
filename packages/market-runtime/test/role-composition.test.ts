@@ -15,6 +15,7 @@ import { assembleContextFor } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { LlmAdapter, ToolCallId, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { ToolBatchResult, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import { SessionId, type SessionEvent } from '@deepseek-ai/dsh-session'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import Subagents from '@deepseek-ai/dsh-subagent'
@@ -102,15 +103,36 @@ async function setup(options: { persistence?: boolean; query?: boolean; savedRoo
   return { ctx, lead, adapter, root }
 }
 
+/**
+ * The one call's outcome out of the batch the host returns.
+ *
+ * The host executes a batch of calls and answers with one result per call, so
+ * a single call's outcome is the batch's first result's result.
+ * @param batch - the batch the host settled.
+ * @returns that call's outcome.
+ */
+function outcome(batch: ToolBatchResult): ToolExecutionResult {
+  const first = batch.results[0]
+  if (!first) throw new Error('the tool batch carried no result')
+  return first.result
+}
+
 /** Drive the registered role tool exactly as the model would. */
 function invoke(ctx: Context, lead: unknown, args: Record<string, unknown>) {
-  return ctx.tools.execute({
-    name: 'subagent_role',
-    arguments: { agent: 'reviewer', prompt: 'Review the diff.', ...args },
-    agent: lead as never,
-    callId: ToolCallId('subagent_role'),
-    signal: new AbortController().signal
-  })
+  return ctx.tools
+    .execute({
+      calls: [
+        {
+          type: 'tool-call',
+          id: ToolCallId('subagent_role'),
+          name: 'subagent_role',
+          arguments: JSON.stringify({ agent: 'reviewer', prompt: 'Review the diff.', ...args })
+        }
+      ],
+      agent: lead as never,
+      signal: new AbortController().signal
+    })
+    .then(outcome)
 }
 
 /** Count the plugin-owned binding messages one session recorded. */

@@ -598,9 +598,18 @@ export class ExtensionHooks {
     return run
   }
 
+  /**
+   * The turn the current open turn is in.
+   *
+   * The registry-level read of the host's `turnBoundary` projection is
+   * deprecated, so the boundary comes from the agent registry's own typed
+   * accessor. The answer is the one it always was: no open turn means no turn,
+   * not turn zero. The projection reports `lastTurn` as 0 before the first
+   * turn, so the open-turn check is what keeps that zero out of the answer.
+   */
   private lastTurn(): Turn | undefined {
-    const boundary = this.ctx.sessionProjections.stateOf(this.agent.session, 'turnBoundary')
-    return boundary?.openTurnStartSeq == null ? undefined : boundary.lastTurn
+    const boundary = this.ctx.agents.turnBoundaryOf(this.agent.session)
+    return boundary.openTurnStartSeq == null ? undefined : boundary.lastTurn
   }
 
   /** Fold one point's hooks into the single decision its caller applies. */

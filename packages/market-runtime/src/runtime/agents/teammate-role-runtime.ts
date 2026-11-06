@@ -5,6 +5,7 @@ import { installModelSelection, type Agent, type ModelSelection } from '@deepsee
 import type { TeamService } from '@deepseek-ai/dsh-experimental-agent-team'
 import type { SessionId } from '@deepseek-ai/dsh-session'
 import { createUserMessage } from '@deepseek-ai/dsh-llm'
+import { ReasoningEffortId } from '@deepseek-ai/dsh-llm/brand'
 import type { SessionQueryEngine } from '@deepseek-ai/dsh-session-query'
 import { foldSubagentDescriptor } from '@deepseek-ai/dsh-subagent'
 import type { SystemPrompt } from '@deepseek-ai/dsh-system-prompt'
@@ -67,6 +68,22 @@ function memberIdentity(member: string, role: string): string {
     ...(role === '' ? [] : [`Your role is ${role}. The role instructions are applied to your system prompt.`]),
     '</system-reminder>'
   ].join('\n')
+}
+
+/**
+ * The role route as the host's model selection.
+ *
+ * The route is validated by the plugin's own schema before it reaches this
+ * point, so the effort is a non-empty string; the host brands it without
+ * validating it again. An absent effort stays absent: the adapter's default
+ * applies, and no earlier effort is inherited.
+ */
+function roleSelection(route: TeammateRoleSnapshot['route']): ModelSelection {
+  return {
+    provider: route.provider,
+    model: route.model,
+    ...(route.reasoningEffort === undefined ? {} : { reasoningEffort: ReasoningEffortId(route.reasoningEffort) })
+  }
 }
 
 /** Creation and replay keep role data out of task text and never mutate the Lead's route. */
@@ -207,8 +224,14 @@ export class TeammateRoleRuntime {
     const offRoute = applyRoleRoute(agent, binding.route, message => this.ctx.logger?.warn(message))
     let offModel: (() => void) | undefined
     try {
-      offModel = installModelSelection(agent.ctx, { current: binding.route as ModelSelection, assembled: undefined })
+      // The host owns the request route now: it reads the selection from the
+      // session's durable projection, so the role route is recorded there and
+      // survives a resume that a live options write would not. The install
+      // keeps the host's switch notice, which reads that same selection.
+      offModel = installModelSelection(agent.ctx)
+      agent.model.select(roleSelection(binding.route))
     } catch (error) {
+      offModel?.()
       offRoute()
       offPersona()
       throw error

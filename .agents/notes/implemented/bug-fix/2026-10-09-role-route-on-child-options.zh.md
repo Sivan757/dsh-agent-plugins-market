@@ -8,7 +8,7 @@ Status: implemented
 
 ## Decision
 
-`TeammateRoleRuntime` 在组合成员时把已验证的角色路由写入成员自身的 `AgentOptions`，并在该组合被释放时恢复继承值。请求期路由仍由 `installModelSelection` 掌管；这次写入让面向宿主的读取（`TeamMemberView.model`、`assertImageCapable`、`parentAgentOptionsForDelegation`）在成员活跃期间与它一致。宿主若冻结该对象，运行时诊断会报告，模型选择仍然生效，因此任何请求路由都不依赖这次写入。
+`TeammateRoleRuntime` 在组合成员时把已验证的角色路由写入成员自身的 `AgentOptions`，并在该组合被释放时恢复继承值。请求期路由的掌管者是成员会话里持久的模型选择：运行时用 `agent.model.select()` 把路由记录在那里，`installModelSelection` 只保留宿主的模型切换提示。这次写入让面向宿主的读取（`TeamMemberView.model`、`assertImageCapable`、`parentAgentOptionsForDelegation`）在成员活跃期间与它一致。宿主若冻结该对象，运行时诊断会报告，已记录的选择仍然生效，因此任何请求路由都不依赖这次写入。
 
 空闲情形仍归宿主：成员的 Agent 一旦释放，`TeamMemberView.model` 就回退为 `root.options.model`，没有任何插件可见的值可以纠正它。[代理角色文档](../../../../docs/user/agent-roles.zh.md)把路由核对指向创建结果，而不是 `list_agents`。
 
@@ -26,7 +26,8 @@ Status: implemented
 
 - 成员活跃期间，名册行、图片输入判定与成员自身的派生继承都与执行路由一致。插件写入的是宿主类型标记为 `readonly` 的字段；宿主若使其不可写，诊断会覆盖。
 - 空闲成员在名册里仍显示 Lead 的路由。路由核对以创建结果为准。
-- 角色绑定不变：持久创建快照仍在冷恢复和插件重载后掌管路由，`restore()` 会同时重新应用模型选择与这次写入。
+- 角色绑定不变：持久创建快照仍在冷恢复和插件重载后掌管路由，`restore()` 会同时重新记录模型选择与重新应用这次写入。
+- 路由记录在成员自己的会话里，因此它能撑过仅有一次实时写入撑不过的恢复：宿主读的是已记录的选择，而 options 兜底只在没有任何记录时回答。
 
 ## Testing
 

@@ -17,7 +17,7 @@ import type { Agent } from '@deepseek-ai/dsh-agent'
 import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import { SessionId } from '@deepseek-ai/dsh-session'
-import { LlmAdapter, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import { LlmAdapter, ToolCallId, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persistence.js'
@@ -262,7 +262,11 @@ it('tells the model the capability is pending, not withdrawn', async () => {
   runtime.invalidate()
   await runtime.refreshAll()
   const pending = await ctx.tools
-    .execute({ name: tool.name, arguments: {}, callId: 'probe' as never, agent: alpha, signal: new AbortController().signal })
+    .execute({
+      calls: [{ type: 'tool-call', id: ToolCallId('probe'), name: tool.name, arguments: JSON.stringify({}) }],
+      agent: alpha,
+      signal: new AbortController().signal
+    })
     .catch((error: unknown) => String(error))
   expect(JSON.stringify(pending)).toContain('extension-inventory-pending')
 

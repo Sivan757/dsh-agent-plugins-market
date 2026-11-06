@@ -55,8 +55,13 @@ function harness() {
   })
   const registry = new Map<string, Agent>()
   ctx.set('shell', { resolve: (request: (typeof calls)[number]) => request, execute })
-  ctx.set('sessionProjections', { stateOf: () => ({ lastTurn: 1, openTurnStartSeq: 1 }) })
-  ctx.set('agents', { get: (id: string) => registry.get(id) })
+  // The turn boundary the hook surface reads: the open turn's position. The
+  // agent registry's typed accessor is where the host owns it now.
+  let boundary = { lastTurn: 1, openTurnStartSeq: 1 as number | null }
+  ctx.set('agents', {
+    get: (id: string) => registry.get(id),
+    turnBoundaryOf: () => boundary
+  })
   const warn = vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
   const agents = (id: string, cwd = '/same-workspace') => {
     const append = vi.fn<(event: string, data: Record<string, unknown>) => void>()
@@ -104,9 +109,20 @@ function harness() {
     warn,
     setRun: (value: typeof run) => {
       run = value
+    },
+    setBoundary: (value: { lastTurn: number; openTurnStartSeq: number | null }) => {
+      boundary = value
     }
   }
 }
+
+/**
+ * The step's model selection, which the host carries on every pre-step payload.
+ *
+ * The hook surface does not read it — the host's own event does — so the value
+ * only has to be a well-formed selection.
+ */
+const modelSelection = { provider: 'mock', model: 'test-model' }
 
 const payloads = (calls: ReturnType<typeof harness>['calls']) => calls.map(call => JSON.parse(call.stdin) as Record<string, unknown>)
 const FRAME_OPEN = '<system-reminder>'
@@ -175,7 +191,7 @@ describe('ExtensionHooks', () => {
   it('does not record tool hooks outside an open turn and honors aborted callers', async () => {
     const h = harness()
     const a = h.agents('a')
-    h.ctx.set('sessionProjections', { stateOf: () => ({ lastTurn: 2, openTurnStartSeq: null }) })
+    h.setBoundary({ lastTurn: 2, openTurnStartSeq: null })
     await h.mount(a.value, [suite('one', { PreToolUse: ['tool'] })]).ready
     await h.ctx.waterfall('tools/pre-execute', h.exec(a.value), async () => ({ kind: 'allow' as const }))
     expect(h.calls).toHaveLength(1)
@@ -213,7 +229,7 @@ describe('ExtensionHooks', () => {
     const a = h.agents('a')
     await h.mount(a.value, [suite('one', { UserPromptSubmit: ['prompt'], PreToolUse: ['pre'], PostToolUse: ['post'], Stop: ['stop'] })]).ready
     const message = createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })
-    const prompt = { agent: a.value, messages: [message], turn: 1, step: 1, signal: new AbortController().signal }
+    const prompt = { agent: a.value, messages: [message], turn: 1, step: 1, signal: new AbortController().signal, modelSelection }
     h.setRun(async () => ({ exitCode: 2, stdout: '', stderr: 'do not enter' }))
     const enter = vi.fn(async () => ({ kind: 'enter' as const, messages: [message] }))
     expect(await h.ctx.waterfall('agent/pre-step', prompt, enter)).toEqual({ kind: 'reject' })
@@ -436,7 +452,8 @@ describe('ExtensionHooks', () => {
         messages: [createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })],
         turn: 1,
         step: 1,
-        signal: new AbortController().signal
+        signal: new AbortController().signal,
+        modelSelection
       },
       async () => ({ kind: 'enter' as const, messages: [] })
     )
@@ -696,7 +713,7 @@ describe('ExtensionHooks', () => {
     await hooks.start('startup')
     expect(a.inject).toHaveBeenCalledWith(expect.objectContaining({ content: [{ type: 'text', text: framedContext('one', 'plain guidance') }] }))
     const message = createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })
-    const prompt = { agent: a.value, messages: [message], turn: 1, step: 1, signal: new AbortController().signal }
+    const prompt = { agent: a.value, messages: [message], turn: 1, step: 1, signal: new AbortController().signal, modelSelection }
     expect(await h.ctx.waterfall('agent/pre-step', prompt, async () => ({ kind: 'enter' as const, messages: [message] }))).toMatchObject({
       kind: 'enter',
       messages: [message, { content: [{ type: 'text', text: framedContext('one', 'plain guidance', 'UserPromptSubmit', '') }] }]
@@ -814,7 +831,7 @@ describe('ExtensionHooks', () => {
     // A new authored prompt owns a fresh count, so the flag resets.
     h.setRun(async () => ({ exitCode: 0, stderr: '', stdout: '' }))
     const message = createUserMessage({ content: [{ type: 'text', text: 'next task' }], source: { kind: 'user' } })
-    await h.ctx.waterfall('agent/pre-step', { agent: a.value, messages: [message], turn: 2, step: 1, signal: new AbortController().signal }, async () => ({
+    await h.ctx.waterfall('agent/pre-step', { agent: a.value, messages: [message], turn: 2, step: 1, signal: new AbortController().signal, modelSelection }, async () => ({
       kind: 'enter' as const,
       messages: [message]
     }))
@@ -870,7 +887,7 @@ describe('ExtensionHooks', () => {
         'UserPromptSubmit',
         async (h, agent) => {
           const message = createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })
-          return h.ctx.waterfall('agent/pre-step', { agent, messages: [message], turn: 1, step: 1, signal: new AbortController().signal }, async () => ({
+          return h.ctx.waterfall('agent/pre-step', { agent, messages: [message], turn: 1, step: 1, signal: new AbortController().signal, modelSelection }, async () => ({
             kind: 'enter' as const,
             messages: [message]
           }))
@@ -979,7 +996,7 @@ describe('ExtensionHooks', () => {
     const a = h.agents('a').value
     await h.mount(a, [suite('one', { UserPromptSubmit: ['prompt'], PreToolUse: ['pre'] })]).ready
     const message = createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })
-    await h.ctx.waterfall('agent/pre-step', { agent: a, messages: [message], turn: 1, step: 1, signal: new AbortController().signal }, async () => ({
+    await h.ctx.waterfall('agent/pre-step', { agent: a, messages: [message], turn: 1, step: 1, signal: new AbortController().signal, modelSelection }, async () => ({
       kind: 'enter' as const,
       messages: [message]
     }))

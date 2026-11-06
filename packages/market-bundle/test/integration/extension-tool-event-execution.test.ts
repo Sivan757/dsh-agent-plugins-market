@@ -47,8 +47,7 @@ function harness() {
       return { result: async () => ({ exitCode: 0, stdout: { text: '' }, stderr: { text: '' } }) }
     }
   })
-  ctx.set('sessionProjections', { stateOf: () => ({ lastTurn: 1, openTurnStartSeq: 1 }) })
-  ctx.set('agents', { get: () => undefined })
+  ctx.set('agents', { get: () => undefined, turnBoundaryOf: () => ({ lastTurn: 1, openTurnStartSeq: 1 }) })
   vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
   const agent = { id: 'a', ctx, session: { header: { id: 'a', cwd: '/work' }, append: () => {} }, inject: () => {}, steer: () => {}, cancel: () => {} } as unknown as Agent
   const exec = () => ({
