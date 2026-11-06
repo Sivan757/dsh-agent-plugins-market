@@ -10,7 +10,7 @@ import { bindScopeParent } from '@deepseek-ai/dsh-scope'
 import { McpMountRegistry, supportsMcpSessionControl } from '../../../../packages/market-mcp/src/runtime/mcp/mcp-mounts.js'
 import { effectiveSurfaces, type Suite } from '../../../../packages/market-contracts/src/model/types.js'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
-import { defineTool, type ToolBatchResult, type ToolDefinition, type ToolExecutionResult } from '@deepseek-ai/dsh-tools'
+import { defineTool, type ToolBatchResult, type ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import * as PtcToolExecutor from '@deepseek-ai/dsh-tool-executor-ptc'
 import Lsp, { LspProviderId } from '@deepseek-ai/dsh-lsp'
 import * as lspTool from '@deepseek-ai/dsh-tool-lsp'
@@ -319,7 +319,7 @@ describe('extension gates on the published rc.2 ToolRuntime', () => {
     )
     const host: ToolHost = {
       logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
-      tools: { register: definition => registerOwnedBridgeTool(f.ctx, 'db', definition, () => f.ctx.tools.register(definition as ToolDefinition)) }
+      tools: { register: definition => registerOwnedBridgeTool(f.ctx, 'db', definition, () => f.ctx.tools.register(definition)) }
     }
     const registrations = await syncTools({ request } as never, host, { serverName: 'db', registrationFailure: 'throw', toolCallTimeoutMs: 1000 }, new Map())
     cleanups.push(() => {
