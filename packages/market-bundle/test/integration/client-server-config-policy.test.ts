@@ -19,7 +19,7 @@ vi.mock('../../../../packages/market-ui/src/api.js', async importOriginal => ({
     backend: 'builtin',
     policy: {
       toolCallTimeout: { user: null, suite: null, effective: 60000, source: 'default' },
-      startupTimeout: { user: null, suite: null, effective: 10000, source: 'default' },
+      startupTimeout: { user: null, suite: null, effective: 30000, source: 'default' },
       deniedTools: { user: null, suite: null, effective: [] },
       auth: { user: null, suite: null, effective: true }
     }
@@ -48,7 +48,7 @@ afterEach(async () => {
 function policyOf(toolCall: number | null, startup: number | null): ServerPolicyPayload {
   return {
     toolCallTimeout: { user: toolCall, suite: 30_000, effective: toolCall ?? 30_000, source: toolCall === null ? 'suite' : 'user' },
-    startupTimeout: { user: startup, suite: null, effective: startup ?? 10_000, source: startup === null ? 'default' : 'user' },
+    startupTimeout: { user: startup, suite: null, effective: startup ?? 30_000, source: startup === null ? 'default' : 'user' },
     deniedTools: { user: null, suite: null, effective: [] },
     auth: { user: null, suite: null, effective: true }
   }
@@ -121,7 +121,7 @@ describe('MCP advanced settings', () => {
     await act(async () => disclosure!.click())
     expect(button('mcpAdvanced')?.getAttribute('aria-expanded')).toBe('true')
     expect(input('mcpToolCallTimeout').placeholder).toBe('30000')
-    expect(input('mcpStartupTimeout').placeholder).toBe('10000')
+    expect(input('mcpStartupTimeout').placeholder).toBe('30000')
     // An empty field inherits silently: the placeholder carries the effective
     // value and no line repeats where it came from.
     expect(host.textContent).not.toContain('mcpTimeoutInherit')

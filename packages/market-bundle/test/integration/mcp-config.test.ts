@@ -204,7 +204,7 @@ describe('mcp-config: suite declaration meets the user override', () => {
     // undeclared value stays absent so host compatibility mode still mounts.
     expect(db.server.toolCallTimeoutMs).toBe(60_000)
     expect(db.server.startupTimeoutMs).toBeUndefined()
-    expect(db.policy.startupTimeout).toEqual({ user: null, suite: null, effective: 10_000, source: 'default' })
+    expect(db.policy.startupTimeout).toEqual({ user: null, suite: null, effective: 30_000, source: 'default' })
   })
 
   it('unions the deny lists and never widens the suite allow-list', () => {
