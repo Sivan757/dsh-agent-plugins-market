@@ -17,7 +17,7 @@
  */
 
 import type { ContentBlock } from '@deepseek-ai/dsh-llm'
-import type { JsonValue, McpResult, ToolExecution, ToolHost } from './host-contract.js'
+import type { BridgeExecution, JsonValue, McpResult, ToolHost } from './host-contract.js'
 import { isImageAdmissionError, type AttachmentStoreLike, type ImageMediaType, type SaveImageAttachment } from './host-seams.js'
 
 /** Raster formats supported by the durable attachment vocabulary. */
@@ -92,7 +92,7 @@ interface LlmServiceLike {
  * @param exec - exact tool execution whose agent supplies the latest route.
  * @returns the attachment store after exact positive image-capability proof.
  */
-async function resolveImageAdmission(host: ToolHost, exec: ToolExecution): Promise<AttachmentStoreLike> {
+async function resolveImageAdmission(host: ToolHost, exec: BridgeExecution): Promise<AttachmentStoreLike> {
   const attachments = host.getService?.('attachments') as AttachmentStoreLike | undefined
   if (attachments === undefined || typeof attachments.saveImages !== 'function') {
     throw new Error('no attachment store is mounted')
@@ -127,7 +127,7 @@ function imageDiagnostic(block: McpContentBlock, reason: string): string {
  * Any refusal projects every image as text while retaining the canonical raw
  * value for programmatic callers.
  */
-export async function prepareImageProjection(host: ToolHost, exec: ToolExecution, content: JsonValue[], toolName: string): Promise<ContentBlock[]> {
+export async function prepareImageProjection(host: ToolHost, exec: BridgeExecution, content: JsonValue[], toolName: string): Promise<ContentBlock[]> {
   const decoded: SaveImageAttachment[] = []
   const validationErrors = new Map<number, string>()
   const imageIndexes: number[] = []

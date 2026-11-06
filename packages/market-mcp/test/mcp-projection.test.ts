@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest'
 import { AttachmentError } from '@deepseek-ai/dsh-attachment'
+import type { Agent } from '@deepseek-ai/dsh-agent'
 import { containsImage, extractText, prepareImageProjection } from '../../../packages/market-mcp/src/runtime/mcp/bridge/projection.js'
-import type { JsonValue } from '../../../packages/market-mcp/src/runtime/mcp/bridge/host-contract.js'
-import type { ToolExecution, ToolHost } from '../../../packages/market-mcp/src/runtime/mcp/bridge/host-contract.js'
+import type { BridgeExecution, JsonValue, ToolHost } from '../../../packages/market-mcp/src/runtime/mcp/bridge/host-contract.js'
 
 const PNG_BASE64 = Buffer.from([0x89, 0x50, 0x4e, 0x47]).toString('base64')
 const TOOL = 'weather__lookup'
 
-function exec(agent?: unknown): ToolExecution {
-  return { signal: new AbortController().signal, ...(agent === undefined ? {} : { agent: agent as ToolExecution['agent'] }) }
+function exec(agent?: Agent): BridgeExecution {
+  return { signal: new AbortController().signal, ...(agent === undefined ? {} : { agent }) }
 }
 
 /** A host whose attachments and LLM services are supplied per test. */
@@ -36,8 +36,18 @@ function llmService(modalities?: string[], failure?: Error) {
   }
 }
 
-/** The image-admitting agent shape the bridge hands to tools. */
-const imageAgent = { options: { provider: 'deepseek', model: 'glm' } }
+/**
+ * A stand-in for the host's agent, carrying only the facts the bridge reads.
+ *
+ * The bridge receives the host's `Agent` and reads the live model route off it, so a test
+ * stands in for that agent with the route it exposes. The assertion is the one place a
+ * test stands in for a host service it does not own.
+ */
+function agentOf(facts: { options?: { provider: string; model: string }; session?: { requestHeader: () => { config: { provider: string; model: string } } } }): Agent {
+  return facts as unknown as Agent
+}
+
+const imageAgent = agentOf({ options: { provider: 'deepseek', model: 'glm' } })
 
 /** Wire blocks are plain JSON: every optional field absent stays absent. */
 type WireBlock = Record<string, JsonValue>
@@ -148,7 +158,7 @@ describe('MCP image projection refusals', () => {
     const unresolvable = await prepareImageProjection(hostOf({ attachments: attachmentStore(), llm: llmService(['image']) }), exec(), [imageBlock], TOOL)
     expect((unresolvable[0] as { text: string }).text).toContain('the current model route could not be resolved')
 
-    const routed = { session: { requestHeader: () => ({ config: { provider: 'deepseek', model: 'glm' } }) } }
+    const routed = agentOf({ session: { requestHeader: () => ({ config: { provider: 'deepseek', model: 'glm' } }) } })
     const rejectedRoute = await prepareImageProjection(
       hostOf({ attachments: attachmentStore(), llm: llmService(undefined, new Error('registry offline')) }),
       exec(routed),
@@ -237,10 +247,10 @@ describe('MCP image projection success', () => {
         return { inputModalities: ['image'] }
       }
     }
-    const agent = {
+    const agent = agentOf({
       session: { requestHeader: () => ({ config: { provider: 'routed-provider', model: 'routed-model' } }) },
       options: { provider: 'fallback-provider', model: 'fallback-model' }
-    }
+    })
     await prepareImageProjection(hostOf({ attachments: attachmentStore(), llm }), exec(agent), [imageBlock], TOOL)
     expect(routes).toEqual([{ provider: 'routed-provider', model: 'routed-model' }])
   })
