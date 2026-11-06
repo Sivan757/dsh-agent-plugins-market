@@ -59,16 +59,19 @@ function toToolHost(ctx: Context, serverName: string): ToolHost {
       ctx.logger?.info?.(message)
     }
   }
-  const registry = ctx as unknown as { tools?: { register?: (definition: unknown) => () => void } }
   return {
     logger,
     tools: {
+      // The host's registry is reached through its own typed service, so the compiler
+      // checks the definition this bridge registers against the contract the host
+      // enforces. The service is read at call time because the adapter is built before
+      // the mount that provides it.
       register(definition) {
-        const register = registry.tools?.register
-        if (typeof register !== 'function') {
+        const registry = ctx.tools
+        if (typeof registry?.register !== 'function') {
           throw new Error('the host context does not expose a tool registry — the "tools" service is required')
         }
-        return registerOwnedBridgeTool(ctx, serverName, definition, () => register.call(registry.tools, definition))
+        return registerOwnedBridgeTool(ctx, serverName, definition, () => registry.register(definition))
       }
     },
     getService: serviceName => optionalService(ctx, serviceName)

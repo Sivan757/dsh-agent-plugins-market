@@ -1,3 +1,4 @@
+import { AI_PRESET_LIMITS, type AiPresetCandidate } from '../../../../market-contracts/src/contracts/ai-draft.js'
 import { CONFIGURATION_PARENT_IDS, EXTENSION_ROUTES, type ExtensionWindowPayload, type ExtensionResource } from '../../../../market-contracts/src/contracts/extension-presets.js'
 
 export type Mutation = Exclude<keyof typeof EXTENSION_ROUTES, 'window'>
@@ -87,6 +88,84 @@ export function resourceSelected(resource: ExtensionResource, ids: readonly stri
   if (parentIsConfiguration) return ids.includes(resource.id)
   return ids.includes(resource.id) && (resource.suiteResourceId === undefined || ids.includes(resource.suiteResourceId))
 }
+/**
+ * One row's switch, in the terms a change is stated in.
+ */
+export interface PresetRowChange {
+  /** The row that switches. */
+  id: string
+  /** Whether the row is on after the change. */
+  enabled: boolean
+}
+
+/**
+ * The canonical selection that follows from switching rows.
+ *
+ * A selection is not a bag of ids. A suite carries the rows under it, a row under a suite
+ * carries the suite, and an output style is one choice. The manager's switches and the AI
+ * suggestion both name rows, and both have to produce the same selection for the same
+ * rows: the manager counts a row as selected only when the suite that owns it is selected
+ * too, and the runtime grants a row under a suite on that same condition. A selection that
+ * skips the closure is stored, and reads back as nothing.
+ *
+ * One function answers both paths, so they cannot drift apart.
+ *
+ * @param rows - the inventory the manager renders.
+ * @param base - the selection the change starts from.
+ * @param changes - the rows that switch, in the order the change applies them.
+ * @returns the selection after the change.
+ */
+export function canonicalPresetSelection(rows: readonly ExtensionResource[], base: readonly string[], changes: readonly PresetRowChange[]): string[] {
+  let ids = [...base]
+  for (const change of changes) {
+    const row = rows.find(candidate => candidate.id === change.id)
+    // A row the manager cannot switch is not part of a selection: it is unavailable, or a
+    // host contributor owns it and the session never selects it.
+    if (row === undefined || !row.available || row.control === 'global-only') continue
+    // An output style is a single choice: turning one on turns the others off.
+    if (row.face === 'outputStyles' && change.enabled) ids = ids.filter(id => !id.startsWith('outputStyles:'))
+    // A row under a suite carries the suite that owns it.
+    ids = toggleResource(row, ids, change.enabled)
+    // A suite carries the rows under it: the suite and its contents move together.
+    if (row.face === 'market') {
+      for (const child of rows) {
+        if (child.suiteResourceId === row.id && child.available && child.control !== 'global-only') ids = toggleResource(child, ids, change.enabled)
+      }
+    }
+  }
+  return ids
+}
+
+/**
+ * The rows a suggestion may choose from, in the order that keeps the ones that matter.
+ *
+ * The rows on offer are bounded, so the order decides what survives the bound: a suite and
+ * a row that stands on its own carry a selection by themselves, while a row under a suite
+ * only exists inside one. The suites and the standing rows come first, the rows under them
+ * follow, and the list is cut at the bound the contract states.
+ *
+ * @param rows - the inventory the manager renders.
+ * @param limit - how many rows one suggestion may be offered.
+ * @returns the rows on offer.
+ */
+export function presetSuggestionCandidates(rows: readonly ExtensionResource[], limit: number = AI_PRESET_LIMITS.candidates): AiPresetCandidate[] {
+  const seen = new Set<string>()
+  const offered: ExtensionResource[] = []
+  for (const row of rows) {
+    // A row the manager cannot select is not a row a preset can carry, and offering it
+    // would let the model name something the preset cannot store.
+    if (!row.available || row.configuration !== undefined || row.control === 'global-only') continue
+    if (seen.has(row.id)) continue
+    seen.add(row.id)
+    offered.push(row)
+  }
+  const rank = (row: ExtensionResource): number => (row.face === 'market' ? 0 : row.suiteResourceId === undefined ? 1 : 2)
+  return offered
+    .sort((left, right) => rank(left) - rank(right))
+    .slice(0, limit)
+    .map(row => ({ id: row.id, label: row.name }))
+}
+
 export function toggleResource(resource: ExtensionResource, ids: readonly string[], enabled: boolean): string[] {
   if (resource.control === 'global-only') return [...ids]
   const next = new Set(ids)

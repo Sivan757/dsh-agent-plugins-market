@@ -27,6 +27,14 @@ import { renderCatalogText, renderTeamRoleCatalogText } from '../../../../packag
 const SYSTEM_REMINDER_OPEN = '<system-reminder>'
 const SYSTEM_REMINDER_CLOSE = '</system-reminder>'
 
+/**
+ * The step's model selection, which the host carries on every pre-step payload.
+ *
+ * The hook surface does not read it — the host's own event does — so the value
+ * only has to be a well-formed selection.
+ */
+const modelSelection = { provider: 'mock', model: 'test-model' }
+
 const disposers: Array<() => Promise<void>> = []
 const roots: string[] = []
 afterEach(async () => {
@@ -74,8 +82,7 @@ function harness() {
       }
     })
   })
-  ctx.set('sessionProjections', { stateOf: () => ({ lastTurn: 1, openTurnStartSeq: 1 }) })
-  ctx.set('agents', { get: () => undefined })
+  ctx.set('agents', { get: () => undefined, turnBoundaryOf: () => ({ lastTurn: 1, openTurnStartSeq: 1 }) })
   vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
   const agent = {
     id: 'a',
@@ -137,10 +144,14 @@ describe('R2 the frame is for durable session instruction only', () => {
     await h.mount([suite('one', { UserPromptSubmit: ['prompt'], Stop: ['stop'] })])
     h.contextFor('UserPromptSubmit', 'standing instruction')
     const message = createUserMessage({ content: [{ type: 'text', text: 'hello' }], source: { kind: 'user' } })
-    const decision = await h.ctx.waterfall('agent/pre-step', { agent: h.agent, messages: [message], turn: 1, step: 1, signal: new AbortController().signal }, async () => ({
-      kind: 'enter' as const,
-      messages: [message]
-    }))
+    const decision = await h.ctx.waterfall(
+      'agent/pre-step',
+      { agent: h.agent, messages: [message], turn: 1, step: 1, signal: new AbortController().signal, modelSelection },
+      async () => ({
+        kind: 'enter' as const,
+        messages: [message]
+      })
+    )
     // Prompt context joins the entering step, so it reads from the decision.
     const prompted = textOf((decision as { messages: Array<{ content: ReadonlyArray<{ type: string; text?: string }> }> }).messages[1]!)
     expect(prompted).toContain(SYSTEM_REMINDER_OPEN)

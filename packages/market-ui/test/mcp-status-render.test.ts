@@ -511,27 +511,47 @@ describe('MCP delete actions', () => {
     return mountPanel()
   }
 
-  it('offers the delete only inside the detail of a user-owned declaration', async () => {
-    // A suite declares its servers in its own `mcp.json`, so its detail offers
-    // the editor but never a delete.
+  it('offers the delete only for a user-owned declaration, on the card and in the detail', async () => {
+    // A suite declares its servers in its own `mcp.json`, so its card and its
+    // detail offer the editor but never a delete.
     const pluginPanel = await mountPanel()
+    expect(pluginPanel.querySelector('[aria-label^="mcpDelete "]')).toBeNull()
     await openCard(pluginPanel)
     expect(byText('mcpDelete')).toBeUndefined()
     await act(async () => root?.unmount())
     document.body.replaceChildren()
 
     const direct = await mountDirect()
+    expect(direct.querySelector('[aria-label^="mcpDelete "]')).not.toBeNull()
     await openCard(direct)
     expect(byText('mcpDelete')).not.toBeUndefined()
   })
 
-  it('keeps the card free of a destructive action', async () => {
-    // The card's click means "open": the one irreversible action waits one step
-    // inside the dialog, behind the shared confirmation.
+  it('carries the delete on the card, and the card opens the shared confirmation', async () => {
+    // The card is the entry point to the action: a flat danger icon that opens
+    // the shared confirmation. The click itself removes nothing.
+    const api = await import('../../../packages/market-ui/src/api.js')
     const el = await mountDirect()
-    expect(el.querySelector('[aria-label^="mcpDelete"]')).toBeNull()
-    await openCard(el)
-    expect(byText('mcpDelete')).not.toBeUndefined()
+    const card = el.querySelector<HTMLElement>('[data-resource-surface="mcp"]')!
+    const remove = card.querySelector<HTMLButtonElement>('[aria-label^="mcpDelete "]')
+    expect(remove).not.toBeNull()
+    // The danger hover is what tells the reader this one is irreversible.
+    expect(remove!.className).toContain('iconBtnDanger')
+    // The accessible name says the verb and the row; the tooltip is the bare verb.
+    expect(remove!.getAttribute('aria-label')).toBe('mcpDelete kuboard')
+    expect(remove!.getAttribute('title')).toBe('mcpDelete')
+    await act(async () => {
+      remove!.dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    // The shared danger dialog is what opened, and nothing is removed yet.
+    expect(document.body.textContent).toContain('mcpDeleteTitle')
+    expect(api.removeMcpServer).not.toHaveBeenCalled()
+    await act(async () => {
+      byText('mcpDeleteConfirm')!.click()
+      await new Promise(resolve => setTimeout(resolve, 0))
+    })
+    expect(api.removeMcpServer).toHaveBeenCalledWith('@user-mcp/user-mcp', 'kuboard')
   })
 
   it('confirms a delete from the detail, then removes the declaration and re-reads the list', async () => {

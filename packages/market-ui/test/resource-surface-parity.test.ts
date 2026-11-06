@@ -11,6 +11,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { createElement as h } from 'react'
 import { act } from 'react'
+import { IconTrashOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import { createRoot, type Root } from 'react-dom/client'
 
 vi.mock('../../../packages/market-ui/src/api.js', () => ({
@@ -91,7 +92,21 @@ async function mountSurface(): Promise<{ cards: HTMLElement[]; opened: string[] 
     root!.render(
       h(ResourceSurface, {
         t,
-        entries: [{ id: 'user-global:.:AGENTS.md', name: '~/.dsh/AGENTS.md', tag: 'loaded', description: undefined, meta: '20' }],
+        // The same card the settings panel draws: the flat danger action the
+        // instructions surface now carries, so the two skeletons can still be
+        // compared element for element.
+        entries: [
+          {
+            id: 'user-global:.:AGENTS.md',
+            name: '~/.dsh/AGENTS.md',
+            tag: 'loaded',
+            description: undefined,
+            meta: '20',
+            actions: [
+              { id: 'delete', label: 'instructionsDelete ~/.dsh/AGENTS.md', title: 'instructionsDelete', icon: h(IconTrashOutlineMedium), danger: true, onSelect: () => {} }
+            ]
+          }
+        ],
         searchLabel: 'search',
         emptyText: 'empty',
         onOpen: id => opened.push(id)
@@ -150,11 +165,14 @@ describe('the two merged surfaces share one card contract', () => {
     expect(settings.pressed).toBeNull()
     expect(surface.role).toBe('listitem')
     expect(settings.hasSwitch).toBe(settings.hasSwitch && surface.hasSwitch)
-    // Same elements, same order: identity, chip, description slot, meta line.
+    // Same elements, same order: identity, chip, description slot, meta line,
+    // and the same flat action cluster.
     expect(settings.descendants.map(node => node.tag)).toEqual(surface.descendants.map(node => node.tag))
     // Same rows around them, so a slot cannot land in another card's cell.
     expect(settings.rows).toEqual(surface.rows)
-    expect(settings.rows).toEqual(['id', 'foot'])
+    // The action cluster is a row of its own: the flat danger icon the
+    // instructions surface now carries sits in it.
+    expect(settings.rows).toEqual(['id', 'actions', 'foot'])
   })
 
   it('means the same thing by a click on both surfaces', async () => {

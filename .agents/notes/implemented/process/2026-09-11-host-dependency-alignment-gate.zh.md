@@ -43,6 +43,23 @@ Status: implemented
 - `@deepseek-ai/dsh-session` 的 session header 迁移到 `version: 3`。
 - `surfaceOp` 的 replace 形状变为 `{ op, startSeq, endSeq }`。
 
+## The 0.2.1-rc.5 → 0.2.2-rc.1 alignment this produced
+
+重新对齐 pin 需要五处适配：
+
+- 会话投影注册表改为异步注册：`register()` 返回一个 promise，resolve 时给出 `ProjectionHandle`；注册表级的 `stateOf(session, key)` 读取已被弃用，改由 handle 自己的 `stateOf(session)` 承担。扩展进度读取器持有该 handle，若 handle 在其 effect 已被清理之后才落地就释放它，并从 handle 而不是被弃用的读取路径作答。
+- 宿主的 `turnBoundary` 投影移到 agent 注册表之后，因此 hook 面通过 `ctx.agents.turnBoundaryOf(session)` 读取它。
+- `installModelSelection` 丢掉了那个可变选择参数：选择归会话的持久 `modelSelection` 投影所有，因此角色路由用 `agent.model.select()` 记录，能挺过一次仅靠实时 options 写入就撑不过的恢复。安装本身只保留宿主的模型切换提示。
+- 工具调用面改了形状：批量输入携带 `ToolCallBlock[]` 而不是散落的调用字段，批量结果携带 `ToolCallResult[]`，其结果落在 `result` 上。宿主也彻底删掉了 `ToolsService.presentAs`，PTC 执行器改为按 scope 选择的执行器。
+- 宿主发布线把 schema 库换成了 `@deepseek-ai/schemastery` 3.19.0 与 `@deepseek-ai/cosmokit` 1.9.0。本仓库自己的副本仍停在上一对版本，树里因此留下两份 cosmokit，并使一个导出 schema 的推断类型无法命名（TS2742）；它们现在浮到宿主的那一对。
+
+新发布线上有两条 peer 链不再自行解析，而仓库声明它们，因为部署并不安装它们：
+
+- testkit peer 依赖 `@deepseek-ai/dsh-working-directory` 与 `@deepseek-ai/dsh-fs-local`，新的宿主依赖图不再把它们拉进来，而 `autoInstallPeers` 是关的。仓库按精确基线把 testkit 需要的整条链（`dsh-brand`、`dsh-sandbox`、`dsh-fs`、`dsh-fs-local`、`dsh-working-directory`）声明为 dev 镜像。
+- testkit 挂载的 PTC 执行器还 peer 依赖仓库没有声明的三个包（`dsh-ptc-runtime`、`dsh-user-approval`、`dsh-sandbox-policy`），它们同样是 dev 镜像。
+
+支持窗口的下界随基线移动：它就是这个仓库构建与测试所针对的版本，因此 `scripts/host-support-window.mjs` 移到 0.2.2-rc.1，每一条面向消费方的范围随之移动。
+
 ## Alternatives considered
 
 - **仓库内基线文件**（`host-baseline.json`）供门禁读取。否决：它正是那个会过期的字段的第二份真相来源，还得再为它配一道门禁。registry 已经回答了这个问题，离线场景由 `--host-version` 覆盖。

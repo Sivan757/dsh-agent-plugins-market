@@ -36,7 +36,7 @@ const LEAVE_GRACE_MS = 300
 /** One chip in the source strip. */
 export interface SourceTabItem {
   id: string
-  /** Visible chip text: `id · kind count`. */
+  /** Visible chip text: the source's qualified name and its suite count. */
   label: string
   /** Hover hint (scan diagnostics); undefined renders no title. */
   title?: string

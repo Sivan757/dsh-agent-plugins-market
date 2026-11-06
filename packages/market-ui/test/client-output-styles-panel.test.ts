@@ -182,6 +182,27 @@ describe('output styles panel', () => {
     expect(api.saveUserOutputStyle).toHaveBeenCalledWith({ name: 'brief', description: 'Be brief', body: 'Be brief.' }, undefined)
   })
 
+  it('carries the delete on a user style card, and opens the shared confirmation', async () => {
+    await mount()
+    const remove = cardOf('brief').querySelector<HTMLButtonElement>('button[aria-label^="outputStylesDelete "]')
+    expect(remove).not.toBeNull()
+    // The danger hover is what tells the reader this one is irreversible.
+    expect(remove!.className).toContain('iconBtnDanger')
+    // The accessible name says the verb and the style; the tooltip is the bare verb.
+    expect(remove!.getAttribute('aria-label')).toBe('outputStylesDelete brief')
+    expect(remove!.getAttribute('title')).toBe('outputStylesDelete')
+    // A suite's style is the suite's file, so its card carries no delete.
+    expect(cardOf('teaching-style').querySelector('button[aria-label^="outputStylesDelete "]')).toBeNull()
+    await act(async () => remove!.click())
+    // The shared danger dialog is what opened; the style is still there.
+    expect(document.body.textContent).toContain('outputStylesDeleteTitle')
+    expect(api.deleteUserOutputStyle).not.toHaveBeenCalled()
+    const confirm = [...document.querySelectorAll<HTMLButtonElement>('button')].filter(node => node.textContent === 'panelDelete').at(-1)!
+    await act(async () => confirm.click())
+    await act(async () => {})
+    expect(api.deleteUserOutputStyle).toHaveBeenCalledWith('brief', undefined)
+  })
+
   it('deletes a user style from its detail', async () => {
     await mount()
     await act(async () => cardOf('brief').click())

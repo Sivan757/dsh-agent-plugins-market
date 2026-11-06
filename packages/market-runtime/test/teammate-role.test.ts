@@ -8,10 +8,25 @@ import AgentLoop from '@deepseek-ai/dsh-agent-loop'
 import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
 import TeamService from '@deepseek-ai/dsh-experimental-agent-team'
 import { LlmAdapter, ToolCallId, createUserMessage, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { ToolBatchResult, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import { SessionId, SessionLogOffset } from '@deepseek-ai/dsh-session'
 import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persistence.js'
 import { startContinuableChild } from '../../../packages/market-runtime/src/runtime/agents/subagent-seam.js'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
+
+/**
+ * The one call's outcome out of the batch the host returns.
+ *
+ * The host executes a batch of calls and answers with one result per call, so
+ * a single call's outcome is the batch's first result's result.
+ * @param batch - the batch the host settled.
+ * @returns that call's outcome.
+ */
+function oneOutcome(batch: ToolBatchResult): ToolExecutionResult {
+  const first = batch.results[0]
+  if (!first) throw new Error('the tool batch carried no result')
+  return first.result
+}
 
 /**
  * Whether the host took a Team message. 0.2.0-rc.2 reports `accepted` or `queued`;
@@ -361,7 +376,14 @@ describe('role teammates on published Agent Teams', () => {
       { name: 'reviewer', path: '/unused', description: 'Review', disabled: false, rawText: '---\nprovider: mock\nmodel: card-model\n---\nCARD_PERSONA' }
     ])
     cleanups.push(dispose)
-    const execute = (name: string, args: unknown) => ctx.tools.execute({ name, arguments: args, agent: lead, callId: ToolCallId(name), signal: new AbortController().signal })
+    const execute = (name: string, args: unknown) =>
+      ctx.tools
+        .execute({
+          calls: [{ type: 'tool-call', id: ToolCallId(name), name, arguments: JSON.stringify(args) }],
+          agent: lead,
+          signal: new AbortController().signal
+        })
+        .then(oneOutcome)
     const ended = Promise.withResolvers<void>()
     ctx.once('subagent/end', () => ended.resolve())
     const result = await execute('spawn_teammate_role', {
@@ -745,13 +767,20 @@ describe('role teammates on published Agent Teams', () => {
 
     const roleEnded = Promise.withResolvers<void>()
     ctx.once('subagent/end', () => roleEnded.resolve())
-    const created = await ctx.tools.execute({
-      name: NAME,
-      arguments: { agent: 'reviewer', name: 'role-mate', description: 'role', prompt: 'Work.' },
-      agent: lead,
-      callId: ToolCallId(NAME),
-      signal: new AbortController().signal
-    })
+    const created = await ctx.tools
+      .execute({
+        calls: [
+          {
+            type: 'tool-call',
+            id: ToolCallId(NAME),
+            name: NAME,
+            arguments: JSON.stringify({ agent: 'reviewer', name: 'role-mate', description: 'role', prompt: 'Work.' })
+          }
+        ],
+        agent: lead,
+        signal: new AbortController().signal
+      })
+      .then(oneOutcome)
     expect(created.isError).toBe(false)
     if (created.isError) throw new Error(created.error.message)
     await roleEnded.promise

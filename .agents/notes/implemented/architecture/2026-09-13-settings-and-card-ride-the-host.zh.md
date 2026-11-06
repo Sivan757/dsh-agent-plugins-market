@@ -24,6 +24,10 @@ Status: implemented
 
 宿主 seam。`packages/market-mcp/src/runtime/mcp/bridge/host-seams.ts` 从 `@deepseek-ai/dsh-timeout`、`dsh-subprocess`、`dsh-credentials`、`dsh-attachment` 重新导出 `MAX_TIMER_DELAY_MS`、`scrubbedParentEnv`、`credentialKey` 与图片准入错误词汇。工具观察改读 `ctx.tools.schemas()`。宿主语言偏好改读设置服务对 `locale` 条目的投影（`describe()` → `ns === 'locale'` → `value.preference`），也就是 harness 自己的桌面外壳读取它的接口；此前的 `settings.get(ns)` 取值方法与随后的 `settings.yaml` 解析都已删除，记录见[宿主语言来源 Note](../bug-fix/2026-09-24-host-locale-source-read-and-lifetime.md)。
 
+## Supersession
+
+启动超时的取值被[MCP 挂载的启动预算改为 30 秒](../bug-fix/2026-11-06-the-mcp-mount-startup-budget-is-thirty-seconds.zh.md)取代：内建默认值现在是 30 秒。本记录记下的决策——每次连接尝试都受一个内建默认值约束，服务器可以声明自己的值，默认值在连接时于内置桥接内部解析——没有变，上面的后果写的就是实际发布的取值。
+
 ## Alternatives considered
 
 **插件自己持有一个共享可变设置 store。** 拒绝：浏览器半边不能 import `src/runtime`，node 半边是异步读设置，而进程级全局会抹掉「哪一层知道这个值」。宿主设置文档本身就是那个 store，并且带有声明式的 base/默认值/用户层结构与写入的 revision 栅栏。
@@ -46,7 +50,7 @@ Status: implemented
 
 `settlesWithin` 同样不再是偏离：它只是在宿主 `deadline` 之上的薄竞速，定时器与 `TimeoutReason` 都归宿主。只有「工作到底有没有 settle」这一层折叠留在本地，因为宿主原语刻意只做通知。有一个陷阱值得记住：宿主把非正的超时读作「不设定时器」，而这里的调用方把它读作「不等」，因此该辅助函数给等待设了下限，而不是把零直接透传。
 
-当服务器自己没有声明 `startupTimeoutMs` 时，每次连接尝试现在都由 `DEFAULT_STARTUP_TIMEOUT_MS`（10 秒）兜底。在此之前，未声明的服务器会落到 MCP SDK 自带的 60 秒请求默认值，于是一台连不上的服务器会占着进程、传输与浏览器腿整整一分钟才失败。确实需要更久的服务器可以自己声明 `startupTimeoutMs`（Codex TOML 里的 `startup_timeout_sec`/`startup_timeout_ms`），而该声明仍然是一项**策略**：宿主兼容模式依旧拒绝携带它的服务器，因为那个后端无法执行。默认值在连接时解析——位于内置桥接内部，也就是它唯一适用的后端——正是为了让未声明的服务器在兼容模式下仍可挂载。
+当服务器自己没有声明 `startupTimeoutMs` 时，每次连接尝试现在都由 `DEFAULT_STARTUP_TIMEOUT_MS`（30 秒）兜底。在此之前，未声明的服务器会落到 MCP SDK 自带的 60 秒请求默认值，于是一台连不上的服务器会占着进程、传输与浏览器腿整整一分钟才失败。确实需要更久的服务器可以自己声明 `startupTimeoutMs`（Codex TOML 里的 `startup_timeout_sec`/`startup_timeout_ms`），而该声明仍然是一项**策略**：宿主兼容模式依旧拒绝携带它的服务器，因为那个后端无法执行。默认值在连接时解析——位于内置桥接内部，也就是它唯一适用的后端——正是为了让未声明的服务器在兼容模式下仍可挂载。
 
 卡片的开关控件改用平台 `Switch`，同时也获得了可见的焦点环。网格/列表偏好不再跨浏览器标签页同步：平台 store 每个文档持久化一个值，而跟随平台正是这次的目的。
 

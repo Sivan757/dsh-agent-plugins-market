@@ -46,8 +46,7 @@ function harness() {
   })
   const registry = new Map<string, Agent>()
   ctx.set('shell', { resolve: (request: unknown) => request, execute })
-  ctx.set('sessionProjections', { stateOf: () => ({ lastTurn: 1, openTurnStartSeq: 1 }) })
-  ctx.set('agents', { get: (id: string) => registry.get(id) })
+  ctx.set('agents', { get: (id: string) => registry.get(id), turnBoundaryOf: () => ({ lastTurn: 1, openTurnStartSeq: 1 }) })
   vi.spyOn(ctx.logger, 'warn').mockImplementation(() => {})
   const agents = (id: string) => {
     const value = { id, ctx, session: { header: { id, cwd: '/workspace' }, append: vi.fn() }, inject: vi.fn(), steer: vi.fn() } as unknown as Agent
@@ -67,12 +66,21 @@ function harness() {
 const metadata = (kind: string, text: string): UserMessage =>
   ({ ...createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } }), source: { kind, form: 'context' } }) as UserMessage
 const user = (text: string): UserMessage => createUserMessage({ content: [{ type: 'text', text }], source: { kind: 'user' } })
+/**
+ * The step's model selection, which the host carries on every pre-step payload.
+ *
+ * The hook surface does not read it — the host's own event does — so the value
+ * only has to be a well-formed selection.
+ */
+const modelSelection = { provider: 'mock', model: 'test-model' }
+
 const step = (agent: Agent, messages: UserMessage[]) => ({
   agent,
   messages,
   turn: 1,
   step: 1,
-  signal: new AbortController().signal
+  signal: new AbortController().signal,
+  modelSelection
 })
 
 it('runs no hook for a metadata-only claimed batch', async () => {

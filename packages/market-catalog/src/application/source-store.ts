@@ -15,6 +15,7 @@ import { repoName } from '../scanning/manifests.js'
 import { deriveSourceIdCandidates, expandHome, sanitizeId, sourceCheckoutDir, sourcesDir } from '../scanning/paths.js'
 import { isDirectory, pathExists } from '../scanning/fs-probes.js'
 import { canonicalGitUrl } from '../scanning/scan-resolvers.js'
+import { qualifiedSourceName } from '../scanning/source-name.js'
 import { githubCloneUrl, resolveRegion, type EffectiveRegion } from './regions.js'
 import type { SourceOverview, SourceProgress, UnmanagedSource } from '../../../market-contracts/src/contracts/market.js'
 import { resolveSourceKind, type SourceRef } from '../../../market-contracts/src/model/types.js'
@@ -364,8 +365,11 @@ export class SourceStore {
       const status = await this.describeCheckout(source)
       const sourceSuites = snapshot.suites.filter(suite => suite.sourceId === source.id)
       const scanNotes = snapshot.scanNotes?.[source.id]
+      // A display name only: the id stays the key the state and every resource id use.
+      const displayName = qualifiedSourceName(source, sourceSuites)
       rows.push({
         id: source.id,
+        ...(displayName === undefined ? {} : { displayName }),
         url: source.url,
         ...(source.branch === undefined ? {} : { branch: source.branch }),
         ...(source.local === true ? { local: true } : {}),

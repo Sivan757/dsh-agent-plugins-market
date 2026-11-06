@@ -253,14 +253,13 @@
   color: var(--dsw-alias-label-primary-foreground, #fff);
 }
 
-/* Trailing edit/delete controls reveal on hover (or keyboard focus) like the
-   card action cluster; the selected pill keeps them on its own foreground. */
-/* Trailing edit/delete controls ride as one plate hugging the buttons, over
-   the label's trailing edge — the same treatment ResourceCard gives its
-   action cluster (opaque plate + spread shadow feathering the edge), so a
-   long name stays readable except right under the controls. Revealed on
-   hover or keyboard focus; the plate is click-transparent except for its
-   buttons, so clicking the visible label keeps selecting the source. */
+/* The trailing edit/delete controls reveal on hover (or keyboard focus) like
+   the card action cluster; the selected pill keeps them on its own foreground.
+   They ride as one plate over the chip's trailing edge, with the internal mask
+   (the opaque plate and the spread shadow that feathers its edge): the name
+   slides under the plate while it is open, and the chip neither grows nor
+   reserves room for it. */
+
 .srcTabControls {
   position: absolute;
   top: 0;
@@ -278,8 +277,12 @@
   pointer-events: none;
 }
 
+/* The controls are inert until the plate is open. `opacity: 0` does not stop a
+   hit test, so an invisible button is a live target: one lying over the name
+   swallows the click the reader meant for the name, and the invisible delete
+   button is one click away from the remove-source confirmation. */
 .srcTabControls > button {
-  pointer-events: auto;
+  pointer-events: none;
 }
 
 /* Hover reveals the plate; keyboard focus keeps it too, but only for
@@ -290,6 +293,13 @@
 .srcTabOn:hover .srcTabControls,
 .srcTabOn:has(:focus-visible) .srcTabControls {
   opacity: 1;
+}
+
+.srcTab:hover .srcTabControls > button,
+.srcTab:has(:focus-visible) .srcTabControls > button,
+.srcTabOn:hover .srcTabControls > button,
+.srcTabOn:has(:focus-visible) .srcTabControls > button {
+  pointer-events: auto;
 }
 
 .srcTabOn .srcTabControls {

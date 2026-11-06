@@ -9,6 +9,7 @@ import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-test
 import TeamService from '@deepseek-ai/dsh-experimental-agent-team'
 import * as TeamTools from '@deepseek-ai/dsh-experimental-tool-agent-team'
 import { LlmAdapter, ToolCallId, type StreamChunk } from '@deepseek-ai/dsh-llm'
+import type { ToolBatchResult, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
 import { SessionId } from '@deepseek-ai/dsh-session'
 import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persistence.js'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
@@ -19,6 +20,19 @@ import { mountTeammateRoleTool } from '../../../packages/market-runtime/src/runt
 import type { AgentRoleEntry } from '../../../packages/market-runtime/src/application/agent-roles.js'
 import type { RoleChildComposition } from '../../../packages/market-runtime/src/runtime/agents/role-composition.js'
 
+/**
+ * The one call's outcome out of the batch the host returns.
+ *
+ * The host executes a batch of calls and answers with one result per call, so
+ * a single call's outcome is the batch's first result's result.
+ * @param batch - the batch the host settled.
+ * @returns that call's outcome.
+ */
+function oneOutcome(batch: ToolBatchResult): ToolExecutionResult {
+  const first = batch.results[0]
+  if (!first) throw new Error('the tool batch carried no result')
+  return first.result
+}
 class TestQuery extends SessionQueryEngine {
   searchSessions(): Promise<never> {
     return Promise.reject(new Error('not used'))
@@ -176,13 +190,27 @@ describe('a role revoked during model route validation never spawns', () => {
       await release.promise
       return original.apply(service, args)
     }
-    const running = ctx.tools.execute({
-      name: 'spawn_teammate_role',
-      arguments: { agent: 'reviewer', name: 'revoked-member', description: 'Review', prompt: 'Review it', provider: 'mock', model: 'override-model' },
-      agent: lead,
-      callId: ToolCallId('spawn_teammate_role'),
-      signal: new AbortController().signal
-    })
+    const running = ctx.tools
+      .execute({
+        calls: [
+          {
+            type: 'tool-call',
+            id: ToolCallId('spawn_teammate_role'),
+            name: 'spawn_teammate_role',
+            arguments: JSON.stringify({
+              agent: 'reviewer',
+              name: 'revoked-member',
+              description: 'Review',
+              prompt: 'Review it',
+              provider: 'mock',
+              model: 'override-model'
+            })
+          }
+        ],
+        agent: lead,
+        signal: new AbortController().signal
+      })
+      .then(oneOutcome)
     await entered.promise
     roles.length = 0
     release.resolve()

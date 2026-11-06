@@ -263,7 +263,11 @@ it('continues queued input after a global revoke without another Send and denies
   await refresh
   expect(runtime.ready(agent)).toBe(true)
   expect((await runtime.window(agent.id)).status?.ready).toBe(true)
-  const denied = await ctx.tools.execute({ callId: ToolCallId('revoked'), name: owned.name, arguments: {}, agent, signal: new AbortController().signal })
+  const denied = await ctx.tools.execute({
+    calls: [{ type: 'tool-call', id: ToolCallId('revoked'), name: owned.name, arguments: JSON.stringify({}) }],
+    agent,
+    signal: new AbortController().signal
+  })
   expect(denied).not.toMatchObject({ result: 'called' })
   expect(execute).not.toHaveBeenCalled()
   expect(runtime.allows(agent, retainedId)).toBe(true)

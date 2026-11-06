@@ -7,7 +7,7 @@
  * with light-mode fallbacks so the page follows the active theme.
  */
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Button, IconRefreshOutlineMedium, Modal, RiskConfirmation, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconRefreshOutlineMedium, IconTrashOutlineMedium, Modal, RiskConfirmation, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import { postAction, type OverviewData, type SuiteCardData } from '../../api.js'
 import { loadOverview, peekOverview, invalidateOverview, startDescriptionRefresh, startSourceProgressPolling, type SourceProgressState } from './market-resource.js'
 import { SourceTabsRow, type SourceTabItem } from '../../ui/SourceTabsRow.js'
@@ -18,6 +18,7 @@ import { ErrorBoundary } from '../../ErrorBoundary.js'
 import { SuiteDetailModal } from './SuiteDetail.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { buildFaceEntry, type FaceRowFacts } from '../../ui/face-entry.js'
+import { surfaceCuts } from '../../ui/surface-facets.js'
 import { AiSelectionModal } from '../../ui/AiSelectionModal.js'
 import { IconCloseOutlineMedium, IconSparkleMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import cardCss from '../../ui/resource-card.module.css'
@@ -204,7 +205,10 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
         const noteHint = notes.length === 0 ? undefined : `${t('scanNotes')}: ${notes.slice(0, 8).join(t('sourceErrorSeparator'))}`
         return {
           id: source.id,
-          label: `${source.id} ${source.suiteIds.length}`,
+          // The qualified name is what a reader recognizes the source by: a bare
+          // id can be too short to tell one source from another. The id stays
+          // the chip's key and the scope it selects.
+          label: `${source.displayName ?? source.id} ${source.suiteIds.length}`,
           ...(noteHint === undefined ? {} : { title: noteHint }),
           editable: true,
           deletable: true
@@ -225,7 +229,9 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   // narrows the suites to the selected source and maps each one onto the shared
   // entry contract. The install or add-source button is the card's primary
   // action, the switch says whether an installed suite is enabled, and the
-  // destructive uninstall stays in the detail dialog.
+  // destructive uninstall is the card's own hover-revealed danger action: it
+  // opens the same risk acknowledgement the detail dialog does, and removes
+  // nothing by itself.
   // A recommendation narrows the list to the suites it named, so the reader installs through the
   // confirmation each card already has. Nothing here installs anything.
   const recommended = pickedIds === undefined ? undefined : new Set(pickedIds)
@@ -292,11 +298,27 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
             actions: [
               {
                 id: 'refresh',
-                label: t('refresh'),
+                label: t('refresh') + ' ' + suite.name,
+                title: t('refresh'),
                 icon: h(IconRefreshOutlineMedium),
                 disabled: busy !== undefined,
                 onSelect: () => {
                   void action(`r:${suite.suiteId}`, 'sources/refresh', { id: suite.sourceId })
+                }
+              },
+              {
+                // The card is the entry point to the uninstall, never the
+                // action itself: the click opens the risk acknowledgement the
+                // page already had, and the suite goes only when the reader
+                // confirms it there.
+                id: 'uninstall',
+                label: t('uninstall') + ' ' + suite.name,
+                title: t('uninstall'),
+                icon: h(IconTrashOutlineMedium),
+                danger: true,
+                disabled: busy !== undefined,
+                onSelect: () => {
+                  openUninstall(suite)
                 }
               }
             ]
@@ -399,11 +421,16 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
         t,
         entries,
         capabilities: { toggle: true, counts: true },
+        // Every row here is a suite, so the face draws the two state cuts and
+        // no provider cut: a suite that is switched on and one that is switched
+        // off are two lists a reader asks for separately, and a suite that is
+        // listed but not installed belongs to neither. The cut is on state, not
+        // on installed: the card's rail and its install action already say
+        // whether a suite is here yet, and a 已安装/未安装 cut asked the reader
+        // to hide rows to find out what they had.
+        filters: surfaceCuts('market', t, () => 'suite'),
         searchLabel: t('searchPh'),
         searchPlaceholder: t('searchPh'),
-        // No facet: every row here is a suite, and installed state is what the card's rail
-        // and its install action already say. A 已安装/未安装 cut asked the reader to hide
-        // rows to find out what they had.
         beforeView: h(BilingualToggle, { t, showOriginal, onToggle: () => setShowOriginal(current => !current) }),
         toListLabel: t('switchToList'),
         toGridLabel: t('switchToGrid'),

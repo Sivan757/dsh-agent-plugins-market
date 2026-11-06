@@ -25,16 +25,25 @@ export interface ExtensionToolOwnership {
   ownsLspTool(): boolean
 }
 
+/**
+ * Why a managed capability is denied right now, when the cause is transient.
+ *
+ * The codes are stable identifiers: a reader tells the two transient causes
+ * apart without parsing the text.
+ */
+export type ExtensionToolDenialReason = 'extension-inventory-pending' | 'extension-selection-pending'
+
 export interface ExtensionToolPolicy {
   ready(agent: Agent): boolean
   allows(agent: Agent, resourceId: string, suiteId?: string): boolean
   /**
    * Why managed capabilities are denied right now, when the cause is transient.
    *
-   * A pending catalog read and a withdrawn resource deny identically, so the
-   * model-facing reason names the difference. Omitted keeps the withdrawal text.
+   * A pending catalog read, a session that has not published its selection yet
+   * and a withdrawn resource deny identically, so the model-facing reason names
+   * the difference. Omitted keeps the withdrawal text.
    */
-  denialReason?(agent: Agent): 'extension-inventory-pending' | undefined
+  denialReason?(agent: Agent): ExtensionToolDenialReason | undefined
 }
 
 export interface ExtensionToolGates {
@@ -55,6 +64,15 @@ const DISABLED_SUFFIX = ' — unavailable in this session. Do not retry unchange
  * two causes are distinguishable wherever the reason is read.
  */
 const PENDING_SUFFIX = ' — extension-inventory-pending: this resource is temporarily unavailable while the catalog is re-read. It returns automatically; retry after a moment.'
+/**
+ * The suffix a session gets while its own selection is still being published.
+ *
+ * The session has not chosen anything yet, so the capability is not withdrawn:
+ * telling the model to ask the user to enable a resource the user already
+ * enabled would be wrong advice, and it makes a temporary absence look
+ * permanent.
+ */
+const SELECTION_PENDING_SUFFIX = " — extension-selection-pending: this session's resources are still being prepared. It returns automatically; retry after a moment."
 const INVALID_FILE_PATH_SUFFIX = ' — pass the file_path string of the target file, for example "src/index.ts".'
 const NO_PROVIDER_SUFFIX = ' — no mounted LSP provider serves this extension. If required, ask the user to configure one.'
 const AMBIGUOUS_PROVIDER_SUFFIX =
@@ -104,18 +122,22 @@ export function attachExtensionToolGates(agent: Agent, ownership: ExtensionToolO
     }
   }
   /** Why this session's managed capabilities are denied, when the cause is transient. */
-  const pending = (): boolean => {
+  const denialSuffix = (): string => {
+    let reason: ExtensionToolDenialReason | undefined
     try {
-      return policy.denialReason?.(agent) === 'extension-inventory-pending'
+      reason = policy.denialReason?.(agent)
     } catch {
-      return false
+      reason = undefined
     }
+    if (reason === 'extension-inventory-pending') return PENDING_SUFFIX
+    if (reason === 'extension-selection-pending') return SELECTION_PENDING_SUFFIX
+    return DISABLED_SUFFIX
   }
   const releaseGuard = tools.guard(exec => {
     if (exec.agent !== agent) return undefined
     const definition = tools.get(exec.name, agent)
     const owned = ownership.mcpTools().find(entry => entry.definition === definition)
-    if (owned !== undefined && !allows(owned)) return 'extension-resource-disabled: ' + owned.resourceId + (pending() ? PENDING_SUFFIX : DISABLED_SUFFIX)
+    if (owned !== undefined && !allows(owned)) return 'extension-resource-disabled: ' + owned.resourceId + denialSuffix()
     if (exec.name !== 'lsp' || !ownership.ownsLspTool() || definition !== tools.get('lsp')) return undefined
     const args = exec.arguments
     if (typeof args !== 'object' || args === null || !('file_path' in args) || typeof args.file_path !== 'string')
@@ -125,7 +147,7 @@ export function attachExtensionToolGates(agent: Agent, ownership: ExtensionToolO
     if (providers.length === 0) return 'extension-lsp-route-unavailable: ' + extension + NO_PROVIDER_SUFFIX
     if (providers.length > 1) return 'extension-lsp-route-unavailable: ' + extension + AMBIGUOUS_PROVIDER_SUFFIX
     const provider = providers[0]!
-    return allows(provider) ? undefined : 'extension-resource-disabled: ' + provider.resourceId + (pending() ? PENDING_SUFFIX : DISABLED_SUFFIX)
+    return allows(provider) ? undefined : 'extension-resource-disabled: ' + provider.resourceId + denialSuffix()
   })
   const releaseListener = agent.ctx.on('tools/change', refresh)
   try {

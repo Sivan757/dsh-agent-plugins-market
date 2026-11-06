@@ -360,16 +360,21 @@ describe('extension preset acceptance', () => {
       gate.dispose()
       remove()
     })
-    const call = () => agent.ctx.tools.execute({ callId: ToolCallId('granted-call'), name: definition.name, arguments: {}, agent, signal: new AbortController().signal })
+    const call = () =>
+      agent.ctx.tools.execute({
+        calls: [{ type: 'tool-call', id: ToolCallId('granted-call'), name: definition.name, arguments: JSON.stringify({}) }],
+        agent,
+        signal: new AbortController().signal
+      })
     const granted = await call()
-    expect(granted.isError).toBe(false)
+    expect(granted.results[0]!.result.isError).toBe(false)
     expect(execute).toHaveBeenCalledTimes(1)
     // The same tool without the grant never reaches the transport.
     await applyPreset(runtime, agent.id, [])
     await vi.waitFor(() => expect(runtime.allows(agent, mcp.id)).toBe(false))
     gate.refresh()
     const refused = await call()
-    expect(refused.isError).toBe(true)
+    expect(refused.results[0]!.result.isError).toBe(true)
     expect(execute).toHaveBeenCalledTimes(1)
   })
 })

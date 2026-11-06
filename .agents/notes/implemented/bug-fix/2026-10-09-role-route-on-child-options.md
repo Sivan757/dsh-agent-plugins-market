@@ -8,7 +8,7 @@ A role member executes the route its card or call declares, but every host surfa
 
 ## Decision
 
-`TeammateRoleRuntime` writes the validated role route onto the member's own `AgentOptions` when it composes a member, and restores the inherited values when that composition is disposed. `installModelSelection` remains the request-time route owner; the options write keeps the host-facing reads (`TeamMemberView.model`, `assertImageCapable`, `parentAgentOptionsForDelegation`) equal to it for as long as the member is resident. A host that freezes the object is reported through the runtime diagnostic and keeps the model selection, so no request route depends on the write.
+`TeammateRoleRuntime` writes the validated role route onto the member's own `AgentOptions` when it composes a member, and restores the inherited values when that composition is disposed. The request-time route owner is the member session's durable model selection: the runtime records the route there with `agent.model.select()`, and `installModelSelection` keeps only the host's model-switch notice. The options write keeps the host-facing reads (`TeamMemberView.model`, `assertImageCapable`, `parentAgentOptionsForDelegation`) equal to it for as long as the member is resident. A host that freezes the object is reported through the runtime diagnostic and keeps the recorded selection, so no request route depends on the write.
 
 The idle case stays host-owned: once the member's Agent is released, `TeamMemberView.model` falls back to `root.options.model` and no plugin-visible value can correct it. [The agent-roles page](../../../../docs/user/agent-roles.md) directs route verification to the creation result instead of `list_agents`.
 
@@ -26,7 +26,8 @@ The idle case stays host-owned: once the member's Agent is released, `TeamMember
 
 - The roster row, the image-input gate and a member's own delegation agree with the executed route while the member is resident. The plugin writes a field the host type marks `readonly`; the diagnostic covers a host that makes it non-writable.
 - An idle member still shows the Lead's route in the roster. Route verification belongs to the creation result.
-- The role binding is unchanged: the durable creation snapshot still owns the route across cold resume and plugin reload, and `restore()` re-applies the selection and the options write together.
+- The role binding is unchanged: the durable creation snapshot still owns the route across cold resume and plugin reload, and `restore()` re-records the selection and re-applies the options write together.
+- The route is recorded in the member's own session, so it survives a resume that a live options write alone would not: the host reads the recorded selection, and the options fallback only answers while nothing is recorded.
 
 ## Testing
 

@@ -381,7 +381,8 @@ export function LspDetailModal({
         Button,
         {
           variant: 'ghost',
-          size: 'sm',
+          // One row, one size: the footer row carries the host's default geometry
+          // (md, 36px), so 复制诊断 and 完成 stand on the same line.
           title: t('copyDiagnosticsExplain'),
           onClick: () => {
             // The same block the connector dialog copies: whoever reads it should

@@ -235,7 +235,7 @@ describe('MCP service policy', () => {
     const before = await catalog.serverConfig('mcp', id)
     expect(before.backend).toBe('builtin')
     expect(before.policy?.toolCallTimeout).toEqual({ user: null, suite: null, effective: 60_000, source: 'default' })
-    expect(before.policy?.startupTimeout).toEqual({ user: null, suite: null, effective: 10_000, source: 'default' })
+    expect(before.policy?.startupTimeout).toEqual({ user: null, suite: null, effective: 30_000, source: 'default' })
     // The document the editor renders stays in the portable schema shape.
     expect(before.config).not.toHaveProperty('toolCallTimeoutMs')
 

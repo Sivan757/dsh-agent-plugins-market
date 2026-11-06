@@ -19,6 +19,7 @@ import {
 } from '../../../../market-contracts/src/contracts/extension-presets.js'
 import type { ExtensionRouteService } from '../../extension-service.js'
 import { ExtensionSessionState, type ExtensionApplyReceipt } from './extension-session-state.js'
+import type { ExtensionToolDenialReason } from './extension-tool-gates.js'
 import { ExtensionProgressReader } from './extension-progress.js'
 import { DEFAULT_INVENTORY_RETRY, inventoryRetryDelay, type InventoryRetryPolicy } from './inventory-retry.js'
 
@@ -152,14 +153,21 @@ export class ExtensionRuntime implements ExtensionRouteService {
   /**
    * Why one agent's managed capabilities are denied right now, if they are.
    *
-   * A stale agent and a withdrawn resource produce the same model-facing
-   * failure, so the status surface needs the difference: "still reading the
-   * catalog" is transient, "the resource is gone" is not.
+   * A stale agent, a session that has not published its selection yet and a
+   * withdrawn resource produce the same model-facing failure, so the status
+   * surface needs the difference: the first two are transient, the third is
+   * not.
    * @param agent - the agent to describe.
    * @returns the reason one of its capabilities is denied, or undefined.
    */
-  denialReason(agent: Agent): 'extension-inventory-pending' | undefined {
-    return this.stale.has(agent) ? 'extension-inventory-pending' : undefined
+  denialReason(agent: Agent): ExtensionToolDenialReason | undefined {
+    if (this.stale.has(agent)) return 'extension-inventory-pending'
+    // A session that has no selection yet denies every managed capability while
+    // it attaches. The denial is transient, so the model is told to retry
+    // rather than to ask the user to enable a resource the user already chose.
+    const status = this.state.status(agent)
+    if (!status.ready && status.error === undefined) return 'extension-selection-pending'
+    return undefined
   }
   allows(agent: Agent, resourceId: string, suiteId?: string): boolean {
     if (this.stale.has(agent)) return false
@@ -439,7 +447,36 @@ export class ExtensionRuntime implements ExtensionRouteService {
     extensionWorkspace(agent)
     return agent
   }
+  /**
+   * The selection a child session starts from.
+   *
+   * A child session has no panel of its own: nobody chooses its resources, so a
+   * capture that invents an authorization the parent never gave is a guess, and
+   * the gate then denies what the parent's own session granted. The parent's
+   * committed selection is the answer, and the fork path already treats it as
+   * the child's own: a forked child's log carries the parent's committed
+   * binding, which the session state commits as the child's revision 1.
+   *
+   * @param agent - the child agent.
+   * @returns the parent's committed selection, or undefined when there is no
+   * live parent or the parent has no selection of its own.
+   */
+  private inheritedSelection(agent: Agent): ExtensionSelection | undefined {
+    const parentSession = agent.session.header.parentSession
+    if (parentSession === undefined) return undefined
+    const parent = this.ctx.agents.get(parentSession)
+    if (parent === undefined) return undefined
+    try {
+      return this.state.read(parent)?.selection
+    } catch {
+      return undefined
+    }
+  }
   private async initialSelection(agent: Agent, source?: string): Promise<ExtensionSelection> {
+    // A child session follows the session that started it. The workspace
+    // default is the answer for a session nobody chose anything for.
+    const inherited = this.inheritedSelection(agent)
+    if (inherited !== undefined) return inherited
     const workspace = extensionWorkspace(agent)
     const resources = await this.refreshInventory(agent)
     const library = await this.store.read(workspace)

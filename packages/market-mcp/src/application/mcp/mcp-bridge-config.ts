@@ -26,13 +26,20 @@ import type { McpServerPolicy } from '../../../../market-contracts/src/model/typ
 export const DEFAULT_TOOL_CALL_TIMEOUT_MS = 60_000
 
 /**
- * How long one connection attempt may spend initializing (ms). A server that
- * never answers would otherwise hold its process, transport and browser leg
- * until the SDK's own 60-second request default expired; a working server
- * handshakes well under a second, and a genuinely slow one can declare its own
- * `startupTimeoutMs`.
+ * How long one connection attempt may spend initializing (ms).
+ *
+ * The budget covers the handshake and the tool listing that follows it: each
+ * request in the mount path is capped at this value. It stays deliberately
+ * below the MCP SDK's own 60-second request default, which is what a server
+ * that never answers would otherwise hold its process, transport and browser
+ * leg for - a dead server has to fail visibly instead of hanging. 30 seconds
+ * covers a public server's TLS handshake, OAuth discovery and tool listing,
+ * and it stays well inside the host's own 60-second tolerance for a single
+ * tool call, so mounting a server is never held to a tighter budget than one
+ * call against a server that already answered. A genuinely slow server can
+ * declare its own `startupTimeoutMs`.
  */
-export const DEFAULT_STARTUP_TIMEOUT_MS = 10_000
+export const DEFAULT_STARTUP_TIMEOUT_MS = 30_000
 
 /** Valid `serverName`, kept below the public tool-name budget. */
 export const SERVER_NAME_PATTERN = /^[A-Za-z0-9_-]{1,32}$/

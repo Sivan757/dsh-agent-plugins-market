@@ -10,7 +10,8 @@ import { bindScopeParent } from '@deepseek-ai/dsh-scope'
 import { McpMountRegistry, supportsMcpSessionControl } from '../../../../packages/market-mcp/src/runtime/mcp/mcp-mounts.js'
 import { effectiveSurfaces, type Suite } from '../../../../packages/market-contracts/src/model/types.js'
 import { ToolCallId } from '@deepseek-ai/dsh-llm'
-import { defineTool, type ToolDefinition } from '@deepseek-ai/dsh-tools'
+import { defineTool, type ToolBatchResult, type ToolExecutionResult } from '@deepseek-ai/dsh-tools'
+import * as PtcToolExecutor from '@deepseek-ai/dsh-tool-executor-ptc'
 import Lsp, { LspProviderId } from '@deepseek-ai/dsh-lsp'
 import * as lspTool from '@deepseek-ai/dsh-tool-lsp'
 import { attachExtensionToolGates, type ExtensionLspProvider, type ExtensionToolOwnership } from '../../../../packages/market-runtime/src/runtime/host/extension-tool-gates.js'
@@ -51,6 +52,24 @@ class BindingRuntime extends Service {
       return { logs: [], error: { kind: 'exception', message: String(error) } }
     }
   }
+}
+
+/**
+ * Mount the PTC executor for one agent's scope.
+ *
+ * The host selects the executor per scope: the nearest scoped executor wins,
+ * otherwise the deployment's default. The agent's own tools service is the
+ * scoped instance, so mounting the executor there leaves every other agent on
+ * the deployment's native executor.
+ * @param agent - the agent whose scope selects the PTC executor.
+ */
+async function mountPtcExecutor(agent: Agent): Promise<void> {
+  await agent.ctx.plugin(PtcToolExecutor)
+}
+
+/** The one call's outcome inside a batch result. */
+function outcome(batch: ToolBatchResult): ToolExecutionResult {
+  return batch.results[0]!.result
 }
 
 async function setup() {
@@ -96,7 +115,11 @@ async function setup() {
   cleanups.push(...gates.map(gate => () => gate.dispose()))
   const refresh = () => gates.forEach(gate => gate.refresh())
   const call = (agent: Agent, name: string, args: unknown = {}) =>
-    ctx.tools.execute({ callId: ToolCallId('test-call'), name, arguments: args, agent, signal: new AbortController().signal })
+    ctx.tools.execute({
+      calls: [{ type: 'tool-call', id: ToolCallId('test-call'), name, arguments: JSON.stringify(args) }],
+      agent,
+      signal: new AbortController().signal
+    })
   const ptc = (agent: Agent, name: string, args: unknown = {}) => call(agent, 'run_code', { code: JSON.stringify({ name, args }), description: 'Exercise nested dispatch' })
   const register = (owner: Context, server: string, raw: string, execute = vi.fn(async () => 'called')) => {
     const definition = defineTool({
@@ -184,13 +207,13 @@ describe('extension gates on the published rc.2 ToolRuntime', () => {
     expect(f.a.session.header.cwd).toBe(f.b.session.header.cwd)
     expect(f.ctx.tools.schemas(f.a).map(schema => schema.name)).toContain(tool.definition.name)
     expect(f.ctx.tools.schemas(f.b).map(schema => schema.name)).not.toContain(tool.definition.name)
-    expect((await f.call(f.b, tool.definition.name)).isError).toBe(true)
+    expect(outcome(await f.call(f.b, tool.definition.name)).isError).toBe(true)
     expect(tool.execute).not.toHaveBeenCalled()
-    expect((await f.call(f.a, tool.definition.name)).isError).toBe(false)
-    f.a.ctx.tools.presentAs('ptc')
-    f.b.ctx.tools.presentAs('ptc')
-    expect((await f.ptc(f.b, tool.definition.name)).isError).toBe(true)
-    expect((await f.ptc(f.a, tool.definition.name)).isError).toBe(false)
+    expect(outcome(await f.call(f.a, tool.definition.name)).isError).toBe(false)
+    await mountPtcExecutor(f.a)
+    await mountPtcExecutor(f.b)
+    expect(outcome(await f.ptc(f.b, tool.definition.name)).isError).toBe(true)
+    expect(outcome(await f.ptc(f.a, tool.definition.name)).isError).toBe(false)
     expect(tool.execute).toHaveBeenCalledTimes(2)
     expect(f.ctx.tools.get(tool.definition.name)).toBe(tool.definition)
   })
@@ -199,18 +222,18 @@ describe('extension gates on the published rc.2 ToolRuntime', () => {
     const f = await setup()
     const tool = f.register(f.a.ctx, 'project', 'query')
     f.chosen.get(f.a)!.add('mcp:project')
-    f.a.ctx.tools.presentAs('ptc')
+    await mountPtcExecutor(f.a)
     const runtime = f.ctx.get('ptcRuntime') as unknown as BindingRuntime
     runtime.beforeCall = () => f.chosen.get(f.a)!.clear()
-    expect((await f.ptc(f.a, tool.definition.name)).isError).toBe(true)
+    expect(outcome(await f.ptc(f.a, tool.definition.name)).isError).toBe(true)
     expect(tool.execute).not.toHaveBeenCalled()
     runtime.beforeCall = undefined
     f.chosen.get(f.a)!.add('mcp:project')
     f.notReady.add(f.a)
-    expect((await f.ptc(f.a, tool.definition.name)).isError).toBe(true)
+    expect(outcome(await f.ptc(f.a, tool.definition.name)).isError).toBe(true)
     expect(tool.execute).not.toHaveBeenCalled()
     f.notReady.delete(f.a)
-    expect((await f.ptc(f.a, tool.definition.name)).isError).toBe(false)
+    expect(outcome(await f.ptc(f.a, tool.definition.name)).isError).toBe(false)
     expect(tool.execute).toHaveBeenCalledTimes(1)
   })
 
@@ -221,12 +244,12 @@ describe('extension gates on the published rc.2 ToolRuntime', () => {
     const childTool = f.register(f.b.ctx, 'project', 'query')
     f.chosen.get(f.b)!.add('mcp:project')
     f.refresh()
-    expect((await f.call(f.a, parentTool.definition.name)).isError).toBe(true)
-    expect((await f.call(f.b, childTool.definition.name)).isError).toBe(false)
+    expect(outcome(await f.call(f.a, parentTool.definition.name)).isError).toBe(true)
+    expect(outcome(await f.call(f.b, childTool.definition.name)).isError).toBe(false)
     expect(parentTool.execute).not.toHaveBeenCalled()
     expect(childTool.execute).toHaveBeenCalledTimes(1)
     f.gates[0]!.dispose()
-    expect((await f.call(f.b, childTool.definition.name)).isError).toBe(false)
+    expect(outcome(await f.call(f.b, childTool.definition.name)).isError).toBe(false)
   })
 
   it('restricts the nearest inherited definition rather than a shadowed global owner', async () => {
@@ -238,7 +261,7 @@ describe('extension gates on the published rc.2 ToolRuntime', () => {
     f.chosen.get(f.b)!.add('mcp:A__B')
     f.refresh()
     expect(f.ctx.tools.get(global.definition.name, f.b)).toBe(inherited.definition)
-    expect((await f.call(f.b, inherited.definition.name)).isError).toBe(false)
+    expect(outcome(await f.call(f.b, inherited.definition.name)).isError).toBe(false)
     expect(global.execute).not.toHaveBeenCalled()
     expect(inherited.execute).toHaveBeenCalledTimes(1)
   })
@@ -253,7 +276,7 @@ describe('extension gates on the published rc.2 ToolRuntime', () => {
     const dynamic = f.register(f.ctx, 'db', 'new.tool/' + 'x'.repeat(80))
     expect(dynamic.definition.name).toHaveLength(64)
     expect(f.ctx.tools.schemas(f.a).map(schema => schema.name)).not.toContain(dynamic.definition.name)
-    expect((await f.call(f.a, dynamic.definition.name)).isError).toBe(true)
+    expect(outcome(await f.call(f.a, dynamic.definition.name)).isError).toBe(true)
     expect(dynamic.execute).not.toHaveBeenCalled()
     // Both refreshes see the same deny set, so the gate must compare its
     // signature and return before touching the registry. Clearing first makes
@@ -273,7 +296,7 @@ describe('extension gates on the published rc.2 ToolRuntime', () => {
     expect(first.definition.name).toBe(publicToolName('A__B', 'query'))
     f.chosen.get(f.a)!.add('mcp:A__B')
     f.refresh()
-    expect((await f.call(f.a, first.definition.name)).isError).toBe(true)
+    expect(outcome(await f.call(f.a, first.definition.name)).isError).toBe(true)
     expect(first.execute).not.toHaveBeenCalled()
     const replacement = defineTool({
       name: first.definition.name,
@@ -283,7 +306,7 @@ describe('extension gates on the published rc.2 ToolRuntime', () => {
       execute: async () => 'foreign'
     })
     cleanups.push(f.a.ctx.tools.register(replacement))
-    expect(await f.call(f.a, first.definition.name)).toMatchObject({ isError: false, value: 'foreign' })
+    expect(outcome(await f.call(f.a, first.definition.name))).toMatchObject({ isError: false, value: 'foreign' })
     expect(first.execute).not.toHaveBeenCalled()
     expect(() => f.register(f.ctx, 'A__B', 'query')).toThrow()
     expect(bridgeToolRegistrations(f.ctx)).toHaveLength(1)
@@ -296,7 +319,7 @@ describe('extension gates on the published rc.2 ToolRuntime', () => {
     )
     const host: ToolHost = {
       logger: { error: vi.fn(), warn: vi.fn(), info: vi.fn() },
-      tools: { register: definition => registerOwnedBridgeTool(f.ctx, 'db', definition, () => f.ctx.tools.register(definition as ToolDefinition)) }
+      tools: { register: definition => registerOwnedBridgeTool(f.ctx, 'db', definition, () => f.ctx.tools.register(definition)) }
     }
     const registrations = await syncTools({ request } as never, host, { serverName: 'db', registrationFailure: 'throw', toolCallTimeoutMs: 1000 }, new Map())
     cleanups.push(() => {
@@ -306,9 +329,9 @@ describe('extension gates on the published rc.2 ToolRuntime', () => {
     f.chosen.get(f.b)!.add('mcp:db')
     f.refresh()
     request.mockClear()
-    expect((await f.call(f.a, name)).isError).toBe(true)
+    expect(outcome(await f.call(f.a, name)).isError).toBe(true)
     expect(request).not.toHaveBeenCalled()
-    expect((await f.call(f.b, name)).isError).toBe(false)
+    expect(outcome(await f.call(f.b, name)).isError).toBe(false)
     expect(request).toHaveBeenCalledTimes(1)
   })
 
@@ -326,21 +349,21 @@ describe('extension gates on the published rc.2 ToolRuntime', () => {
     f.chosen.get(f.b)!.add('lsp:direct/py')
     f.refresh()
     const args = (file_path: string) => ({ operation: 'hover', file_path, line: 1, character: 1 })
-    expect((await f.call(f.b, 'lsp', args('foo.TS'))).isError).toBe(true)
-    expect((await f.call(f.a, 'lsp', args('foo.unknown'))).isError).toBe(true)
+    expect(outcome(await f.call(f.b, 'lsp', args('foo.TS'))).isError).toBe(true)
+    expect(outcome(await f.call(f.a, 'lsp', args('foo.unknown'))).isError).toBe(true)
     expect(tsQuery).not.toHaveBeenCalled()
     expect(pyQuery).not.toHaveBeenCalled()
-    expect((await f.call(f.a, 'lsp', args('foo.TS'))).isError).toBe(false)
-    f.b.ctx.tools.presentAs('ptc')
-    expect((await f.ptc(f.b, 'lsp', args('foo.ts'))).isError).toBe(true)
-    expect((await f.ptc(f.b, 'lsp', args('foo.py'))).isError).toBe(false)
+    expect(outcome(await f.call(f.a, 'lsp', args('foo.TS'))).isError).toBe(false)
+    await mountPtcExecutor(f.b)
+    expect(outcome(await f.ptc(f.b, 'lsp', args('foo.ts'))).isError).toBe(true)
+    expect(outcome(await f.ptc(f.b, 'lsp', args('foo.py'))).isError).toBe(false)
     expect(tsQuery).toHaveBeenCalledTimes(1)
     expect(pyQuery).toHaveBeenCalledTimes(1)
     f.chosen.get(f.a)!.clear()
     f.refresh()
     expect(f.ctx.tools.get('lsp', f.a)).toBeUndefined()
     expect(f.ctx.tools.get('lsp', f.b)).toBeDefined()
-    expect((await f.ptc(f.b, 'lsp', args('foo.py'))).isError).toBe(false)
+    expect(outcome(await f.ptc(f.b, 'lsp', args('foo.py'))).isError).toBe(false)
   })
 
   it('keeps the denial code and identity while explaining the action a caller can take', async () => {
@@ -361,7 +384,7 @@ describe('extension gates on the published rc.2 ToolRuntime', () => {
     f.chosen.get(f.a)!.add('lsp:source/suite/ts')
     f.refresh()
     const denial = async (name: string, value: unknown): Promise<string> => {
-      const result = await f.call(f.a, name, value)
+      const result = outcome(await f.call(f.a, name, value))
       expect(result.isError).toBe(true)
       if (!result.isError) throw new Error('expected a denial')
       return result.error.message
@@ -400,7 +423,7 @@ describe('extension gates on the published rc.2 ToolRuntime', () => {
     expect(tsQuery).not.toHaveBeenCalled()
 
     // The decisions themselves are unchanged: the enabled single route still runs.
-    expect((await f.call(f.a, 'lsp', args('foo.TS'))).isError).toBe(false)
+    expect(outcome(await f.call(f.a, 'lsp', args('foo.TS'))).isError).toBe(false)
     expect(tsQuery).toHaveBeenCalledTimes(1)
     expect(f.chosen.get(f.a)!.has('lsp:source/suite/ts')).toBe(true)
   })

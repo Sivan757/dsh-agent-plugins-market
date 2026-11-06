@@ -23,8 +23,29 @@ export function SourceTab(props: SourceTabProps): ReactNode {
   const { t, active = false, label, title, onSelect, onDelete, onEdit, deleteTitle } = props
   return h(
     'div',
-    { className: active ? css.srcTabOn : css.srcTab, title },
-    h('button', { type: 'button', className: css.srcTabMain, onClick: onSelect }, label),
+    {
+      className: active ? css.srcTabOn : css.srcTab,
+      title,
+      // The whole chip selects the source, not only the run of characters
+      // that spell its name: the chip's own padding is part of the target,
+      // and the trailing controls keep their clicks to themselves.
+      onClick: onSelect
+    },
+    h(
+      'button',
+      {
+        type: 'button',
+        className: css.srcTabMain,
+        // The name stays a real control for the keyboard and for assistive
+        // technology. Its click stops here so the chip's own handler does
+        // not select the source a second time.
+        onClick: (event: { stopPropagation(): void }) => {
+          event.stopPropagation()
+          onSelect()
+        }
+      },
+      label
+    ),
     onEdit === undefined && onDelete === undefined
       ? null
       : h(

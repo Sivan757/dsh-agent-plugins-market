@@ -14,7 +14,7 @@ import workspace from '../../workspace/workspace.module.css'
 import { useTabLayout, type TabLayoutMessages } from '../../workspace/tab-layout-store.js'
 import type { WorkspaceTabKey } from '../../../../market-contracts/src/contracts/tab-layout.js'
 import { PRESET_FACES, WORKSPACE_TAB_META, workspaceKeyOfFace } from '../../workspace/tab-meta.js'
-import { surfaceProviderCuts, type SurfaceProvider } from '../../ui/surface-facets.js'
+import { surfaceCuts, type SurfaceProvider } from '../../ui/surface-facets.js'
 import { buildFaceEntry, type FaceRowFacts } from '../../ui/face-entry.js'
 import type { LocaleKey } from '../../locales.js'
 // The faces, their labels and the noun each collection is counted in all come from
@@ -257,10 +257,10 @@ export function ResourceList({
           capabilities={{ toggle: true, counts: true }}
           searchLabel={t('epSearch')}
           searchPlaceholder={t('epSearchPlaceholder')}
-          // The same facet the workspace tab offers, from the same table: whether a card is
-          // switched on is what its rail and its state word already say, and this surface
-          // and the settings page must not disagree about what a filter is.
-          filters={surfaceProviderCuts(TAB_KEY[face], t, id => providerOf(rowById.get(id)))}
+          // The same cuts the workspace tab offers, from the same table: the provider
+          // facet, plus the market's state facet. This surface and the settings page must
+          // not disagree about what a filter is.
+          filters={surfaceCuts(TAB_KEY[face], t, id => providerOf(rowById.get(id)))}
           beforeView={h(BilingualToggle, { t, showOriginal, onToggle: onToggleShowOriginal })}
           emptyText={t('epEmpty')}
           // A card opens the entry; the switch beside it toggles. The view action that used

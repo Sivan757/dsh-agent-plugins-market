@@ -54,8 +54,11 @@ export function InstructionDetail({ t, row, budget, onClose, onEdit, onDelete }:
     footer: h(
       'div',
       { className: css.detailFooter },
-      onDelete === undefined ? null : h(Button, { variant: 'ghost', size: 'sm', onClick: onDelete }, t('panelDelete')),
-      onEdit === undefined ? null : h(Button, { variant: 'primary', size: 'sm', onClick: onEdit }, t('instructionsEdit')),
+      // One row, one size: the footer row carries the host's default geometry
+      // (md, 36px), so 删除, 编辑 and 完成 stand on the same line. A compact
+      // button beside a full one is the misalignment a reader sees first.
+      onDelete === undefined ? null : h(Button, { variant: 'ghost', onClick: onDelete }, t('panelDelete')),
+      onEdit === undefined ? null : h(Button, { variant: 'primary', onClick: onEdit }, t('instructionsEdit')),
       h(Button, { variant: 'ghost', onClick: onClose }, t('detailDone'))
     ),
     children: h(

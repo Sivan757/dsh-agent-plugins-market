@@ -43,6 +43,23 @@ Realigning the pins required three adaptations:
 - `@deepseek-ai/dsh-session` moved its session header to `version: 3`.
 - The `surfaceOp` replace shape became `{ op, startSeq, endSeq }`.
 
+## The 0.2.1-rc.5 → 0.2.2-rc.1 alignment this produced
+
+Realigning the pins required five adaptations:
+
+- The session-projection registry registers asynchronously now: `register()` yields a promise that resolves with a `ProjectionHandle`, and the registry-level `stateOf(session, key)` read is deprecated in favour of the handle's own `stateOf(session)`. The extension-progress reader keeps the handle, releases one that lands after its effect was cleaned up, and answers from the handle instead of the deprecated read.
+- The host's `turnBoundary` projection moved behind the agent registry, so the hook surface reads it through `ctx.agents.turnBoundaryOf(session)`.
+- `installModelSelection` lost its mutable-selection argument: the selection is owned by the session's durable `modelSelection` projection, so the role route is recorded with `agent.model.select()` and survives a resume that a live options write would not. The install keeps only the host's model-switch notice.
+- The tool-call surface moved its shapes: a batch input carries `ToolCallBlock[]` instead of loose call fields, and a batch result carries `ToolCallResult[]` whose outcome sits on `result`. The host also deleted `ToolsService.presentAs` outright, leaving the PTC executor as a per-scope executor selection.
+- The host line moved its schema library to `@deepseek-ai/schemastery` 3.19.0 with `@deepseek-ai/cosmokit` 1.9.0. This repository's own copies had stayed on the previous pair, which left two copies of cosmokit in the tree and made an exported schema's inferred type unnameable (TS2742); they now float to the host's pair.
+
+Two peer chains stopped resolving on their own at the new line, and the repository declares them because the deployment does not install them:
+
+- The testkit peers on `@deepseek-ai/dsh-working-directory` and `@deepseek-ai/dsh-fs-local`, which the new host graph no longer pulls in, and `autoInstallPeers` is off. The repository declares the chain the testkit needs (`dsh-brand`, `dsh-sandbox`, `dsh-fs`, `dsh-fs-local`, `dsh-working-directory`) as dev mirrors at the exact baseline.
+- The PTC executor the testkit mounts peers on three more packages the repository does not declare (`dsh-ptc-runtime`, `dsh-user-approval`, `dsh-sandbox-policy`), so those are dev mirrors too.
+
+The support window floor moves with the baseline: it is the version this repository builds and tests against, so `scripts/host-support-window.mjs` moves to 0.2.2-rc.1 and every consumer-facing range follows.
+
 ## Alternatives considered
 
 - **A checked-in baseline file** (`host-baseline.json`) that the gate reads. Rejected: it is a second source of truth for exactly the field that goes stale, and it would need its own gate to stay current. The registry already answers the question, and `--host-version` covers the offline case.

@@ -6,6 +6,7 @@
  * @module client/ui/UserPanelSurface
  */
 import { createElement as h, useCallback, useEffect, useRef, useState, type ReactNode } from 'react'
+import { IconTrashOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import { createUserPanelEntry, deleteUserPanelEntry, fetchUserPanelEntry, updateUserPanelEntry, type UserPanelEntry, type UserPanelKind } from '../api.js'
 import { cachedUserPanel, loadUserPanel } from './user-panel-resource.js'
 import { commandCallName } from '../../../market-contracts/src/model/command-names.js'
@@ -280,7 +281,26 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
         'settings'
       ),
       canEdit: editable,
-      editDisabled: busy
+      editDisabled: busy,
+      // A suite-owned file uninstalls with its suite, so only a user-authored
+      // entry carries the delete on its card. The icon opens the panel's own
+      // confirmation; it never removes anything by itself.
+      ...(entry.origin === 'user'
+        ? {
+            actions: [
+              {
+                id: 'delete',
+                // The accessible name says the verb and the row; the tooltip is
+                // the bare verb, the way the switch and the edit button do it.
+                label: t('panelDelete') + ' ' + entry.name,
+                title: t('panelDelete'),
+                icon: h(IconTrashOutlineMedium),
+                danger: true,
+                onSelect: () => openDelete(entry)
+              }
+            ]
+          }
+        : {})
     }
   })
 

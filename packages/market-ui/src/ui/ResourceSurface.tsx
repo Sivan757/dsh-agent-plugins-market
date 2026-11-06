@@ -7,7 +7,9 @@
  *
  * - a card click opens the entry (the surface decides whether that is a dialog or a route);
  * - an entry-level switch is a separate control inside the card, never the card itself;
- * - destructive actions belong to the detail the card opens, not to the card.
+ * - a destructive action is a hover-revealed flat danger icon on the card, and it opens the
+ *   surface's own confirmation: the card is the entry point to the action, never a one-click
+ *   delete. The detail the card opens keeps its own button, so no path is lost.
  *
  * @module client/ui/ResourceSurface
  */
@@ -74,7 +76,11 @@ export interface ResourceEntry {
    * that follows the icon actions and precedes the switch. Never destructive.
    */
   primary?: { label: string; title?: string; disabled?: boolean; onSelect: () => void }
-  /** Flat icon actions that trail the cluster before the primary action. */
+  /**
+   * Flat icon actions that trail the cluster before the primary action. A destructive
+   * action is one of them with `danger`: it opens the surface's own confirmation, so
+   * the card is the entry point to the action and never the action itself.
+   */
   actions?: readonly ResourceCardAction[]
   /** The surface this entry belongs to, for the one layout that treats MCP and LSP chips differently. */
   surface?: 'market' | 'skills' | 'commands' | 'personas' | 'mcp' | 'lsp' | 'hooks'
@@ -105,8 +111,18 @@ export interface ResourceCapabilities {
 export interface ResourceCardAction {
   /** Stable id, also the React key. */
   id: string
-  /** Accessible name and hover title. */
+  /**
+   * The accessible name. It says the verb and the row it acts on, the way the
+   * switch's label and the edit button's name do: a list of ninety-seven
+   * indistinguishable "delete" buttons is not a list a reader can act on.
+   */
   label: string
+  /**
+   * The hover title, which is the bare verb. The tooltip answers "what does
+   * this do", and the row it acts on is already on screen; omitted, the
+   * title is the accessible name.
+   */
+  title?: string
   icon: ReactNode
   onSelect: () => void
   disabled?: boolean
@@ -331,7 +347,7 @@ export function ResourceSurface(props: ResourceSurfaceProps): ReactNode {
                       type: 'button',
                       className: `${card.iconBtn} ${action.danger === true ? card.iconBtnDanger : ''} ${card.revealOnHover}`,
                       'aria-label': action.label,
-                      title: action.label,
+                      title: action.title ?? action.label,
                       disabled: action.disabled === true,
                       onClick: (event: { stopPropagation(): void }) => {
                         event.stopPropagation()
