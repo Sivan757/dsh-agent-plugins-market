@@ -362,11 +362,14 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
           contentClassName={css.modalContent}
           onClose={dismiss}
           footer={
+            // One row, one size: the footer row carries the host's default
+            // geometry (md, 36px), like every other dialog's footer in the
+            // plugin. A compact pair here was the one footer that did not.
             <div className={css.footer}>
-              <Button size="sm" variant="outline" disabled={writes > 0 || savedDirty || defaultSelected} onClick={setDefault}>
+              <Button variant="outline" disabled={writes > 0 || savedDirty || defaultSelected} onClick={setDefault}>
                 {defaultSelected ? t('epIsDefault') : t('epDefault')}
               </Button>
-              <Button size="sm" variant="primary" disabled={writes > 0 || savedDirty} onClick={libraryDraft ? () => beginName('save') : dismiss}>
+              <Button variant="primary" disabled={writes > 0 || savedDirty} onClick={libraryDraft ? () => beginName('save') : dismiss}>
                 {libraryDraft ? t('epSave') : t('epDone')}
               </Button>
             </div>
