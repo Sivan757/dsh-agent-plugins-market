@@ -20,6 +20,10 @@ The name was also the raw source id, which for a skills collection stored under 
 - **The whole chip selects the source.** `SourceTab`'s root carries the select handler and the name button stops the propagation, so the source is selected once. The name stays a real button for the keyboard and for assistive technology.
 - **The chip names the source the way a reader recognizes it.** The label is `source.displayName ?? source.id` plus the suite count; the id stays the chip's key and the scope it selects.
 
+## Supersession
+
+This note is superseded by [the source chip masks its controls over a room of its own](2026-11-06-the-source-chip-masks-its-controls-over-its-own-room.md): the controls are the published plate again, laid over the chip's trailing edge with the internal mask, and the chip no longer grows when they open. The name stays clear of them by a different means — the label reserves the room the controls need — and the invisible controls are inert until the plate is open, which this note also required. The decision below is kept as it stood.
+
 ## Alternatives considered
 
 - **Reserve the controls' width at rest.** Rejected: every source's resting chip would grow by the controls' width, which breaks the width promise [the chips-hug-their-ids note](../feature/2026-10-30-source-chips-hug-their-ids.md) makes, and a strip of wider pills fits fewer sources in the same two rows.

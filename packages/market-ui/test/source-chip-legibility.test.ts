@@ -158,37 +158,49 @@ describe('the source chip', () => {
     expect(onSelect).toHaveBeenCalledTimes(2)
   })
 
-  it('keeps the controls inert until they are open', async () => {
+  it('keeps the controls an inert overlay over the name’s own room', async () => {
     const { readFileSync } = await import('node:fs')
     const css = readFileSync('packages/market-ui/src/ui/source-strip.module.css', 'utf8')
 
-    // The controls are the chip's own last item, not a plate laid over the
-    // name: an absolute plate at the right edge is what swallowed a short
-    // name whole.
+    // The controls are the published plate again: an overlay over the chip’s
+    // trailing edge, with the internal mask (the opaque plate and the spread
+    // shadow that feathers its edge). The chip does not grow when they open.
     const plate = ruleFor(css, '.srcTabControls')
-    expect(plate).not.toMatch(/position: absolute/)
-    expect(plate).not.toMatch(/right: 0/)
-
-    // Closed, the controls take no room, so the chip stays exactly as wide as
-    // its name — the width the chips-hug-their-ids note promises.
-    expect(plate).toMatch(/max-width: 0/)
-    expect(plate).toMatch(/overflow: hidden/)
+    expect(plate).toMatch(/position: absolute/)
+    expect(plate).toMatch(/right: 0/)
+    expect(plate).toMatch(/background: inherit/)
+    expect(plate).toMatch(/box-shadow: 0 0 6px 6px/)
+    expect(plate).toMatch(/opacity: 0/)
     expect(plate).toMatch(/pointer-events: none/)
 
-    // An invisible control must never take a click meant for the name.
+    // An invisible control must never take a click meant for the name: the
+    // buttons are inert until the plate is open. `opacity: 0` does not stop a
+    // hit test, so the plate being invisible is not enough.
     expect(ruleFor(css, '.srcTabControls > button')).toMatch(/pointer-events: none/)
 
-    // Open, the controls claim their own width beside the name and take
-    // their clicks back.
+    // Hover reveals the plate; keyboard focus keeps it too, but only for
+    // focus-visible — a mouse click’s plain focus would otherwise pin the
+    // plate open on the chip the reader just picked.
     const open = ruleFor(css, '.srcTabOn:has(:focus-visible) .srcTabControls')
-    expect(open).toMatch(/max-width: 80px/)
     expect(open).toMatch(/opacity: 1/)
     expect(ruleFor(css, '.srcTabOn:has(:focus-visible) .srcTabControls > button')).toMatch(/pointer-events: auto/)
-
-    // The reveal stays hover or keyboard focus: plain focus-within would pin
-    // the controls open on the chip the reader just clicked.
     expect(css.replace(/\/\*[\s\S]*?\*\//g, '')).not.toMatch(/:focus-within/)
-    expect(css).toMatch(/\.srcTab:hover \.srcTabControls/)
+
+    // The room is on the chip, not on the label. The label carries the 220px
+    // text budget, and padding it would ellipsize the longest names 47px
+    // earlier than the published build, where they read in full.
+    expect(ruleFor(css, '.srcTabOn:has(.srcTabControls)')).toMatch(/padding-right: calc\(10px \+ var\(--src-tab-controls-room\)\)/)
+    expect(css).not.toMatch(/\.srcTabMain[^{]*\{[^}]*padding-right/)
+
+    // The room is a measured number: the plate covers 41px of the content box
+    // and the mask's feather reaches 6px further left.
+    const room = /--src-tab-controls-room: (\d+)px/.exec(css)
+    expect(room).not.toBeNull()
+    expect(Number(room![1])).toBeGreaterThanOrEqual(47)
+
+    // A chip without controls keeps the symmetric padding: the room is added
+    // on top of it, not in place of it.
+    expect(css).toMatch(/\.srcTab,\s*\.srcTabOn \{[^}]*padding: 0 10px/)
   })
 
   it('names the source the way a reader recognizes it', async () => {

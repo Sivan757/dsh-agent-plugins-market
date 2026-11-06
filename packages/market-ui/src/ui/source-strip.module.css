@@ -186,6 +186,11 @@
   width: auto;
   max-width: 100%;
   height: 24px;
+  /* The room the trailing plate needs, measured: with no room the plate's
+     left edge sits 41px inside the content box (the plate is 51px wide and
+     is placed against the padding box), and the mask's feather reaches 6px
+     further left. 47px keeps both of them out of the name. */
+  --src-tab-controls-room: 47px;
   /* The pill owns the horizontal padding so the label keeps the same gap on
      both sides whether or not trailing edit/delete controls are present. */
   padding: 0 10px;
@@ -255,53 +260,44 @@
 
 /* The trailing edit/delete controls reveal on hover (or keyboard focus) like
    the card action cluster; the selected pill keeps them on its own foreground.
-   They are the chip's own last item, not a plate laid over the name: at rest
-   they take no room at all, so a chip is exactly as wide as its name — the
-   width the chips-hug-their-ids note promises. When they open they claim their
-   own width beside the name instead of on top of it, so the name is never
-   hidden and a click on it always selects the source: a chip with room grows
-   by the controls' width, and a chip already at its cap gives the label
-   exactly the width the old plate used to cover. */
+   They ride as one plate over the chip's trailing edge, with the internal mask
+   (the opaque plate and the spread shadow that feathers its edge). The plate
+   is out of the flow, so the chip does not grow when they appear, and the
+   chip reserves the room they need in its trailing padding, so the plate
+   covers that room and never a letter of the name. */
+
 .srcTabControls {
-  flex: 0 0 auto;
-  width: auto;
-  /* Closed: the controls take no room, so the chip stays as wide as its
-     name. The cap is the opening's end point; the controls are narrower
-     than it, so the chip grows by their own width and no more. */
-  max-width: 0;
-  align-self: stretch;
+  position: absolute;
+  top: 0;
+  right: 0;
+  height: 100%;
   display: inline-flex;
   align-items: center;
-  /* The buttons sit at the chip's trailing edge, the place the card's own
-     action cluster takes, and the opening wipes them in from there. */
-  justify-content: flex-end;
   gap: 2px;
   padding: 0 6px 0 8px;
+  border-radius: inherit;
   background: inherit;
-  /* Closed, the controls are clipped away: an invisible button is neither
-     painted nor a hit target. */
-  overflow: hidden;
+  box-shadow: 0 0 6px 6px var(--dsw-alias-bg-layer-1);
   opacity: 0;
-  transition:
-    max-width 120ms ease,
-    opacity 120ms ease;
+  transition: opacity 120ms ease;
   pointer-events: none;
 }
 
-/* The buttons stay inert until the controls are open: an invisible control
-   must never take a click the reader meant for the name. */
+/* The controls are inert until the plate is open. `opacity: 0` does not stop a
+   hit test, so an invisible button is a live target: one lying over the name
+   swallows the click the reader meant for the name, and the invisible delete
+   button is one click away from the remove-source confirmation. */
 .srcTabControls > button {
   pointer-events: none;
 }
 
-/* Hover opens the controls; keyboard focus keeps them too, but only for
-   focus-visible — a mouse click's plain focus would otherwise pin them
-   open on the selected chip after the pick, which must stay hover-only. */
+/* Hover reveals the plate; keyboard focus keeps it too, but only for
+   focus-visible — a mouse click's plain focus would otherwise pin the plate
+   on the selected chip after the pick, which must stay hover-only. */
 .srcTab:hover .srcTabControls,
 .srcTab:has(:focus-visible) .srcTabControls,
 .srcTabOn:hover .srcTabControls,
 .srcTabOn:has(:focus-visible) .srcTabControls {
-  max-width: 80px;
   opacity: 1;
 }
 
@@ -314,8 +310,19 @@
 
 .srcTabOn .srcTabControls {
   background: var(--dsw-alias-brand-primary, #0f1115);
+  box-shadow: 0 0 6px 6px var(--dsw-alias-brand-primary, #0f1115);
 }
 
+/* The name ends before the plate. The chip's trailing padding reserves the
+   room the plate and its feather need, so the plate covers the chip's own
+   padding and never a letter of the name, at any name length. The room sits
+   on the chip, not on the label: the label carries the 220px text budget, and
+   padding it would ellipsize the longest names 47px earlier than the
+   published build. A chip without controls keeps the symmetric padding. */
+.srcTab:has(.srcTabControls),
+.srcTabOn:has(.srcTabControls) {
+  padding-right: calc(10px + var(--src-tab-controls-room));
+}
 @media (prefers-reduced-motion: reduce) {
   .srcTabControls {
     transition: none;
