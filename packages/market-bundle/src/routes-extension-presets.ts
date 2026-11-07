@@ -1,5 +1,5 @@
 /** Session-addressed extension APIs. Workspace authority comes from the live Agent, never request paths. */
-import { isTrustedMutation } from './request-trust.js'
+import { isTrustedMutation, requestTrustOf, type RequestTrust } from './request-trust.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { EXTENSION_ROUTES, parseExtensionIds, parseExtensionName, type ExtensionPresetInput } from '../../market-contracts/src/contracts/extension-presets.js'
 
@@ -7,6 +7,7 @@ import type { ExtensionRouteService } from '../../market-runtime/src/index.js'
 export type { ExtensionRouteService } from '../../market-runtime/src/index.js'
 interface WebHost {
   webServer: { register(route: { kind: 'exact'; path: string; handler(request: IncomingMessage, response: ServerResponse): Promise<void> }): () => void }
+  get?(name: string): unknown
 }
 function id(value: unknown): string {
   if (typeof value !== 'string' || value.length === 0 || value.length > 1024) throw new Error('invalid identifier')
@@ -36,6 +37,7 @@ function json(response: ServerResponse, status: number, value: unknown): void {
 }
 /** Mount only after session initialization has an enforcement gate. */
 export function mountExtensionPresetRoutes(host: WebHost, service: ExtensionRouteService): () => void {
+  const trust = (): RequestTrust => requestTrustOf(host)
   const disposers: Array<() => void> = []
   const add = (path: string, method: 'GET' | 'POST', action: (input: Record<string, unknown>) => Promise<string>): void => {
     disposers.push(
@@ -47,7 +49,7 @@ export function mountExtensionPresetRoutes(host: WebHost, service: ExtensionRout
             json(response, 405, { ok: false, code: 'method-not-allowed', error: 'method not allowed' })
             return
           }
-          if (!isTrustedMutation(request)) {
+          if (!isTrustedMutation(request, trust())) {
             json(response, 403, { ok: false, code: 'cross-origin', error: 'cross-origin request rejected' })
             return
           }
@@ -78,7 +80,7 @@ export function mountExtensionPresetRoutes(host: WebHost, service: ExtensionRout
           json(response, 405, { ok: false, code: 'method-not-allowed', error: 'method not allowed' })
           return
         }
-        if (!isTrustedMutation(request)) {
+        if (!isTrustedMutation(request, trust())) {
           json(response, 403, { ok: false, code: 'cross-origin', error: 'cross-origin request rejected' })
           return
         }
@@ -104,7 +106,7 @@ export function mountExtensionPresetRoutes(host: WebHost, service: ExtensionRout
           json(response, 405, { ok: false, code: 'method-not-allowed', error: 'method not allowed' })
           return
         }
-        if (!isTrustedMutation(request)) {
+        if (!isTrustedMutation(request, trust())) {
           json(response, 403, { ok: false, code: 'cross-origin', error: 'cross-origin request rejected' })
           return
         }

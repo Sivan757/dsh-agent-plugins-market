@@ -9,7 +9,7 @@
  * by the store.
  * @module routes-tab-layout
  */
-import { isTrustedMutation } from './request-trust.js'
+import { isTrustedMutation, requestTrustOf, type RequestTrust } from './request-trust.js'
 import { routeFailurePayload, type RouteLogger } from './route-errors.js'
 import { readJsonBody, sendJson } from './route-http.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -18,6 +18,7 @@ import { PINNED_TAB_KEY, WORKSPACE_TAB_KEYS, type TabLayoutWire } from '../../ma
 
 interface WebHost {
   webServer: { register(route: { kind: 'exact'; path: string; handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void> }): () => void }
+  get?(name: string): unknown
   /** Receives a failure's full detail, including the paths the browser never sees. */
   logger?: RouteLogger
 }
@@ -40,6 +41,7 @@ export interface TabLayoutRouteService {
  */
 export function mountTabLayoutRoutes(hostCtx: unknown, service: TabLayoutRouteService): () => void {
   const host = hostCtx as WebHost
+  const trust = (): RequestTrust => requestTrustOf(host)
   const disposers: Array<() => void> = []
 
   disposers.push(
@@ -57,7 +59,7 @@ export function mountTabLayoutRoutes(hostCtx: unknown, service: TabLayoutRouteSe
       kind: 'exact',
       path: MARKET_ROUTES.setTabLayout,
       handler: (request, response) => {
-        if (!isTrustedMutation(request)) {
+        if (!isTrustedMutation(request, trust())) {
           sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
           return
         }
@@ -83,7 +85,7 @@ export function mountTabLayoutRoutes(hostCtx: unknown, service: TabLayoutRouteSe
       kind: 'exact',
       path: MARKET_ROUTES.setTabOrder,
       handler: (request, response) => {
-        if (!isTrustedMutation(request)) {
+        if (!isTrustedMutation(request, trust())) {
           sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
           return
         }
