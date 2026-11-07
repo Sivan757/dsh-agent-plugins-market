@@ -24,7 +24,7 @@ import {
 } from '../../market-contracts/src/contracts/ai-draft.js'
 import type { AiDiagnoseService } from './application/ai-diagnose.js'
 import type { AiPresetService } from './application/ai-preset.js'
-import { isTrustedMutation } from './request-trust.js'
+import { isTrustedMutation, requestTrustOf, type RequestTrust } from './request-trust.js'
 import { routeFailurePayload, type RouteLogger } from './route-errors.js'
 import { readJsonBody, sendJson } from './route-http.js'
 
@@ -71,6 +71,7 @@ function looksLikeALimit(error: unknown): boolean {
  * @returns the disposer that unmounts the route.
  */
 export function mountAiDraftRoutes(ctx: { get(name: string): unknown }, deps: AiDraftRouteDeps): () => void {
+  const trust = (): RequestTrust => requestTrustOf(ctx)
   const server = ctx.get('webServer') as WebServerService | undefined
   if (server === undefined) return () => undefined
   const disposePreset = server.register({
@@ -81,7 +82,7 @@ export function mountAiDraftRoutes(ctx: { get(name: string): unknown }, deps: Ai
         sendJson(response, 405, { error: 'method not allowed' })
         return
       }
-      if (!isTrustedMutation(request)) {
+      if (!isTrustedMutation(request, trust())) {
         sendJson(response, 403, { error: 'untrusted request' })
         return
       }
@@ -133,7 +134,7 @@ export function mountAiDraftRoutes(ctx: { get(name: string): unknown }, deps: Ai
         sendJson(response, 405, { error: 'method not allowed' })
         return
       }
-      if (!isTrustedMutation(request)) {
+      if (!isTrustedMutation(request, trust())) {
         sendJson(response, 403, { error: 'untrusted request' })
         return
       }

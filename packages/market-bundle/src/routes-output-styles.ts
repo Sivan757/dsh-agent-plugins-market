@@ -14,7 +14,7 @@
  * readable; the composition root mounts both under one disposer.
  * @module routes-output-styles
  */
-import { isTrustedMutation } from './request-trust.js'
+import { isTrustedMutation, requestTrustOf, type RequestTrust } from './request-trust.js'
 import { routeFailurePayload, type RouteLogger } from './route-errors.js'
 import { queryOf, readJsonBody, sendJson } from './route-http.js'
 import { isAbsolute } from 'node:path'
@@ -37,6 +37,7 @@ export interface OutputStyleRouteDeps {
 
 interface RouteHost {
   webServer: WebServerService
+  get?(name: string): unknown
   /** Receives a failure's full detail, including the paths the browser never sees. */
   logger?: RouteLogger
 }
@@ -49,6 +50,7 @@ interface RouteHost {
  */
 export function mountOutputStyleRoutes(hostCtx: unknown, deps: OutputStyleRouteDeps): () => void {
   const host = hostCtx as RouteHost
+  const trust = (): RequestTrust => requestTrustOf(host)
   const disposers: Array<() => void> = []
   const get = (path: string, handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void>) => {
     disposers.push(host.webServer.register({ kind: 'exact', path, handler }))
@@ -59,7 +61,7 @@ export function mountOutputStyleRoutes(hostCtx: unknown, deps: OutputStyleRouteD
         kind: 'exact',
         path,
         handler: (request, response) => {
-          if (!isTrustedMutation(request)) {
+          if (!isTrustedMutation(request, trust())) {
             sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
             return
           }

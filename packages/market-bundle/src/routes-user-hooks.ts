@@ -12,7 +12,7 @@ import { USER_HOOK_EVENTS, USER_HOOK_LIMITS, USER_HOOKS_ROUTES, type UserHookEve
 import { appendUserHook } from './application/user-hooks-writer.js'
 import { createAiHookService } from './application/ai-hook.js'
 import type { AiPort } from './application/ai-port.js'
-import { isTrustedMutation } from './request-trust.js'
+import { isTrustedMutation, requestTrustOf, type RequestTrust } from './request-trust.js'
 import { routeFailurePayload, type RouteLogger } from './route-errors.js'
 import { readJsonBody, sendJson } from './route-http.js'
 
@@ -30,6 +30,7 @@ const MALFORMED = 'user-hooks-malformed'
 
 /** Mount the user-hooks routes. */
 export function mountUserHooksRoutes(ctx: { get(name: string): unknown }, deps: UserHooksRouteDeps): () => void {
+  const trust = (): RequestTrust => requestTrustOf(ctx)
   const server = ctx.get('webServer') as
     | {
         register(route: { kind: 'exact' | 'prefix'; path: string; handler: (request: IncomingMessage, response: ServerResponse) => void | Promise<void> }): () => void
@@ -55,7 +56,7 @@ export function mountUserHooksRoutes(ctx: { get(name: string): unknown }, deps: 
         sendJson(response, 405, { error: 'method not allowed' })
         return
       }
-      if (!isTrustedMutation(request)) {
+      if (!isTrustedMutation(request, trust())) {
         sendJson(response, 403, { error: 'untrusted request' })
         return
       }
@@ -84,7 +85,7 @@ export function mountUserHooksRoutes(ctx: { get(name: string): unknown }, deps: 
         sendJson(response, 405, { error: 'method not allowed' })
         return
       }
-      if (!isTrustedMutation(request)) {
+      if (!isTrustedMutation(request, trust())) {
         sendJson(response, 403, { error: 'untrusted request' })
         return
       }
