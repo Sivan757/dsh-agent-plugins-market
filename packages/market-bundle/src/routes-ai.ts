@@ -24,7 +24,7 @@ import {
 } from '../../market-contracts/src/contracts/ai-draft.js'
 import type { AiDiagnoseService } from './application/ai-diagnose.js'
 import type { AiPresetService } from './application/ai-preset.js'
-import { isTrustedMutation } from './request-trust.js'
+import { isTrustedMutation, requestTrustAuthoritiesOf } from './request-trust.js'
 import { routeFailurePayload, type RouteLogger } from './route-errors.js'
 import { readJsonBody, sendJson } from './route-http.js'
 
@@ -81,7 +81,7 @@ export function mountAiDraftRoutes(ctx: { get(name: string): unknown }, deps: Ai
         sendJson(response, 405, { error: 'method not allowed' })
         return
       }
-      if (!isTrustedMutation(request)) {
+      if (!isTrustedMutation(request, requestTrustAuthoritiesOf(ctx))) {
         sendJson(response, 403, { error: 'untrusted request' })
         return
       }
@@ -133,7 +133,7 @@ export function mountAiDraftRoutes(ctx: { get(name: string): unknown }, deps: Ai
         sendJson(response, 405, { error: 'method not allowed' })
         return
       }
-      if (!isTrustedMutation(request)) {
+      if (!isTrustedMutation(request, requestTrustAuthoritiesOf(ctx))) {
         sendJson(response, 403, { error: 'untrusted request' })
         return
       }

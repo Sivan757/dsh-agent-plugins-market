@@ -6,7 +6,7 @@
  * handlers live in their own module so the main route table stays untouched
  * by the window; the composition root mounts both under one disposer.
  */
-import { isTrustedMutation } from './request-trust.js'
+import { isTrustedMutation, requestTrustAuthoritiesOf } from './request-trust.js'
 import { routeFailurePayload, type RouteLogger } from './route-errors.js'
 import { readJsonBody, sendJson } from './route-http.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -52,7 +52,7 @@ export function mountResourceRoutes(hostCtx: unknown, deps: ResourceRouteDeps): 
         kind: 'exact',
         path,
         handler: (request, response) => {
-          if (!isTrustedMutation(request)) {
+          if (!isTrustedMutation(request, requestTrustAuthoritiesOf(hostCtx))) {
             sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
             return
           }
