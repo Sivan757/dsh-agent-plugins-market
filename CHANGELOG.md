@@ -9,6 +9,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.14.3](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.14.2...dsh-agent-plugins-market-v0.14.3) (2026-11-09)
+
+
+### Bug Fixes
+
+* **bundle:** gate market routes on the host declared authorities ([6aaeb4d](https://github.com/Sivan757/dsh-agent-plugins-market/commit/6aaeb4dc014a9c5cc0cd0e92a9a51d12cba142dc))
+* **catalog:** accept a consistent type key in Codex MCP server tables ([821501b](https://github.com/Sivan757/dsh-agent-plugins-market/commit/821501bda7dd56f353722d91adcf9d46e9e8d114))
+
 ## [0.14.2](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.14.1...dsh-agent-plugins-market-v0.14.2) (2026-11-06)
 
 
