@@ -6,7 +6,7 @@
  * cross-site form or fetch cannot trigger a clone, an uninstall, or an
  * enable/disable against a local profile.
  */
-import { isTrustedMutation } from './request-trust.js'
+import { isTrustedMutation, requestTrustAuthoritiesOf } from './request-trust.js'
 import { queryOf, readJsonBody, sendJson } from './route-http.js'
 import { isAbsolute } from 'node:path'
 import type { IncomingMessage, ServerResponse } from 'node:http'
@@ -98,7 +98,7 @@ export function mountSuiteRoutes(
         kind: 'exact',
         path,
         handler: (request, response) => {
-          if (!isTrustedMutation(request)) {
+          if (!isTrustedMutation(request, requestTrustAuthoritiesOf(hostCtx))) {
             sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
             return
           }

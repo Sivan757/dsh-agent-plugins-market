@@ -1,5 +1,5 @@
 /** Session-addressed extension APIs. Workspace authority comes from the live Agent, never request paths. */
-import { isTrustedMutation } from './request-trust.js'
+import { isTrustedMutation, requestTrustAuthoritiesOf } from './request-trust.js'
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { EXTENSION_ROUTES, parseExtensionIds, parseExtensionName, type ExtensionPresetInput } from '../../market-contracts/src/contracts/extension-presets.js'
 
@@ -47,7 +47,7 @@ export function mountExtensionPresetRoutes(host: WebHost, service: ExtensionRout
             json(response, 405, { ok: false, code: 'method-not-allowed', error: 'method not allowed' })
             return
           }
-          if (!isTrustedMutation(request)) {
+          if (!isTrustedMutation(request, requestTrustAuthoritiesOf(host))) {
             json(response, 403, { ok: false, code: 'cross-origin', error: 'cross-origin request rejected' })
             return
           }
@@ -78,7 +78,7 @@ export function mountExtensionPresetRoutes(host: WebHost, service: ExtensionRout
           json(response, 405, { ok: false, code: 'method-not-allowed', error: 'method not allowed' })
           return
         }
-        if (!isTrustedMutation(request)) {
+        if (!isTrustedMutation(request, requestTrustAuthoritiesOf(host))) {
           json(response, 403, { ok: false, code: 'cross-origin', error: 'cross-origin request rejected' })
           return
         }
@@ -104,7 +104,7 @@ export function mountExtensionPresetRoutes(host: WebHost, service: ExtensionRout
           json(response, 405, { ok: false, code: 'method-not-allowed', error: 'method not allowed' })
           return
         }
-        if (!isTrustedMutation(request)) {
+        if (!isTrustedMutation(request, requestTrustAuthoritiesOf(host))) {
           json(response, 403, { ok: false, code: 'cross-origin', error: 'cross-origin request rejected' })
           return
         }

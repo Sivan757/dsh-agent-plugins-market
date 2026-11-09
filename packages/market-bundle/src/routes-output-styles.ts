@@ -14,7 +14,7 @@
  * readable; the composition root mounts both under one disposer.
  * @module routes-output-styles
  */
-import { isTrustedMutation } from './request-trust.js'
+import { isTrustedMutation, requestTrustAuthoritiesOf } from './request-trust.js'
 import { routeFailurePayload, type RouteLogger } from './route-errors.js'
 import { queryOf, readJsonBody, sendJson } from './route-http.js'
 import { isAbsolute } from 'node:path'
@@ -59,7 +59,7 @@ export function mountOutputStyleRoutes(hostCtx: unknown, deps: OutputStyleRouteD
         kind: 'exact',
         path,
         handler: (request, response) => {
-          if (!isTrustedMutation(request)) {
+          if (!isTrustedMutation(request, requestTrustAuthoritiesOf(hostCtx))) {
             sendJson(response, 403, { ok: false, error: 'cross-origin request rejected' })
             return
           }
