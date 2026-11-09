@@ -9,6 +9,33 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.14.2](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.14.1...dsh-agent-plugins-market-v0.14.2) (2026-11-06)
+
+
+### Features
+
+* **cards:** the destructive action lives on the card again ([6f8d13d](https://github.com/Sivan757/dsh-agent-plugins-market/commit/6f8d13d5097ca7bd7f155b2a65843783e73b7c9c))
+* **market:** a skills-only source is named by its owner and its repository ([3c26db6](https://github.com/Sivan757/dsh-agent-plugins-market/commit/3c26db6b08b8ffce0cb2b746244bbe016251f7bf))
+* **market:** the market filters by enabled and disabled ([8c0851a](https://github.com/Sivan757/dsh-agent-plugins-market/commit/8c0851a1772cdd8982bea8a8a67a533a285465d0))
+
+
+### Bug Fixes
+
+* **dialogs:** a dialog footer's action row is one button size ([7a21af3](https://github.com/Sivan757/dsh-agent-plugins-market/commit/7a21af37b91da9bda9a0ef6613fc22e0cfe49c34))
+* **extension-presets:** a preset built from a suggestion stores the rows it named ([5599aaf](https://github.com/Sivan757/dsh-agent-plugins-market/commit/5599aafa9cda12997c2a767f8f5ba7b62559afa1))
+* **market-runtime:** a child session answers with its parent's committed selection ([8bc20c8](https://github.com/Sivan757/dsh-agent-plugins-market/commit/8bc20c87ed31d4d2bbfa0dac85746cac582987d3))
+* **market-runtime:** work against the 0.2.2-rc.1 host line ([6c39e12](https://github.com/Sivan757/dsh-agent-plugins-market/commit/6c39e1267e8bedfd03da1ceff5cdf724f2ce4dfe))
+* **market:** the source chip keeps its name clear of its controls ([c6fbe4f](https://github.com/Sivan757/dsh-agent-plugins-market/commit/c6fbe4fa82f3d2e45e996aff0569a9129fa73d2a))
+* **market:** the source chip masks its controls over its name ([2dee316](https://github.com/Sivan757/dsh-agent-plugins-market/commit/2dee3162be85837a3bba313e10d7de15293bfd1b))
+* **market:** the source chip masks its controls over its own room ([079d413](https://github.com/Sivan757/dsh-agent-plugins-market/commit/079d4130a8419a6abd2ae7ba5b8ed66b72e1ec95))
+* **mcp:** the bridge registers against the host's own types ([be53603](https://github.com/Sivan757/dsh-agent-plugins-market/commit/be53603b0ac357a0ab77bb0784b9ce763dba6926))
+* **mcp:** the MCP mount startup budget is thirty seconds ([e51d59c](https://github.com/Sivan757/dsh-agent-plugins-market/commit/e51d59cc0baae38fec8450c86fd96604ac427fda))
+
+
+### Miscellaneous Chores
+
+* **release:** pin this release to 0.14.2 ([fe800e5](https://github.com/Sivan757/dsh-agent-plugins-market/commit/fe800e588438c549a5bcd604c0b473f7ac63ea1d))
+
 ## [0.14.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.14.0...dsh-agent-plugins-market-v0.14.1) (2026-11-04)
 
 
