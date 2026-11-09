@@ -3,6 +3,7 @@ import type { McpServer, McpServerPolicy } from '../../../market-contracts/src/m
 import { PLUGIN_DATA_VARIABLES, PLUGIN_ROOT_VARIABLES } from '../../../market-contracts/src/model/layouts.js'
 
 const FIELDS = new Set([
+  'type',
   'command',
   'args',
   'env',
@@ -49,6 +50,17 @@ function timeout(value: unknown, field: string, factor: number): number | undefi
   return Math.max(1, Math.ceil(value * factor))
 }
 
+const SERVER_TYPES = new Set(['stdio', 'http', 'sse', 'streamable-http', 'streamable_http'])
+
+/** A declared `type` must agree with the transport the table's fields imply; Codex itself never writes the key and ignores unknown fields. */
+function declaredType(value: Record<string, unknown>, stdio: boolean): void {
+  if (value.type === undefined) return
+  const declared = text(value.type, 'type')
+  if (!SERVER_TYPES.has(declared)) throw new Error('type must be one of stdio, http, sse, streamable-http, streamable_http')
+  if (stdio && declared !== 'stdio') throw new Error(`type "${declared}" cannot be combined with a stdio command`)
+  if (!stdio && declared === 'stdio') throw new Error(`type "${declared}" cannot be combined with an HTTP endpoint`)
+}
+
 /** Unknown or malformed server options reject that server; other servers stay independently usable. */
 export function normalizeCodexMcp(raw: Record<string, unknown>, errors: string[]): Record<string, McpServer> {
   const servers: Record<string, McpServer> = Object.create(null) as Record<string, McpServer>
@@ -73,6 +85,7 @@ export function normalizeCodexMcp(raw: Record<string, unknown>, errors: string[]
       if (value.command !== undefined) {
         if (['url', 'http_headers', 'env_http_headers', 'bearer_token_env_var'].some(key => value[key] !== undefined))
           throw new Error('HTTP options cannot be combined with a stdio command')
+        declaredType(value, true)
         const inherited = Object.fromEntries((strings(value.env_vars, 'env_vars') ?? []).map(key => [key, reference(key, 'env_vars')]))
         servers[name] = {
           ...policy,
@@ -86,6 +99,7 @@ export function normalizeCodexMcp(raw: Record<string, unknown>, errors: string[]
         if (['args', 'env', 'env_vars', 'cwd'].some(key => value[key] !== undefined)) throw new Error('stdio options cannot be combined with an HTTP endpoint')
         const url = text(value.url, 'url')
         if (!['https:', 'http:'].includes(new URL(url).protocol)) throw new Error('url must use HTTP or HTTPS')
+        declaredType(value, false)
         const headers = {
           ...table(value.http_headers, 'http_headers'),
           ...Object.fromEntries(Object.entries(table(value.env_http_headers, 'env_http_headers')).map(([key, variable]) => [key, reference(variable, 'env_http_headers')]))
