@@ -113,10 +113,13 @@ function ResourceDetail({ resource, t, showOriginal, onClose }: ExtensionDetailP
   if (address.kind === 'instructions') {
     const row = chain === undefined ? undefined : chain.rows.find(entry => [entry.scope, entry.directory, entry.candidate].join('/') === address.entryId)
     if (row === undefined) {
+      // A chain that has answered is not still loading: the file this row was listed for is
+      // no longer in it. Say so, instead of leaving the reader in a state that never ends.
+      const answered = chain !== undefined
       return h(
         DetailModal,
         { open: true, title: resource.name, closeLabel: t('epClose'), onClose },
-        h('p', { role: error ? 'alert' : 'status', className: panelCss.detailProse }, error || t('epLoading'))
+        h('p', { role: error !== '' || answered ? 'alert' : 'status', className: panelCss.detailProse }, error || t(answered ? 'epInstructionMissing' : 'epLoading'))
       )
     }
     return h(InstructionDetail, { t: translate, row, budget: chain?.budget ?? 0, onClose })

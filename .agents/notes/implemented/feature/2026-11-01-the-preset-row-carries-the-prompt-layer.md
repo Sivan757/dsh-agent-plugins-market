@@ -12,7 +12,7 @@ The reason was a data model, not a preference: `enabledIds` accepted only `marke
 
 - **Both faces exist.** `ExtensionPresetFace` gains `instructions` and `outputStyles`, the id grammar accepts both prefixes, and `PRESET_FACES` lists all nine in the workspace's own order. The two rows are the same row: same rail, same list, same card.
 - **A style is a real choice.** The inventory lists every style as a row whose `globalEnabled` is "this is the selected one", the manager's toggle drops the other `outputStyles:` ids before adding this one, and selecting the preset calls a new `applyOutputStyle` port, so the style is actually selected rather than merely recorded.
-- **An instruction file is listed, never toggled.** The host injects every existing file and has no per-file switch, so the row carries `unavailableReason: 'instructions-no-switch'`: the card hides its switch, says 会注入 / 不注入 instead of 已启用 / 已停用, tags the scope (`系统提示词 · 用户级` or `· 项目`), and the dialog explains why. Both user-global roots and every project directory appear, because the chain does.
+- **An instruction file is listed, never toggled.** The host injects every existing file and has no per-file switch, so the row carries `unavailableReason: 'instructions-no-switch'`: the card hides its switch, says 会注入 / 不注入 instead of 已启用 / 已停用, tags the scope (`系统提示词 · 用户级` or `· 项目`), and the dialog explains why. Both user-global roots and every project directory appear, because the chain does. The address names the session the row was listed for: the chain is per session, and a read with no session answers for the user level only, so a project row's entry id is never in that payload.
 - **The boundary line is rewritten** now that both faces are in the row: it says a style is one choice and instructions have no switch, instead of claiming the prompt layer is "handled by the workspace".
 
 ## Alternatives considered
@@ -32,9 +32,11 @@ The user pages said "click a resource card or its switch to enable or disable it
 - The preset manager and the settings page show the same nine faces.
 - Switching to a preset that carries a style changes the workspace's style; a failure there is caught and leaves the capabilities applied.
 - An instruction row is honest about being read-only, and says which half of the chain it belongs to.
+- A project file opens on the session's own chain. A chain that has answered without the file reports that the file is no longer in it, instead of leaving the dialog on 加载中.
 
 ## Verification
 
 - Live in `market-dev`: the manager's rail reads 市场 技能 专家 快捷指令 连接器 语言引擎系统提示词 输出风格 钩子, and the 系统提示词 face lists three rows — `~/.dsh/AGENTS.md` (系统提示词 · 用户级, 会注入, 6880 bytes) plus the project's `AGENTS.md` (11092 bytes) and `AGENTS.local.md` (7352 bytes) — each without a switch. The 输出风格 face renders empty here because this workspace has no styles yet, which is what the settings tab says too.
 - `packages/market-ui/test/workspace-tab-meta.test.ts` pins a face for both prompt keys; `tab-layout-sharing.test.ts` pins that both rows carry them; `packages/market-bundle/test/integration/client-extension-preset-v5.test.ts` pins the nine labels, in order, in a localized build.
+- `packages/market-bundle/test/integration/extension-instructions-inventory.test.ts` pins the row's address carrying the session id, and omitting it when the read has none; `client-extension-preset-details.test.ts` pins the dialog reading the chain through that session and reporting a chain that no longer lists the file.
 - The four typechecks, `check:refactor` and the full suite pass.
