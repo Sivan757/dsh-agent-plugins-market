@@ -74,6 +74,7 @@ minimumReleaseAgeExclude:
   - '@deepseek-ai/dsh-util-workspace-path@0.2.2-rc.1'
   - '@deepseek-ai/dsh-working-directory@0.2.2-rc.1'
   - '@deepseek-ai/schemastery@3.18.4 || 3.18.5'
+  - minimatch@11.0.7
 packages:
   - docs-site
   - packages/*
@@ -100,6 +101,13 @@ overrides:
   # exactly, on 0.2.1-rc.3 and on rc.2 alike. 2.3.0 is the first release that clears
   # its advisory, and its own exact @modelcontextprotocol/core "2.3.0" follows.
   '@modelcontextprotocol/client': 2.3.0
+  # eslint 10.14 declares minimatch ^10.2.6, whose regex engine is the subject of
+  # GHSA-g3hv-75wg-m249 (globParts amplification on pathological patterns).
+  # minimatch 11 replaces that engine with a non-recursive matcher; the public API
+  # eslint uses (the Minimatch class with dot: true) is unchanged, and the repo's
+  # own lint run exercises every configured pattern. Like the overrides above, this
+  # one raises the development tree only: pnpm-workspace.yaml never ships.
+  minimatch: 11.0.7
   # The host family pins zod exactly (4.4.3), and a plugin schema crosses into the
   # host's ProjectionDefinition. One physical copy is required: a second copy makes
   # the host's ZodType nominal, so the plugin's schema no longer matches it.

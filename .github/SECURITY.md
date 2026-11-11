@@ -84,9 +84,9 @@ Raising this override to `4.6.6` breaks the host contract described above. Closi
 
 ## What the overrides do not change / override 不改动什么
 
-The `undici` and `@modelcontextprotocol/client` overrides raise dependencies in this repository's development tree only. They ship to nobody.
+The `undici`, `@modelcontextprotocol/client` and `minimatch` overrides raise dependencies in this repository's development tree only. They ship to nobody.
 
-`undici` 与 `@modelcontextprotocol/client` 两条 override 只提升本仓库开发树里的依赖，它们不会交付给任何使用者。
+`undici`、`@modelcontextprotocol/client` 与 `minimatch` 三条 override 只提升本仓库开发树里的依赖，它们不会交付给任何使用者。
 
 pnpm applies `overrides` from `pnpm-workspace.yaml`, and that file is not in the `package.json` `files` list. `npm pack` leaves it out of the tarball, so the published artifact carries no overrides. A consumer profile resolves `@deepseek-ai/dsh-mcp-client` from npm, and that package still declares `@modelcontextprotocol/client` `2.2.0` exactly on the `0.2.1-rc.3` line.
 
