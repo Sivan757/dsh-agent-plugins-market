@@ -9,6 +9,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.14.4](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.14.3...dsh-agent-plugins-market-v0.14.4) (2026-11-11)
+
+
+### Bug Fixes
+
+* **presets:** open a project instruction row in its own session chain ([f1d63d7](https://github.com/Sivan757/dsh-agent-plugins-market/commit/f1d63d756743e99a8c0c15073094c221276f2ddd))
+
 ## [0.14.3](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.14.2...dsh-agent-plugins-market-v0.14.3) (2026-11-09)
 
 
