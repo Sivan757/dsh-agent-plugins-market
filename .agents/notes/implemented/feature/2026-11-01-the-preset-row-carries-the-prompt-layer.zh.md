@@ -12,7 +12,7 @@ Status: implemented
 
 - **两个面都加上。** `ExtensionPresetFace` 增加 `instructions` 与 `outputStyles`，id 语法接受这两个前缀，`PRESET_FACES` 按工作区自己的顺序列出九个。两行与其它行完全同构：同一条轨道、同一张清单、同一种卡片。
 - **风格是真实的选择。** 清单把每种风格列成一行，`globalEnabled` 表示「当前选中的是它」；管理器的开关会先去掉其它 `outputStyles:` id 再加这一个；选中预设时调用新增的 `applyOutputStyle` 端口，于是风格**真的被选中**，而不只是被记录。
-- **提示词文件只列，不给开关。** 宿主注入每个存在的文件，没有按文件的开关，所以这一行带 `unavailableReason: 'instructions-no-switch'`：卡片隐藏开关、状态写「会注入 / 不注入」而不是「已启用 / 已停用」、标注作用域（`系统提示词 · 用户级` 或 `· 项目`），详情解释原因。两个用户级根目录与每个项目目录都出现，因为链条里有。
+- **提示词文件只列，不给开关。** 宿主注入每个存在的文件，没有按文件的开关，所以这一行带 `unavailableReason: 'instructions-no-switch'`：卡片隐藏开关、状态写「会注入 / 不注入」而不是「已启用 / 已停用」、标注作用域（`系统提示词 · 用户级` 或 `· 项目`），详情解释原因。两个用户级根目录与每个项目目录都出现，因为链条里有。地址带上列出这一行的会话：链条按会话读取，无会话的读取只作答用户级，项目行的 entry id 永远不会出现在那份载荷里。
 - **边界说明重写**：现在两个面都在行里了，它说的是一句话——风格是单选、提示词文件没有开关——而不是「提示词层由 workspace 管理」。
 
 ## Alternatives considered
@@ -32,9 +32,11 @@ Status: implemented
 - 预设管理器与设置页显示同样九个页签。
 - 切到携带风格的预设会改变工作区的风格；该步骤失败会被捕获，已应用的能力不受影响。
 - 提示词行诚实地表明自己只读，并说明属于链条的哪一半。
+- 项目文件在它自己会话的链条上打开。链条已经作答却没有这个文件时，详情说明它已不在链条里，而不是把「加载中」一直留在那里。
 
 ## Verification
 
 - 在 `market-dev` 实测：管理器的轨道读作 市场 技能 专家 快捷指令 连接器 语言引擎 系统提示词 输出风格 钩子；系统提示词面列出三行——`~/.dsh/AGENTS.md`（系统提示词 · 用户级、会注入、6880 bytes）以及项目的 `AGENTS.md`（11092 bytes）与 `AGENTS.local.md`（7352 bytes）——都没有开关。输出风格面在这里是空的，因为这个工作区还没有任何风格，设置页的输出风格页签也这么说。
 - `packages/market-ui/test/workspace-tab-meta.test.ts` 钉住两个提示词键都有面；`tab-layout-sharing.test.ts` 钉住两行都携带它们；`packages/market-bundle/test/integration/client-extension-preset-v5.test.ts` 钉住本地化构建下九个标签的顺序。
+- `packages/market-bundle/test/integration/extension-instructions-inventory.test.ts` 钉住行的地址携带会话 id、无会话的读取不带；`client-extension-preset-details.test.ts` 钉住详情按该会话读链条，并在链条不再列出该文件时报告出来。
 - 四个类型检查、`check:refactor` 与全量测试通过。

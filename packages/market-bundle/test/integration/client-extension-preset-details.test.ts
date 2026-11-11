@@ -6,12 +6,14 @@ import { ExtensionDetailView } from '../../../../packages/market-ui/src/workspac
 import { McpDetailModal } from '../../../../packages/market-ui/src/features/mcp/McpDetailModal.js'
 import type { ExtensionResource } from '../../../../packages/market-contracts/src/contracts/extension-presets.js'
 import type { McpStatusEntry } from '../../../../packages/market-contracts/src/contracts/mcp-status.js'
+import type { InstructionsPayload } from '../../../../packages/market-contracts/src/contracts/instructions.js'
 import type { LspStatusEntry } from '../../../../packages/market-contracts/src/contracts/lsp-status.js'
 import * as api from '../../../../packages/market-ui/src/api.js'
 vi.mock('../../../../packages/market-ui/src/api.js', async original => ({
   ...(await original<typeof import('../../../../packages/market-ui/src/api.js')>()),
   fetchMcpStatus: vi.fn(),
   fetchLspStatus: vi.fn(),
+  fetchInstructions: vi.fn(),
   setMcpServerTool: vi.fn(),
   retryMcpMounts: vi.fn(),
   reauthorizeMcpServer: vi.fn()
@@ -129,6 +131,62 @@ it('uses the full LSP detail rather than navigating to settings', async () => {
   expect(document.body.textContent).toContain('typescript-language-server --stdio')
   expect(document.body.textContent).toContain('.ts')
   expect(document.body.textContent).not.toContain('epPanel')
+})
+/** The chain a preset window was built from: the user-level file, and the project's beside it. */
+const userFile: InstructionsPayload['rows'][number] = {
+  scope: 'user-global',
+  directory: '.',
+  candidate: 'AGENTS.md',
+  displayPath: '$DSH_HOME/AGENTS.md',
+  path: '/home/.dsh/AGENTS.md',
+  exists: true,
+  status: 'loaded',
+  size: 8,
+  content: '# User\n'
+}
+const projectFile: InstructionsPayload['rows'][number] = {
+  scope: 'project',
+  directory: '.',
+  candidate: 'AGENTS.md',
+  displayPath: 'AGENTS.md',
+  path: '/work/project/AGENTS.md',
+  exists: true,
+  status: 'loaded',
+  size: 12,
+  content: '# Project\n'
+}
+const chain = (rows: InstructionsPayload['rows']): InstructionsPayload => ({
+  available: true,
+  cwd: '/work/project',
+  projectRoot: '/work/project',
+  budget: 65536,
+  maxSourceBytes: 1_048_576,
+  total: 20,
+  rows,
+  rendered: { text: '', omitted: [], truncated: [] }
+})
+/** The project-level row a preset lists; its address names the session it was read for. */
+const projectInstruction = (): ExtensionResource => ({
+  id: 'instructions:project/./AGENTS.md',
+  face: 'instructions',
+  name: 'AGENTS.md',
+  source: '/work/project',
+  available: true,
+  detail: { kind: 'instructions', entryId: 'project/./AGENTS.md', sessionId: 'session-1' }
+})
+it('opens a project instruction through the session its row was listed for', async () => {
+  // The chain is per session. Read without one, the server answers for the user level
+  // only and the project row this dialog was opened for is never in the payload.
+  vi.mocked(api.fetchInstructions).mockResolvedValue(chain([userFile, projectFile]))
+  await render(projectInstruction())
+  expect(api.fetchInstructions).toHaveBeenCalledWith('session-1')
+  expect(document.querySelector('[data-instruction-preview]')?.textContent).toBe('# Project\n')
+})
+it('reports a chain that no longer lists the file instead of loading forever', async () => {
+  vi.mocked(api.fetchInstructions).mockResolvedValue(chain([userFile]))
+  await render(projectInstruction())
+  expect(document.body.textContent).toContain('epInstructionMissing')
+  expect(document.body.textContent).not.toContain('epLoading')
 })
 it('ignores late success from a previously selected resource', async () => {
   let resolve!: (value: Awaited<ReturnType<typeof api.fetchMcpStatus>>) => void

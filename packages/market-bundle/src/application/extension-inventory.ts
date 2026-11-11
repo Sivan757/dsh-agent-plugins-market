@@ -503,7 +503,10 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
         available: row.status === 'loaded' || row.status === 'truncated',
         globalEnabled: true,
         unavailableReason: 'instructions-no-switch',
-        detail: { kind: 'instructions', entryId: [row.scope, row.directory, row.candidate].join('/') }
+        // The chain is per session: with no session named, the read answers for the user
+        // level only, so a project row's entry id is never found there. The address names the
+        // session the row was listed for, exactly as an MCP or LSP row does.
+        detail: { kind: 'instructions', entryId: [row.scope, row.directory, row.candidate].join('/'), ...(options.sessionId === undefined ? {} : { sessionId: options.sessionId }) }
       })
     }
   }
