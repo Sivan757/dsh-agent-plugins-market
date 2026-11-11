@@ -9,6 +9,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.14.5](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.14.4...dsh-agent-plugins-market-v0.14.5) (2026-11-11)
+
+
+### Bug Fixes
+
+* **catalog:** trim trailing slashes in one pass ([0f9fd80](https://github.com/Sivan757/dsh-agent-plugins-market/commit/0f9fd80825948cff1793685ee9957422603b6f40))
+
 ## [0.14.4](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.14.3...dsh-agent-plugins-market-v0.14.4) (2026-11-11)
 
 
