@@ -249,7 +249,7 @@ importers:
         version: 2.1.1
       dependency-cruiser:
         specifier: ^18.4.0
-        version: 18.7.0
+        version: 18.7.2
       diff:
         specifier: ^9.0.0
         version: 9.0.0
@@ -2165,8 +2165,8 @@ packages:
     resolution: {integrity: sha512-g7nH6P6dyDioJogAAGprGpCtVImJhpPk/roCzdb3fIh61/s/nPsfR6onyMwkCAR/OlC3yBC0lESvUoQEAssIrw==}
     engines: {node: '>= 0.8'}
 
-  dependency-cruiser@18.7.0:
-    resolution: {integrity: sha512-WexT4OswA6Gy86ms2J7SJ4FJscN43dyS+i5skpbtXlPTFQW4yWbontjFip1TOBAVnc+U+9zdH0a56YTRZX/IGw==}
+  dependency-cruiser@18.7.2:
+    resolution: {integrity: sha512-3Pkco0Kx3GI8tG6DTUDfl9RSZVOXMqD+lvili8m0qw2+zhGFcZMyPspUgb7Crqps1UkL23SFXslpj7a9hj11+A==}
     engines: {node: ^22||^24||>=26}
     hasBin: true
 
@@ -2211,6 +2211,10 @@ packages:
 
   enhanced-resolve@5.26.0:
     resolution: {integrity: sha512-9vhedylFonb2YGogzUKX6+Ja72gOJbN1QHAqdrvqLwhdl/QWbKopzoUC9EbQNVsAns/bx/4uyqalrQAoy1IByw==}
+    engines: {node: '>=10.13.0'}
+
+  enhanced-resolve@5.26.1:
+    resolution: {integrity: sha512-PPnnSJq3azKOIewXR/uppBV/6h98dprBJ/WaQ9Qgj10xX1lJLNfg+XShpbsrSqcDSy2yYYyhfXM1wWhftqgyzw==}
     engines: {node: '>=10.13.0'}
 
   entities@7.0.1:
@@ -2471,10 +2475,6 @@ packages:
     resolution: {integrity: sha512-hsBTNUqQTDwkWtcdYI2i06Y/nUBEsNEDJKjWdigLvegy8kDuJAS8uRlpkkcQpyEXL0Z/pjDy5HBmMjRCJ2gq+g==}
     engines: {node: '>= 4'}
 
-  ignore@7.0.12:
-    resolution: {integrity: sha512-/8UvqAPU9DGTI9k4mxtf49U37Isfwr8Uts96+SBHIkFxPJnHS0Ew4f00sM4Scd8V8EjM0jUNtVDdv1kPdt35lg==}
-    engines: {node: '>= 4'}
-
   ignore@7.0.14:
     resolution: {integrity: sha512-wCBiZ77u1tuWde6G/nfOtLaCTYcFDU5yCzARzK10y+rLhzYoL7a7yEemcopcc2Mzow7gZOIjnV2ym1NYmdiJOQ==}
     engines: {node: '>= 4'}
@@ -2509,8 +2509,8 @@ packages:
     resolution: {integrity: sha512-0KI/607xoxSToH7GjN1FfSbLoU0+btTicjsQSWQlh/hZykN8KpmMf7uYwPW3R+akZ6R/w18ZlXSHBYXiYUPO3g==}
     engines: {node: '>= 0.10'}
 
-  is-core-module@2.17.0:
-    resolution: {integrity: sha512-J/vG0zBCbIKOQFfufSwyXdMrsohyJIUNkrnmo6WZGzoM7tr/lsbfW5b2BvisL6zsyMzK9UxV9L6c7AoFbyXHOA==}
+  is-core-module@2.18.0:
+    resolution: {integrity: sha512-qyax9fgaKOEC4qK8WZn7Q4IcoZC9RC1O1fFxRcRTq/oMMkWT/uXpqpXa12kzWR409zAt1drYN9N9BO26UmBCmw==}
     engines: {node: '>= 0.4'}
 
   is-extglob@2.1.1:
@@ -3124,6 +3124,11 @@ packages:
 
   semver@7.8.5:
     resolution: {integrity: sha512-Y7/KDsb8LjooZpwaqGyulO6DQlksgCncchHGk+sZIY4SBvUocMBEFH5Ur1fI4dV+Jvl0w6cjvucaIi40puRioA==}
+    engines: {node: '>=10'}
+    hasBin: true
+
+  semver@7.8.6:
+    resolution: {integrity: sha512-9lpSSU4Mly3mrtruwLs1eLK6+gzbzqeBFwRNjIjE+9LuDpWdYctrQlQ3ej1Ilgi7gknpsTRnPoLP8DpCHqHIJw==}
     engines: {node: '>=10'}
     hasBin: true
 
@@ -5291,7 +5296,7 @@ snapshots:
 
   depd@2.0.0: {}
 
-  dependency-cruiser@18.7.0:
+  dependency-cruiser@18.7.2:
     dependencies:
       acorn: 8.19.0
       acorn-jsx: 5.3.2(acorn@8.19.0)
@@ -5300,7 +5305,7 @@ snapshots:
       acorn-walk: 8.3.5
       commander: 15.0.0
       enhanced-resolve: 5.26.0
-      ignore: 7.0.12
+      ignore: 7.0.14
       interpret: 3.1.1
       is-installed-globally: 1.0.1
       json5: 2.2.3
@@ -5308,7 +5313,7 @@ snapshots:
       prompts: 2.4.2
       rechoir: 0.8.0
       safe-regex: 2.1.1
-      semver: 7.8.5
+      semver: 7.8.6
       tsconfig-paths-webpack-plugin: 4.2.0
       watskeburt: 6.0.0
 
@@ -5337,6 +5342,11 @@ snapshots:
   encodeurl@2.0.0: {}
 
   enhanced-resolve@5.26.0:
+    dependencies:
+      graceful-fs: 4.2.11
+      tapable: 2.3.3
+
+  enhanced-resolve@5.26.1:
     dependencies:
       graceful-fs: 4.2.11
       tapable: 2.3.3
@@ -5649,8 +5659,6 @@ snapshots:
 
   ignore@5.3.2: {}
 
-  ignore@7.0.12: {}
-
   ignore@7.0.14: {}
 
   immer@11.2.9: {}
@@ -5669,7 +5677,7 @@ snapshots:
 
   ipaddr.js@1.9.1: {}
 
-  is-core-module@2.17.0:
+  is-core-module@2.18.0:
     dependencies:
       hasown: 2.0.4
 
@@ -6382,7 +6390,7 @@ snapshots:
   resolve@1.22.13:
     dependencies:
       es-errors: 1.3.0
-      is-core-module: 2.17.0
+      is-core-module: 2.18.0
       path-parse: 1.0.7
       supports-preserve-symlinks-flag: 1.0.0
 
@@ -6450,6 +6458,8 @@ snapshots:
       loose-envify: 1.4.0
 
   semver@7.8.5: {}
+
+  semver@7.8.6: {}
 
   send@1.2.1(supports-color@7.2.0):
     dependencies:
@@ -6609,7 +6619,7 @@ snapshots:
   tsconfig-paths-webpack-plugin@4.2.0:
     dependencies:
       chalk: 4.1.2
-      enhanced-resolve: 5.26.0
+      enhanced-resolve: 5.26.1
       tapable: 2.3.3
       tsconfig-paths: 4.2.0
 
