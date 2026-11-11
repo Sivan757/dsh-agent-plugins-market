@@ -10,7 +10,15 @@
 import { homedir } from 'node:os'
 import { join, posix, resolve, win32 } from 'node:path'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { expandHome, isWithin, isWithinUnder, resolveAgentsRoot, resolveDshHome } from '../../../packages/market-catalog/src/scanning/paths.js'
+import {
+  deriveSourceIdCandidates,
+  expandHome,
+  isWithin,
+  isWithinUnder,
+  parseRemoteRepository,
+  resolveAgentsRoot,
+  resolveDshHome
+} from '../../../packages/market-catalog/src/scanning/paths.js'
 
 const win32Cases: Array<{ name: string; root: string; candidate: string; contained: boolean }> = [
   {
@@ -91,6 +99,21 @@ describe('isWithin', () => {
     expect(isWithin(root, root)).toBe(true)
     expect(isWithin(root, resolve(root, '..', 'outside'))).toBe(false)
     expect(isWithin(root, `${root}sibling`)).toBe(false)
+  })
+})
+
+describe('remote URL parsing', () => {
+  it('trims a trailing slash run in one pass, however long it is', () => {
+    // A source URL arrives from marketplace data, so the run is not bounded by
+    // us. The anchored regex this replaced was quadratic on it.
+    const slashes = '/'.repeat(200_000)
+    expect(parseRemoteRepository('https://github.com/jeecgboot/skills' + slashes)).toEqual({ owner: 'jeecgboot', base: 'skills' })
+    expect(deriveSourceIdCandidates('git@github.com:jeecgboot/skills.git' + slashes)).toEqual(['skills', 'jeecgboot-skills'])
+  })
+
+  it('keeps the local-path rules for a trailing separator', () => {
+    expect(parseRemoteRepository('/Users/me/repos/my-plugin///')).toBeUndefined()
+    expect(deriveSourceIdCandidates('/Users/me/repos/my-plugin///')).toEqual(['my-plugin'])
   })
 })
 

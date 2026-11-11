@@ -182,6 +182,22 @@ export function sanitizeId(raw: string): string {
   return cleaned === '' ? 'unnamed' : cleaned
 }
 
+/**
+ * Drop every trailing slash in one pass.
+ *
+ * The anchored regex this replaces scanned the run once from each starting
+ * position, which is quadratic on a URL that ends in many slashes; a source URL
+ * comes from marketplace data, so the count is not bounded by us.
+ *
+ * @param value - the URL or path to trim.
+ * @returns the same string without trailing `/` characters.
+ */
+function trimTrailingSlashes(value: string): string {
+  let end = value.length
+  while (end > 0 && value.charCodeAt(end - 1) === 0x2f) end -= 1
+  return end === value.length ? value : value.slice(0, end)
+}
+
 /** Strip a trailing `.git` or archive suffix (`plugin-0.1.zip` → `plugin-0-1`). */
 function stripSourceSuffix(base: string): string {
   const withoutGit = base.endsWith('.git') ? base.slice(0, -4) : base
@@ -213,7 +229,7 @@ export interface RemoteRepository {
  * @returns the owner and repository, or undefined for a local path.
  */
 export function parseRemoteRepository(url: string): RemoteRepository | undefined {
-  const trimmed = url.trim().replace(/\/+$/, '')
+  const trimmed = trimTrailingSlashes(url.trim())
   const isRemote = /^[a-z][a-z0-9+.-]*:\/\//i.test(trimmed) || /^[\w.-]+@[\w.-]+:/.test(trimmed)
   if (!isRemote) return undefined
   const hostPath = trimmed.replace(/^[a-z][a-z0-9+.-]*:\/\//i, '').replace(/^[\w.-]+@([\w.-]+):/, '$1/')
@@ -234,7 +250,7 @@ export function parseRemoteRepository(url: string): RemoteRepository | undefined
  * of numeric suffixes. Local paths yield the basename only.
  */
 export function deriveSourceIdCandidates(url: string): string[] {
-  const trimmed = url.trim().replace(/\/+$/, '')
+  const trimmed = trimTrailingSlashes(url.trim())
   const base = stripSourceSuffix(trimmed.split(/[/\\]/).at(-1) ?? '')
   const primary = sanitizeId(base)
   const candidates = [primary]
