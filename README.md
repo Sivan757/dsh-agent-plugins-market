@@ -97,6 +97,8 @@ The workspace has nine tabs:
 
 A **source** is where content comes from. A **suite** is an installable unit discovered there. Adding a source discovers its suites. Enabling a suite turns its runtime capabilities on.
 
+Session startup and resource panels read sources with installed suites. Managed sources reuse discovery indexes across restarts. Local and adopted sources recheck installed suite directories on demand. Opening Market discovers other configured sources as needed. See [discovery and refresh](docs/user/sources.md#discovery-and-refresh) for when edits become visible.
+
 Your own content lives under `~/.agents/`: skills, commands and personas as Markdown, hooks in `hooks.json`, and the MCP and LSP services you add in `mcp.json` and `lsp.json`. The [instructions guide](https://sivan757.github.io/dsh-agent-plugins-market/docs/instructions/) explains the AGENTS.md chain the host injects and the page that edits it, and the [output styles guide](https://sivan757.github.io/dsh-agent-plugins-market/docs/output-styles/) explains the block that shapes each answer. Project-native resources stay in the project. See [storage and discovery](https://sivan757.github.io/dsh-agent-plugins-market/docs/resources/#storage-and-discovery).
 
 ## Compatibility

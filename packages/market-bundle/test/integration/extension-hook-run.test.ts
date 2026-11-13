@@ -60,7 +60,7 @@ const command = (text: string, timeout?: number): { type: 'command'; command: st
 function catalogDouble(): Parameters<typeof resolveHookDeclaration>[0] {
   return {
     enabledUserSuites: async () => [],
-    overview: async () => ({ sources: [], suites: [], totals: { all: 0, installed: 0, enabled: 0 }, roots: { user: '/tmp', data: '/tmp' } }),
+    installedOverview: async () => ({ sources: [], suites: [], totals: { all: 0, installed: 0, enabled: 0 }, roots: { user: '/tmp', data: '/tmp' } }),
     mcpStatus: async () => ({
       entries: [],
       observedAt: '',

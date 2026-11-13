@@ -97,6 +97,8 @@
 
 **来源（source）**表示内容来自哪里，**套件（suite）**是从中发现的可安装单元。添加来源用于发现套件，启用套件决定其运行时能力是否生效。
 
+会话启动与资源面板读取包含已安装套件的来源。托管来源跨重启复用发现索引。本地与收编来源在读取时按需复查已安装套件的目录。打开市场时，才按需发现其他已配置来源。编辑何时可见，见[发现与刷新](docs/user/sources.zh.md#发现与刷新)。
+
 你自己创作的内容都放在 `~/.agents/` 下：技能、命令和角色是 Markdown 文件，hooks 放在 `hooks.json`，工作区里新增的 MCP 与 LSP 服务分别保存在 `mcp.json` 与 `lsp.json`。[指令指南](https://sivan757.github.io/dsh-agent-plugins-market/docs/zh/instructions/)说明宿主注入的 AGENTS.md 链条与编辑它的页面，[输出风格指南](https://sivan757.github.io/dsh-agent-plugins-market/docs/zh/output-styles/)说明塑造每次回答的那段文本。项目原生资源继续保留在项目中。路径与优先级见[存储与发现](https://sivan757.github.io/dsh-agent-plugins-market/docs/zh/resources/#存储与发现)。
 
 ## 兼容性

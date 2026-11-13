@@ -17,6 +17,7 @@ export interface CatalogPort {
   now(): number
   isInstalled(sourceId: string, suiteId: string): boolean
   readUserCatalog(): Promise<CatalogSnapshot>
+  readInstalledCatalog(): Promise<CatalogSnapshot>
   readProjectCatalog(cwd: string): Promise<CatalogSnapshot>
   enabledUserSuites(): Promise<Suite[]>
   overview(): Promise<OverviewPayload>

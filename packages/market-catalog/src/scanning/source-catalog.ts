@@ -14,6 +14,37 @@ import { isDirectory } from './fs-probes.js'
 import type { DiscoveredSuite, SourceRef, SuiteDimension } from '../../../market-contracts/src/model/types.js'
 import { scanSource as scanSourceWithNotes } from './suite-scanner.js'
 import { discoverNativeProjectSuites } from './native-project.js'
+import type { ScanResult } from './scan-pipeline.js'
+
+/** One configured or unmanaged checkout selected for a dimension. */
+export interface SourceCheckout {
+  sourceId: string
+  checkout: string
+  sourceUrl?: string
+  source?: SourceRef
+}
+
+/** Resolve the source-owned checkout once for both import jobs and catalog queries. */
+export function configuredSourceCheckout(source: SourceRef, dimensionRoot: string): SourceCheckout {
+  return {
+    source,
+    sourceId: source.id,
+    checkout: source.local === true || source.kind === 'local' ? expandHome(source.url) : join(sourcesDir(dimensionRoot), source.id),
+    sourceUrl: source.url
+  }
+}
+
+/** A discovery reader can reuse a versioned source index instead of walking the checkout. */
+export type SourceCheckoutReader = (
+  checkout: SourceCheckout,
+  dimension: SuiteDimension
+) => Promise<Pick<ScanResult, 'suites' | 'notes' | 'marketplacePath' | 'bindings'> & { expiresAt?: number }>
+
+export const scanSourceCheckout: SourceCheckoutReader = async (entry, dimension) => {
+  if (!(await isDirectory(entry.checkout))) return { suites: [], notes: [] }
+  const { suites, notes, marketplacePath, bindings } = await scanSourceWithNotes(entry.checkout, entry.sourceId, dimension, entry.sourceUrl)
+  return { suites, notes, ...(marketplacePath === undefined ? {} : { marketplacePath }), ...(bindings === undefined ? {} : { bindings }) }
+}
 
 /**
  * Discover suites plus per-source scan diagnostics for one dimension.
@@ -25,18 +56,12 @@ export async function discoverSourceListWithNotes(
   sources: SourceRef[],
   dimension: SuiteDimension,
   dimensionRoot: string,
-  scanProjectLayouts: boolean
-): Promise<{ suites: DiscoveredSuite[]; scanNotes: Record<string, string[]> }> {
+  scanProjectLayouts: boolean,
+  readCheckout: SourceCheckoutReader = scanSourceCheckout
+): Promise<{ suites: DiscoveredSuite[]; scanNotes: Record<string, string[]>; expiresAt?: number }> {
   const checkoutRoot = sourcesDir(dimensionRoot)
   const listed = new Set(sources.map(source => source.id))
-  const checkouts: Array<{ sourceId: string; checkout: string; sourceUrl?: string }> = sources.map(source => ({
-    sourceId: source.id,
-    checkout: source.local === true ? expandHome(source.url) : join(checkoutRoot, source.id),
-    // The configured URL drives marketplace-entry self-reference resolution:
-    // an entry pointing back at this very source (Claude Code ships
-    // `{ source: 'github', repo: <own repo> }`) scans the local checkout.
-    sourceUrl: source.url
-  }))
+  const checkouts = sources.map(source => configuredSourceCheckout(source, dimensionRoot))
   if (dimension === 'project') {
     try {
       for (const entry of await readdir(checkoutRoot, { withFileTypes: true })) {
@@ -48,16 +73,15 @@ export async function discoverSourceListWithNotes(
     }
   }
   const discovered = await Promise.all(
-    checkouts.map(async ({ sourceId, checkout, sourceUrl }) => {
-      if (!(await isDirectory(checkout))) return { sourceId, suites: [] as DiscoveredSuite[], notes: [] as string[] }
-      const result = await scanSourceWithNotes(checkout, sourceId, dimension, sourceUrl)
-      return { sourceId, suites: result.suites, notes: result.notes }
+    checkouts.map(async checkout => {
+      const result = await readCheckout(checkout, dimension)
+      return { sourceId: checkout.sourceId, suites: result.suites, notes: result.notes, expiresAt: result.expiresAt }
     })
   )
-  const suites = discovered.flatMap(entry => entry.suites)
+  const suites = discovered.flatMap(entry => entry.suites.map(suite => ({ ...suite, errors: [...suite.errors] })))
   const scanNotes: Record<string, string[]> = {}
   for (const entry of discovered) {
-    if (entry.notes.length > 0) scanNotes[entry.sourceId] = entry.notes
+    if (entry.notes.length > 0) scanNotes[entry.sourceId] = [...entry.notes]
   }
   if (dimension === 'project' && scanProjectLayouts) {
     // Native project directories live two levels above the dimension root
@@ -75,5 +99,6 @@ export async function discoverSourceListWithNotes(
       ;(scanNotes[suite.sourceId] ??= []).push(note)
     }
   }
-  return { suites, scanNotes }
+  const expiresAt = Math.min(...discovered.map(entry => entry.expiresAt ?? Infinity))
+  return { suites, scanNotes, ...(Number.isFinite(expiresAt) ? { expiresAt } : {}) }
 }

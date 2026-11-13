@@ -27,7 +27,7 @@ Error: ENOTEMPTY: directory not empty, rmdir C:\Users\RUNNER~1\AppData\Local\Tem
 这份清单背后有三个写入者，各自把 promise 交给上一层：
 
 - `ReconcileScheduler.dispose()` 返回它在飞行中的那一趟。那一趟会创建每个 stdio 挂载的 `${PLUGIN_DATA}` 目录并挂载服务器。
-- `Catalog.dispose()` 等待 `TranslationService.dispose()`，后者等待 `TranslationLocalizer.dispose()`，而它返回 `flush()`。只要一次完成的 provider 调用把缓存标脏，这次 flush 就会在插件数据根下写 `translation-cache.json`。`SnapshotCache.dispose()` 保持同步：它只清除 keep-warm 定时器。
+- `Catalog.dispose()` 等待快照与索引收尾，以及 `TranslationService.dispose()`；后者等待 `TranslationLocalizer.dispose()` 及其 `flush()`。完成的 provider 调用将缓存标脏时，flush 写入 `translation-cache.json`。[来源拥有的发现索引](../architecture/2026-11-12-source-owned-discovery-indexes.zh.md)在 `catalog-index/` 下增加持久化写入，因此 `SnapshotCache.dispose()` 还会在存储清理前等待发现与索引持久化完成。
 - `SourceAutoUpdater.dispose()` 返回它发现仍在运行的刷新那一趟。那一趟会在 `<userRoot>/agent-plugins/.sources` 下克隆源检出并提交状态，所以先宣告已卸载的 fiber 会让它继续写在那里。
 
 只有 `MarketSettingsNamespace.dispose()` 保持同步且无可返回：它释放 watcher，也不安排任何东西。

@@ -37,7 +37,7 @@ async function harness() {
     localePreference: 'en',
     now: () => clock,
     isInstalled: () => false,
-    readUserCatalog: async () => snapshot,
+    readInstalledCatalog: async () => snapshot,
     readProjectCatalog: async () => snapshot,
     enabledUserSuites: async () => [],
     translateFields: (_surface: string, _id: string, fields: Record<string, unknown>) => ({ fields, pending: 0 }),

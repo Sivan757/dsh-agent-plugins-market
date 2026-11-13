@@ -12,7 +12,7 @@ The host entry coalesces event bursts into one active reconciliation and at most
 
 The runtime reconciler executes independent surfaces concurrently while preserving ordering within each surface. Each surface waits for its in-flight work before disposal, skips queued work after teardown and contains its own failures. MCP connection latency therefore does not delay local registrations or their independent teardown.
 
-This complements [selective runtime source discovery](../performance/2026-09-07-runtime-selective-discovery.md): source selection and scan-cache semantics remain unchanged. The active discovery-cache and runtime-surface notes do not define event scheduling, so this decision does not supersede them.
+This complements [source-owned discovery indexes](2026-11-12-source-owned-discovery-indexes.md), which own installed-source selection, discovery lifetime and content invalidation. This note owns event scheduling and independent surface progress.
 
 ## Alternatives considered
 

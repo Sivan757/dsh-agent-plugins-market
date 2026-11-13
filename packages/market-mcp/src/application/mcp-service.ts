@@ -75,8 +75,8 @@ export class McpService {
   ) {}
 
   /** Build the flat MCP service inventory for the status surface. */
-  async status(): Promise<McpStatusPayload> {
-    const snapshot = await this.context.snapshots.readUserCatalog()
+  async status(installedOnly = false): Promise<McpStatusPayload> {
+    const snapshot = installedOnly ? await this.context.snapshots.readInstalledCatalog() : await this.context.snapshots.readUserCatalog()
     const suites = [...snapshot.suites, await loadUserMcpSuite(this.context.agentsRoot)]
     // One preference read for the whole inventory, servers and observed tools
     // alike. The host answers it by projecting every active profile entry's live
@@ -151,7 +151,7 @@ export class McpService {
           throw error
         }
       }
-      await this.context.notifyChanged(true)
+      await this.context.notifyChanged()
     })
   }
 
@@ -183,7 +183,7 @@ export class McpService {
       // A removed server must not keep its OAuth grant: the bridge folds the
       // record by the same derived mount name a future server could reuse.
       await this.ports.credentialsStore?.deleteGrantRecord(deriveServerName({ sourceId, id: suiteId }, serverKey))
-      await this.context.notifyChanged(true)
+      await this.context.notifyChanged()
       // The status surface reads the live tool registry, so an immediate read
       // races the reconciler's teardown and would still show the removed server.
       // Joining the pass here is bounded — one stuck mount costs the request its
@@ -232,7 +232,7 @@ export class McpService {
       applyTimeout(next, 'startupTimeoutMs', patch.startupTimeoutMs, existing.startupTimeoutMs)
       overrides[current.key] = next
       await saveSuiteOverrides(this.context.dataRoot, current.suiteKey, overrides)
-      await this.context.notifyChanged(true)
+      await this.context.notifyChanged()
     })
   }
 
@@ -323,7 +323,7 @@ export class McpService {
       if (next === null) delete overrides[serverKey]
       else overrides[serverKey] = next
       await saveSuiteOverrides(this.context.dataRoot, suiteKey, overrides)
-      await this.context.notifyChanged(true)
+      await this.context.notifyChanged()
       // The status surface reads the live tool registry, so a read taken
       // before the pass settles reports the server in its previous state.
       // The wait is one switch budget: past it the switch answers and the
@@ -344,7 +344,7 @@ export class McpService {
    */
   async retryMounts(): Promise<void> {
     this.ports.mcpRemountAll()
-    await this.context.notifyChanged(true)
+    await this.context.notifyChanged()
     await this.context.refreshSettled()
   }
 
@@ -378,7 +378,7 @@ export class McpService {
       // registry reserved the name), so flag it for an explicit rebuild.
       const key = this.ports.mcpServerOwner(serverName)
       if (key !== undefined) this.ports.mcpRemount(key.suiteId, key.serverKey)
-      await this.context.notifyChanged(true)
+      await this.context.notifyChanged()
     })
   }
 

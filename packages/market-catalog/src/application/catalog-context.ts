@@ -15,7 +15,7 @@ import { settlesWithin } from './deadline.js'
 import { EMPTY_STATE, loadState, saveState } from './state/state-store.js'
 import { effectiveSurfaces, type DiscoveredSuite, type InstalledEntry, type Suite, type SuiteDimension, type SuiteState } from '../../../market-contracts/src/model/types.js'
 import type { CatalogPortsOverride } from '../../../market-contracts/src/ports/ports.js'
-import { SCAN_CACHE_TTL_MS, SnapshotCache, type SnapshotHost } from './snapshot-cache.js'
+import { LOCAL_SOURCE_TTL_MS, SnapshotCache, type SnapshotHost } from './snapshot-cache.js'
 
 /**
  * Git network tuning, plumbed from the host config to every remote-touching
@@ -120,7 +120,7 @@ export class CatalogContext implements SnapshotHost {
     this.snapshots = new SnapshotCache(
       this,
       {
-        user: options.userSnapshotTtlMs ?? SCAN_CACHE_TTL_MS,
+        user: options.userSnapshotTtlMs ?? LOCAL_SOURCE_TTL_MS,
         project: options.projectSnapshotTtlMs ?? 5_000
       },
       this.now
@@ -154,7 +154,6 @@ export class CatalogContext implements SnapshotHost {
   /** Load persisted user state once at plugin activation. */
   async load(): Promise<void> {
     this.currentState = await loadState(this.statePath)
-    this.invalidateScans()
     this.invalidateSnapshot(false)
   }
 
@@ -197,11 +196,8 @@ export class CatalogContext implements SnapshotHost {
   }
 
   /**
-   * Invalidate snapshots and schedule the change pipeline. `keepScanCache`
-   * marks state-only mutations (install, enable, surface toggles, MCP
-   * overrides) whose inputs leave every checkout untouched, so the next
-   * snapshot re-derives from cached discovery instead of rescanning the
-   * filesystem.
+   * Publish policy changes and schedule the change pipeline. Content mutations
+   * use changeSources separately; state changes reuse the source indexes.
    *
    * The invalidation is synchronous and the refresh is coalesced in the
    * background: resolving here means the state is durable, never that every
@@ -209,8 +205,7 @@ export class CatalogContext implements SnapshotHost {
    * {@link refreshSettled}, whose wait is bounded so one stuck mount cannot
    * hold a request — or the next mutation behind it — open.
    */
-  async notifyChanged(keepScanCache = false): Promise<void> {
-    if (!keepScanCache) this.invalidateScans()
+  async notifyChanged(): Promise<void> {
     this.invalidateSnapshot(true)
     this.scheduleRefresh()
   }
@@ -250,10 +245,10 @@ export class CatalogContext implements SnapshotHost {
     this.snapshots.invalidateSnapshots()
   }
 
-  /** Drop cached discovery and advance the generation a scan is validated against. */
-  invalidateScans(): void {
+  /** Invalidate before content changes and publish the index before releasing readers. */
+  async changeSources<T>(sourceIds: readonly string[], action: () => Promise<T>): Promise<T> {
     this.currentScanGeneration++
-    this.snapshots.invalidateScans()
+    return this.snapshots.changeSources(sourceIds, action)
   }
 
   /** Serialize one mutation behind every mutation queued before it. */

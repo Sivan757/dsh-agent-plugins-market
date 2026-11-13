@@ -10,26 +10,25 @@ A parallelized traversal (replacing the sequential per-directory `collectRoot` r
 
 ## Decision
 
-Two layered caches in the catalog, both bounded and both preserving the mutation paths that genuinely need fresh data:
+The dimension-wide discovery cache is superseded by [source-owned discovery indexes](2026-11-12-source-owned-discovery-indexes.md). This note continues to own skill frontmatter parse reuse during a source scan.
 
-- **Discovery scan cache** (`SnapshotCache`, fed by `CatalogContext`): scan results keyed by a fingerprint of `[dimension, dimensionRoot, state.sources, scanProjectLayouts]`, TTL 30 s, ≤8 entries. Snapshot derivation always re-runs from cached discovery. State-only mutations pass `keepScanCache = true` through `notifyChanged` and re-derive from cache. Content mutations and project-scan setting changes clear all entries and increment a generation; older in-flight scans cannot repopulate the cache. Concurrent identical scans share one promise. The invalidation mechanism is partially superseded by [selective runtime discovery](../performance/2026-09-07-runtime-selective-discovery.md); bounded caching and frontmatter reuse remain active.
 - **Skill frontmatter parse cache** (`surfaces.ts`): `SKILL.md` parse verdicts keyed by path, stamped by `mtimeMs`+`size`, capped at 20 000 entries with a wholesale reset. Rescans after TTL expiry re-stat files but skip re-reading and re-parsing thousands of frontmatters; a measured post-refresh rescan dropped ~1.1 s → ~0.44 s.
 
-Staleness contract: local sources are still read in place, but working-tree edits become visible on the next cache refresh — any source mutation, the refresh button, or the 30 s TTL. Project-dimension snapshots with TTL 0 (`projectSnapshotTtlMs <= 0`, caching explicitly disabled) bypass the scan cache entirely, keeping their observe-every-read semantics (pinned by `packages/market-bundle/test/integration/native-project.test.ts`).
+[Source-owned discovery indexes](2026-11-12-source-owned-discovery-indexes.md) own source freshness and invalidation. During an actual scan the frontmatter cache still stats each skill file before reusing its parse verdict. Project-dimension snapshots with TTL 0 (`projectSnapshotTtlMs <= 0`) observe discovery on every read, as pinned by `packages/market-bundle/test/integration/native-project.test.ts`.
 
 ## Alternatives considered
 
-- **Content-stamped per-source invalidation** (git HEAD / directory mtimes) was rejected: git sources are cheap to stamp but local sources are not — directory mtimes miss file edits, and a correct recursive stamp costs nearly as much as the scan.
+- **Recursively stamp mutable source contents to avoid discovery.** Directory mtimes miss file edits, and a correct recursive stamp costs nearly as much as the scan. The [source index decision](2026-11-12-source-owned-discovery-indexes.md) separates this mutable-tree policy from cheap HEAD validation of managed sources.
 - **Client-side lazy loading** (render sources, stream suites) was deferred: it changes the wire contract and UI flow, while the server-side cache removes the actual latency users felt.
 - **Parallelizing suite reads further** was measured to be pointless — the workload is CPU-bound in parsing, not I/O-bound.
 
-## Risks
+## Consequences
 
-- A 30 s staleness window for local-source live edits (documented in both READMEs); anyone editing a SKILL.md and expecting instant market-page updates must refresh or mutate a source.
+- Frontmatter reuse reduces document reads and parsing during a scan. It does not avoid the file stats or directory traversal of discovery.
 - The parse cache keys by path only across scans: a deleted-and-recreated file with identical mtime/size would serve the old verdict — practically unreachable (mtime granularity) but noted as a known stamp weakness.
 - Wholesale cache reset at the cap makes one scan after 20 000 skill files change slightly slower; acceptable at marketplace scales.
 
 ## Verification
 
-- `packages/market-bundle/test/integration/native-project.test.ts` pins the TTL-0 bypass; the full suite (277 tests) stays green; `check:refactor` green.
-- Measured on the live `~/.dsh/agent-plugins` catalog (~2,650 suites): cold overview ~1.2 s (once per boot/content change), post-toggle overview ~26 ms (was ~1.1 s), warm MCP status ~55 ms, LSP status ~1 ms, post-refresh rescan ~0.44 s (parse cache warm).
+- `packages/market-bundle/test/integration/native-project.test.ts` pins TTL-0 discovery. Current discovery behavior and verification are owned by the [source index note](2026-11-12-source-owned-discovery-indexes.md).
+- Measurements recorded for this cache decision on the live `~/.dsh/agent-plugins` catalog (~2,650 suites): cold overview ~1.2 s, post-toggle overview ~26 ms (was ~1.1 s), warm MCP status ~55 ms, LSP status ~1 ms, post-refresh rescan ~0.44 s with warm frontmatter parses. These are historical parse-cache measurements, not timings for the source-indexed catalog.

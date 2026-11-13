@@ -16,6 +16,7 @@ import { deriveSourceIdCandidates, expandHome, sanitizeId, sourceCheckoutDir, so
 import { isDirectory, pathExists } from '../scanning/fs-probes.js'
 import { canonicalGitUrl } from '../scanning/scan-resolvers.js'
 import { qualifiedSourceName } from '../scanning/source-name.js'
+import { configuredSourceCheckout } from '../scanning/source-catalog.js'
 import { githubCloneUrl, resolveRegion, type EffectiveRegion } from './regions.js'
 import type { SourceOverview, SourceProgress, UnmanagedSource } from '../../../market-contracts/src/contracts/market.js'
 import { resolveSourceKind, type SourceRef } from '../../../market-contracts/src/model/types.js'
@@ -65,9 +66,9 @@ export class SourceStore {
           }
           const head = await tryHead(sourceCheckoutDir(this.context.userRoot, adoptable))
           if (head !== undefined) this.headCache.set(source.id, head)
-          await this.context.commit({ ...this.context.state, sources: [...this.context.state.sources, source] })
+          const published = await this.publishSource(source)
           await this.context.notifyChanged()
-          return source
+          return published
         }
       }
       const baseId = await this.pickSourceId(deriveSourceIdCandidates(input.url), kind === 'local')
@@ -78,39 +79,41 @@ export class SourceStore {
         ...(kind === 'local' ? { local: true as const } : { kind }),
         ...(input.kind === 'archive' && input.sha256 !== undefined && input.sha256 !== '' ? { sha256: input.sha256 } : {})
       }
-      let checkout = this.checkoutPath(source)
-      if (kind === 'local') {
-        if (!(await isDirectory(checkout))) throw new Error(`local source directory ${checkout} is missing`)
-      } else {
-        this.beginSourceState(baseId, kind === 'archive' ? 'downloading' : 'cloning', false)
-        try {
-          const lock = await this.acquire(source)
-          if (lock !== undefined) this.headCache.set(source.id, lock)
-        } catch (error) {
-          this.endSourceState()
-          throw error
+      const added = await this.context.changeSources([baseId], async () => {
+        let checkout = this.checkoutPath(source)
+        if (kind === 'local') {
+          if (!(await isDirectory(checkout))) throw new Error(`local source directory ${checkout} is missing`)
+        } else {
+          this.beginSourceState(baseId, kind === 'archive' ? 'downloading' : 'cloning', false)
+          try {
+            const lock = await this.acquire(source)
+            if (lock !== undefined) this.headCache.set(source.id, lock)
+          } catch (error) {
+            this.endSourceState()
+            throw error
+          }
+          this.updateSourceStep('reading')
         }
-        this.updateSourceStep('reading')
-      }
-      // The repo's own manifest names the source; move the checkout along so
-      // the registered id and its `.sources/` directory stay coherent. URL
-      // derived candidates stay as readable fallbacks before numeric suffixes.
-      const named = [...new Set([sanitizeId(await repoName(checkout)), ...deriveSourceIdCandidates(input.url)])]
-      const finalId = await this.pickSourceId(named, kind === 'local', kind === 'local' ? undefined : checkout)
-      if (kind !== 'local' && finalId !== baseId) {
-        const targetDir = sourceCheckoutDir(this.context.userRoot, finalId)
-        await rename(checkout, targetDir)
-        checkout = targetDir
-      }
-      source.id = finalId
-      if (resolveSourceKind(source) === 'git') {
-        const head = await tryHead(checkout)
-        if (head !== undefined) this.headCache.set(source.id, head)
-      }
-      this.endSourceState()
-      await this.context.commit({ ...this.context.state, sources: [...this.context.state.sources, source] })
+        // The repo's own manifest names the source; move the checkout along so
+        // the registered id and its `.sources/` directory stay coherent. URL
+        // derived candidates stay as readable fallbacks before numeric suffixes.
+        const named = [...new Set([sanitizeId(await repoName(checkout)), ...deriveSourceIdCandidates(input.url)])]
+        const finalId = await this.pickSourceId(named, kind === 'local', kind === 'local' ? undefined : checkout)
+        if (kind !== 'local' && finalId !== baseId) {
+          const targetDir = sourceCheckoutDir(this.context.userRoot, finalId)
+          await rename(checkout, targetDir)
+          checkout = targetDir
+        }
+        source.id = finalId
+        if (resolveSourceKind(source) === 'git') {
+          const head = await tryHead(checkout)
+          if (head !== undefined) this.headCache.set(source.id, head)
+        }
+        this.endSourceState()
+        return this.publishSource(source)
+      })
       await this.context.notifyChanged()
-      return source
+      return added
     })
   }
 
@@ -136,9 +139,9 @@ export class SourceStore {
         // Not a git checkout: read it in place, like a local source.
         source = { id, url: dir, local: true, adopted: true }
       }
-      await this.context.commit({ ...this.context.state, sources: [...this.context.state.sources, source] })
+      const published = await this.publishSource(source)
       await this.context.notifyChanged()
-      return source
+      return published
     })
   }
 
@@ -165,139 +168,107 @@ export class SourceStore {
     return unmanaged
   }
 
-  /** Update one source's URL, branch, kind, or archive digest. */
-  async update(sourceId: string, patch: SourcePatch): Promise<void> {
+  /** Update source configuration and invalidate the corresponding content identity. */
+  async update(sourceId: string, patch: SourcePatch): Promise<SourceRef> {
     return this.context.enqueue(async () => {
       const index = this.context.state.sources.findIndex(source => source.id === sourceId)
       const current = this.context.state.sources[index]
       if (current === undefined) throw new Error(`unknown source "${sourceId}"`)
-      const nextLocal = patch.local !== undefined ? patch.local : current.local === true
-      // A local source carries the legacy flag only; `kind` stays unwritten
-      // so the persisted shape matches the pre-kind records.
-      const nextKind = nextLocal ? undefined : (patch.kind ?? current.kind)
-      const next: SourceRef = {
-        id: sourceId,
-        url: patch.url ?? current.url,
-        ...(patch.branch !== undefined ? { branch: patch.branch } : current.branch === undefined ? {} : { branch: current.branch }),
-        ...(nextLocal ? { local: true } : {}),
-        ...(nextKind === undefined ? {} : { kind: nextKind }),
-        ...(patch.sha256 !== undefined ? (patch.sha256 === '' ? {} : { sha256: patch.sha256 }) : current.sha256 === undefined ? {} : { sha256: current.sha256 }),
-        ...(current.adopted === true ? { adopted: true } : {})
-      }
-      const urlChanged = patch.url !== undefined && patch.url !== current.url
-      // A URL change invalidates the old checkout — except for adopted (user
-      // cloned) and local sources, whose directories we never own.
-      if (urlChanged && current.local !== true && current.adopted !== true) {
-        this.headCache.delete(sourceId)
-        await gitRemove(sourceCheckoutDir(this.context.userRoot, sourceId))
-      }
-      await this.context.commit({ ...this.context.state, sources: this.context.state.sources.map((source, i) => (i === index ? next : source)) })
+      const updated = await this.context.changeSources([sourceId], async () => {
+        const next: SourceRef = { ...current, ...patch, id: sourceId }
+        const urlChanged = patch.url !== undefined && patch.url !== current.url
+        if (urlChanged && resolveSourceKind(current) !== 'local' && current.adopted !== true) await gitRemove(sourceCheckoutDir(this.context.userRoot, sourceId))
+        if (urlChanged || patch.branch !== undefined) this.headCache.delete(sourceId)
+        await this.context.commit({ ...this.context.state, sources: this.context.state.sources.map((source, i) => (i === index ? next : source)) })
+        await this.context.snapshots.refreshSources([next])
+        return next
+      })
       await this.context.notifyChanged()
+      return updated
     })
   }
 
-  /**
-   * Remove a source and its install entries. `deleteCheckout` (the UI's
-   * "also delete the managed market directory" option) physically removes the
-   * `.sources/<id>` checkout — including an adopted one, since a directory
-   * under `.sources` is manager-owned storage. A `local` source whose URL
-   * points outside `.sources` is registration-only: its directory is never
-   * touched. Deleting the checkout is what keeps a removed source from
-   * reappearing as an unmanaged entry.
-   */
+  /** Forget a source, optionally deleting only a plugin-owned checkout. */
   async remove(sourceId: string, deleteCheckout = false): Promise<void> {
     return this.context.enqueue(async () => {
-      const source = this.context.state.sources.find(entry => entry.id === sourceId)
-      await this.context.commit({
-        ...this.context.state,
-        sources: this.context.state.sources.filter(entry => entry.id !== sourceId),
-        installed: Object.fromEntries(Object.entries(this.context.state.installed).filter(([key]) => !key.startsWith(`${sourceId}/`)))
+      await this.context.changeSources([sourceId], async () => {
+        this.headCache.delete(sourceId)
+        const source = this.context.state.sources.find(entry => entry.id === sourceId)
+        await this.context.commit({
+          ...this.context.state,
+          sources: this.context.state.sources.filter(entry => entry.id !== sourceId),
+          installed: Object.fromEntries(Object.entries(this.context.state.installed).filter(([key]) => !key.startsWith(`${sourceId}/`)))
+        })
+        const externalLocal = source?.local === true && source.url !== sourceCheckoutDir(this.context.userRoot, sourceId)
+        if (!externalLocal && deleteCheckout) await gitRemove(sourceCheckoutDir(this.context.userRoot, sourceId))
       })
-      this.headCache.delete(sourceId)
-      // A checkout under `.sources` is manager-owned even when it was first
-      // discovered/adopted. Only an explicit local path points outside the
-      // manager's storage and must remain untouched.
-      const externalLocal = source?.local === true && source.url !== sourceCheckoutDir(this.context.userRoot, sourceId)
-      if (!externalLocal && deleteCheckout) await gitRemove(sourceCheckoutDir(this.context.userRoot, sourceId))
       await this.context.notifyChanged()
     })
   }
 
-  /** Refresh one source checkout, or every source when sourceId is omitted. */
+  /** Refresh and re-index requested sources before releasing readers; unrelated sources remain reusable. */
   async refresh(sourceId?: string): Promise<void> {
     return this.context.enqueue(async () => {
       const targets = sourceId === undefined ? this.context.state.sources : this.context.state.sources.filter(source => source.id === sourceId)
-      // One route for the whole pass: resolving it reads the host locale
-      // preference, so asking per source made a refresh of N sources pay N
-      // whole-profile projections.
       const route = await this.downloadRoute()
       for (const source of targets) {
-        const kind = resolveSourceKind(source)
-        if (kind === 'local') {
-          if (!(await isDirectory(expandHome(source.url)))) throw new Error(`local source directory ${expandHome(source.url)} is missing`)
-          continue
-        }
-        const checkout = sourceCheckoutDir(this.context.userRoot, source.id)
-        this.headCache.delete(source.id)
-        if (kind === 'archive') {
-          // Re-download and swap; the fresh digest becomes the lock value.
-          const lock = await this.acquire(source)
-          if (lock !== undefined) this.headCache.set(source.id, lock)
-          continue
-        }
-        // Adopted checkouts are user-owned working trees: no `reset --hard`
-        // (it would destroy uncommitted work), and no re-acquire either —
-        // a broken HEAD means the user repairs the checkout, not that the
-        // manager may clone or extract over their directory.
-        if (source.adopted === true) {
-          try {
-            this.headCache.set(source.id, await gitHead(checkout))
-          } catch {
-            // A failed HEAD read means the next overview re-probes.
-          }
-          continue
-        }
-        try {
-          await gitHead(checkout)
-        } catch {
-          const lock = await this.acquire(source)
-          if (lock !== undefined) {
-            this.headCache.set(source.id, lock)
-          } else {
-            try {
-              this.headCache.set(source.id, await gitHead(checkout))
-            } catch {
-              // A failed HEAD read means the next overview re-probes.
-            }
-          }
-          continue
-        }
-        // Shallow-friendly sync: fetch depth 1 into FETCH_HEAD, hard reset.
-        const branch = source.branch ?? (await gitCurrentBranch(checkout).catch(() => undefined))
-        // Keep origin on the region's route: a clone made before a region
-        // switch (or an explicit flip) re-points origin so the fetch follows.
-        // Only origins this plugin itself wrote (the direct or proxied
-        // source.url) are re-pointed — a foreign remote is left untouched.
-        if (source.kind === 'git' || (source.kind === undefined && source.local !== true)) {
-          try {
-            const routed = githubCloneUrl(route, source.url)
-            const origin = await gitRemoteUrl(checkout)
-            if (origin !== routed && (origin === source.url || origin === githubCloneUrl('china', source.url))) {
-              await gitSetRemoteUrl(checkout, routed)
-            }
-          } catch {
-            // Origin reconciliation is best effort; plain sync still runs.
-          }
-        }
-        await gitSync(checkout, branch, this.context.git)
-        try {
-          this.headCache.set(source.id, await gitHead(checkout))
-        } catch {
-          // A failed HEAD read means the next overview re-probes.
-        }
+        await this.context.changeSources([source.id], async () => {
+          await this.refreshCheckout(source, route)
+          await this.context.snapshots.refreshSources([source])
+        })
       }
       await this.context.notifyChanged()
     })
+  }
+
+  private async publishSource(source: SourceRef): Promise<SourceRef> {
+    return this.context.changeSources([source.id], async () => {
+      await this.context.commit({ ...this.context.state, sources: [...this.context.state.sources, source] })
+      await this.context.snapshots.refreshSources([source])
+      return source
+    })
+  }
+
+  private async refreshCheckout(source: SourceRef, route: EffectiveRegion): Promise<void> {
+    const kind = resolveSourceKind(source)
+    if (kind === 'local') {
+      if (!(await isDirectory(expandHome(source.url)))) throw new Error(`local source directory ${expandHome(source.url)} is missing`)
+      return
+    }
+    const checkout = sourceCheckoutDir(this.context.userRoot, source.id)
+    this.headCache.delete(source.id)
+    if (kind === 'archive') {
+      const lock = await this.acquire(source)
+      if (lock !== undefined) this.headCache.set(source.id, lock)
+      return
+    }
+    // Adopted working trees stay user-owned: refresh their index without resetting files.
+    if (source.adopted === true) {
+      const head = await tryHead(checkout)
+      if (head !== undefined) this.headCache.set(source.id, head)
+      return
+    }
+    try {
+      await gitHead(checkout)
+    } catch {
+      const lock = await this.acquire(source)
+      const head = lock ?? (await tryHead(checkout))
+      if (head !== undefined) this.headCache.set(source.id, head)
+      return
+    }
+    const branch = source.branch ?? (await gitCurrentBranch(checkout).catch(() => undefined))
+    if (source.kind === 'git' || (source.kind === undefined && source.local !== true)) {
+      try {
+        const routed = githubCloneUrl(route, source.url)
+        const origin = await gitRemoteUrl(checkout)
+        if (origin !== routed && (origin === source.url || origin === githubCloneUrl('china', source.url))) await gitSetRemoteUrl(checkout, routed)
+      } catch {
+        // Origin reconciliation is best effort; the sync still reports its failure.
+      }
+    }
+    await gitSync(checkout, branch, this.context.git)
+    const head = await tryHead(checkout)
+    if (head !== undefined) this.headCache.set(source.id, head)
   }
 
   /**
@@ -392,43 +363,45 @@ export class SourceStore {
    * digest); git HEAD is read separately by the callers.
    */
   async acquire(source: SourceRef): Promise<string | undefined> {
-    const kind = resolveSourceKind(source)
-    if (kind === 'local') {
-      if (!(await isDirectory(expandHome(source.url)))) throw new Error(`local source directory ${expandHome(source.url)} is missing`)
-      return undefined
-    }
-    const checkout = sourceCheckoutDir(this.context.userRoot, source.id)
-    await mkdir(sourcesDir(this.context.userRoot), { recursive: true })
-    if (kind === 'archive') {
-      const { sha256 } = await archiveInstall(source.url, checkout, {
-        ...(source.sha256 === undefined ? {} : { sha256: source.sha256 }),
-        ...(this.context.git.timeoutMs === undefined ? {} : { timeoutMs: this.context.git.timeoutMs }),
-        ...(this.context.git.allowHttpArchives === true ? { allowHttp: true } : {})
-      })
-      return sha256
-    }
-    try {
-      // The region routes github.com clones through the China mirror prefix;
-      // the proxied URL becomes `origin`, so refreshes follow the same route.
-      await gitClone(githubCloneUrl(await this.downloadRoute(), source.url), source.branch, checkout, this.context.git)
-      return undefined
-    } catch (error) {
-      if (this.context.git.fallbackTarball !== true) throw error
-      const tarballUrl = codeloadTarballUrl(source.url, source.branch)
-      if (tarballUrl === undefined) throw error
-      // The codeload URL ends in a branch path, not `.tar.gz`, so the format
-      // must be stated explicitly — extension detection cannot see it.
-      const { sha256 } = await archiveInstall(tarballUrl, checkout, {
-        ...(this.context.git.timeoutMs === undefined ? {} : { timeoutMs: this.context.git.timeoutMs }),
-        format: 'targz'
-      })
-      return sha256
-    }
+    return this.context.changeSources([source.id], async () => {
+      const kind = resolveSourceKind(source)
+      if (kind === 'local') {
+        if (!(await isDirectory(expandHome(source.url)))) throw new Error(`local source directory ${expandHome(source.url)} is missing`)
+        return undefined
+      }
+      const checkout = sourceCheckoutDir(this.context.userRoot, source.id)
+      await mkdir(sourcesDir(this.context.userRoot), { recursive: true })
+      if (kind === 'archive') {
+        const { sha256 } = await archiveInstall(source.url, checkout, {
+          ...(source.sha256 === undefined ? {} : { sha256: source.sha256 }),
+          ...(this.context.git.timeoutMs === undefined ? {} : { timeoutMs: this.context.git.timeoutMs }),
+          ...(this.context.git.allowHttpArchives === true ? { allowHttp: true } : {})
+        })
+        return sha256
+      }
+      try {
+        // The region routes github.com clones through the China mirror prefix;
+        // the proxied URL becomes `origin`, so refreshes follow the same route.
+        await gitClone(githubCloneUrl(await this.downloadRoute(), source.url), source.branch, checkout, this.context.git)
+        return undefined
+      } catch (error) {
+        if (this.context.git.fallbackTarball !== true) throw error
+        const tarballUrl = codeloadTarballUrl(source.url, source.branch)
+        if (tarballUrl === undefined) throw error
+        // The codeload URL ends in a branch path, not `.tar.gz`, so the format
+        // must be stated explicitly — extension detection cannot see it.
+        const { sha256 } = await archiveInstall(tarballUrl, checkout, {
+          ...(this.context.git.timeoutMs === undefined ? {} : { timeoutMs: this.context.git.timeoutMs }),
+          format: 'targz'
+        })
+        return sha256
+      }
+    })
   }
 
   /** The filesystem location of one source. */
   checkoutPath(source: SourceRef): string {
-    return source.local === true ? expandHome(source.url) : sourceCheckoutDir(this.context.userRoot, source.id)
+    return configuredSourceCheckout(source, this.context.userRoot).checkout
   }
 
   /** The last HEAD this store observed for one source, when it cached one. */

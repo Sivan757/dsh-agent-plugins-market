@@ -102,7 +102,7 @@ describe('hooks overview identity', () => {
     const catalog = {
       agentsRoot,
       enabledUserSuites: async () => [synthetic],
-      overview: async () => ({ sources: [], suites: [], totals: { all: 0, installed: 0, enabled: 0 }, roots: { user: '/tmp', data: '/tmp' } }),
+      installedOverview: async () => ({ sources: [], suites: [], totals: { all: 0, installed: 0, enabled: 0 }, roots: { user: '/tmp', data: '/tmp' } }),
       mcpStatus: ports.catalog.mcpStatus,
       lspStatus: ports.catalog.lspStatus
     }
@@ -150,7 +150,7 @@ describe('hooks overview follows-suite rows', () => {
     const catalog = {
       agentsRoot,
       enabledUserSuites: async () => [installedSuite(), synthetic],
-      overview: ports.catalog.overview,
+      installedOverview: ports.catalog.overview,
       mcpStatus: ports.catalog.mcpStatus,
       lspStatus: ports.catalog.lspStatus
     }

@@ -1,6 +1,7 @@
 # Agent Note: 运行时按需发现来源
 
 Status: implemented
+Archived: 2026-11-12
 
 ## Problem
 

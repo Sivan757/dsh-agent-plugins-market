@@ -22,7 +22,7 @@ Status: implemented
 
 ### 行缓存上界 2000 ms，Refresh 无条件绕过
 
-`ROW_CACHE_MAX_AGE_MS` 为 2_000（`packages/market-runtime/src/application/panel-resources.ts:122`）。只有在三个输入同时成立时才复用行：catalog 快照对象、本存储自己的变更计数器、以及年龄在上界之内（`:302-307`）。这个上界是一个客户端轮询周期——`TRANSLATION_POLL_MS` 为 1_500（`packages/market-ui/src/ui/translation-settle.ts:17`）——加上一次慢读所需的余量，因此缓存能吸收一次交互产生的多次读，却永远不会成为手改内容在下一个轮询之后仍不可见的原因。客户端的 Refresh 传 `force`，跳过复用判定并重新推导每一行（`:300`、`:302`）。
+`ROW_CACHE_MAX_AGE_MS` 为 2_000，由 `packages/market-contracts/src/contracts/refresh-cadence.ts` 中的轮询节拍推导。catalog 快照对象、存储自身的变更计数器与该年龄上界同时成立时，复用行无需检查文件。超过上界后，面板存储在有界签名检查窗口内核验已知文件的签名再复用。文件变化或无法核验时重新读取。客户端的 Refresh 传入 `force`，重新推导每一行。[来源拥有的发现索引](2026-11-12-source-owned-discovery-indexes.zh.md)持有独立的来源生命周期，并为这些行检查保持已安装快照身份。
 
 ### 列表不携带文档正文
 
@@ -32,11 +32,11 @@ Status: implemented
 
 **在用到的实体处解析宿主偏好。** 被否决：宿主的回答是一次全 profile 投影，所以按实体解析正是让面板延迟随行数而不是随工作量增长的原因；一次操作渲染的是同一个值，其中每个实体都会为一个不可能不同的答案再付一次。
 
-**保留 `translateFields` 的默认参数，在记得的地方把 locale 传进去。** 被否决：默认参数正是让遗漏静默的原因。必填参数把同样的错误变成编译错误，而数读取次数的测试（`tests/panel-locale-read.test.ts:39`）钉住的是「一次解析」这一形态，不是一条约定。
+**保留 `translateFields` 的默认参数，在记得的地方把 locale 传进去。** 被否决：默认参数正是让遗漏静默的原因。必填参数把同样的错误变成编译错误，而数读取次数的测试（`packages/market-bundle/test/integration/panel-locale-read.test.ts`）钉住的是「一次解析」这一形态，不是一条约定。
 
 **给缓存的 locale 加 TTL 或刷新定时器。** 被否决：定时器给一个已在三个时点跟随宿主副本的值加上一次唤醒和第二条新鲜度规则，而且会让面板比插件面向宿主渲染的那份副本更新——两者随后可能互相不一致，而这正是共用刷新时点要防的失效。
 
-**行缓存改用快照 TTL 计时，而不是行内自己的上界。** 被否决：用户快照存活 30 秒（`SCAN_CACHE_TTL_MS`，`packages/market-catalog/src/application/snapshot-cache.ts:18`），并在其 0.8 处被替换（`USER_REFRESH_LEAD_RATIO`，`:28`），按它计时的行会让手改内容数十秒不可见；行缓存读的是文件内容，它的上界属于客户端的轮询周期，不属于快照。
+**行缓存跟随来源发现的新鲜度，而不保留行内上界。** 来源发现可复用声明 30 秒，托管内容甚至更久。面板读取的文档字段可以在声明未增删时变化，因此其新鲜度跟随客户端轮询与文件检查。来源索引的生命周期不能取代行内上界。
 
 **列表继续携带 `rawText` 与 `content`，由客户端自己留着。** 被否决：列表正是面板每次轮询都要重读的东西，寄文档让被轮询的响应比它所描述的行大出数倍；打开一个条目只多一次请求，而那次条目读也是唯一按同一修订返回文档的读。
 
@@ -52,10 +52,10 @@ Status: implemented
 
 ## Testing
 
-- `tests/panel-locale-read.test.ts:37-39` 为数一个四行面板的端口读取次数，任何一行解析偏好都会让它失败。
-- `tests/surface-locale-read.test.ts:1-9` 点名每一个必须「每次操作解析一次」的面：面板列表、含每个被观测工具的 MCP 状态清单、LSP 清单、`/` 菜单面，以及单套件详情。
-- `tests/panel-resources.test.ts:301-302` 与 `:376-377` 钉住被剥离的列表行，对照 `:306` 与 `:386-387` 处单条读携带 `rawText` 与 `content`。
-- `tests/panel-resources.test.ts:415` 把 catalog 时钟推过 `ROW_CACHE_MAX_AGE_MS`，钉住年龄上界。
+- `packages/market-bundle/test/integration/panel-locale-read.test.ts` 统计四行面板的端口读取次数，任何一行解析偏好都会使其失败。
+- `packages/market-bundle/test/integration/surface-locale-read.test.ts` 点名每次操作解析一次偏好的运行面：面板列表、含被观测工具的 MCP 状态清单、LSP 清单、菜单显示与套件详情。
+- `packages/market-bundle/test/integration/panel-resources.test.ts` 钉住剥离正文的列表行与单条读取返回的完整文档。
+- `packages/market-runtime/test/panel-row-sweep.test.ts` 与面板资源测试将时钟推进到 `ROW_CACHE_MAX_AGE_MS` 之后，验证文件检查与文档变化。
 
 ## Related
 

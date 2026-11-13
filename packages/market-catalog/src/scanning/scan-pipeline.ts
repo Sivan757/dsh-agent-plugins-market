@@ -23,8 +23,16 @@
 import type { DiscoveredSuite } from '../../../market-contracts/src/model/types.js'
 
 /** One filter's work context: the checkout and its identity. */
+export interface SourceSuiteBinding {
+  id: string
+  root: string
+  /** Index into the selected marketplace entries, so installed reads replay its existing declaration rules. */
+  entryIndex?: number
+}
+
 export interface ScanContext {
   marketplacePath?: string
+  bindings?: SourceSuiteBinding[]
   /** Absolute path of the source checkout. */
   checkout: string
   /** The configured source id suites will be attributed to. */
@@ -70,6 +78,7 @@ export interface ScanAttempt {
 /** The full outcome of scanning one checkout. */
 export interface ScanResult {
   marketplacePath?: string
+  bindings?: SourceSuiteBinding[]
   suites: DiscoveredSuite[]
   attempts: ScanAttempt[]
   /** Human-readable diagnostics: dropped entries, broken manifests, fallbacks taken. */
@@ -127,6 +136,7 @@ export async function runScanChain(filters: readonly ScanFilter[], context: Scan
     suites: resolution.kind === 'resolved' ? resolution.suites : [],
     attempts,
     notes,
-    ...(context.marketplacePath === undefined ? {} : { marketplacePath: context.marketplacePath })
+    ...(context.marketplacePath === undefined ? {} : { marketplacePath: context.marketplacePath }),
+    ...(context.bindings === undefined ? {} : { bindings: context.bindings })
   }
 }

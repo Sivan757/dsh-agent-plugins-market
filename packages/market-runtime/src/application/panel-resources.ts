@@ -341,7 +341,7 @@ class PanelResources implements PanelResourceStore {
    * @param force - skip the reuse test and scan, replacing whatever is cached.
    */
   private async rows(strict: boolean, force = false): Promise<PanelRow[]> {
-    const snapshot = this.projectCwd === undefined ? await this.catalog.readUserCatalog() : await this.catalog.readProjectCatalog(this.projectCwd)
+    const snapshot = this.projectCwd === undefined ? await this.catalog.readInstalledCatalog() : await this.catalog.readProjectCatalog(this.projectCwd)
     const cached = this.cached
     const age = cached === undefined ? Number.POSITIVE_INFINITY : this.catalog.now() - cached.at
     const sameInputs = cached !== undefined && cached.snapshot === snapshot && cached.mutations === this.mutations && (cached.complete || !strict)

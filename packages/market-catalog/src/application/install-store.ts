@@ -7,7 +7,6 @@
  * entry, never a file inside the source.
  */
 import { isDirectory } from '../scanning/fs-probes.js'
-import { discoverSuitesInSource } from '../scanning/suite-scanner.js'
 import { SUITE_SURFACE_KEYS, type InstalledEntry, type SourceRef, type SuiteSurfaceKey, type SurfaceOverrides } from '../../../market-contracts/src/model/types.js'
 import { installKey, type CatalogContext } from './catalog-context.js'
 import { tryHead, type SourceStore } from './source-store.js'
@@ -28,7 +27,7 @@ export class InstallStore {
       const checkout = this.sources.checkoutPath(source)
       let freshLock: string | undefined
       if (!(await isDirectory(checkout))) freshLock = await this.sources.acquire(source)
-      const suites = await discoverSuitesInSource(checkout, sourceId, 'user', source.url)
+      const { suites } = await this.context.snapshots.build({ ...this.context.state, sources: [source] }, 'user', this.context.userRoot)
       const suite = suites.find(entry => entry.id === suiteId)
       if (suite === undefined) throw new Error(`suite "${suiteId}" not found in source "${sourceId}"`)
       if (suite.remote !== undefined) throw new Error(`suite "${suiteId}" is a remote reference (${suite.remote.url}); add its repository as a source before installing`)
@@ -36,7 +35,7 @@ export class InstallStore {
       // is the lock value.
       const lockCommit = (await tryHead(checkout)) ?? freshLock ?? this.sources.knownHead(sourceId)
       await this.setInstalled(sourceId, suiteId, { enabled: true, installedAt: new Date().toISOString(), lockCommit })
-      await this.context.notifyChanged(true)
+      await this.context.notifyChanged()
     })
   }
 
@@ -47,7 +46,7 @@ export class InstallStore {
       if (this.context.state.installed[key] === undefined) throw new Error(`suite "${suiteId}" is not installed`)
       const rest = Object.fromEntries(Object.entries(this.context.state.installed).filter(([entryKey]) => entryKey !== key))
       await this.context.commit({ ...this.context.state, installed: rest })
-      await this.context.notifyChanged(true)
+      await this.context.notifyChanged()
     })
   }
 
@@ -57,7 +56,7 @@ export class InstallStore {
       const entry = this.context.installed(sourceId, suiteId)
       if (entry === undefined) throw new Error(`suite "${suiteId}" is not installed`)
       await this.setInstalled(sourceId, suiteId, { ...entry, enabled })
-      await this.context.notifyChanged(true)
+      await this.context.notifyChanged()
     })
   }
 
@@ -69,7 +68,7 @@ export class InstallStore {
       if (!SUITE_SURFACE_KEYS.includes(surface)) throw new Error(`surface "${surface}" is not toggleable`)
       const surfaces: SurfaceOverrides = { ...(entry.surfaces ?? {}), [surface]: enabled }
       await this.setInstalled(sourceId, suiteId, { ...entry, surfaces })
-      await this.context.notifyChanged(true)
+      await this.context.notifyChanged()
     })
   }
 
@@ -79,9 +78,6 @@ export class InstallStore {
     const additions = sources.filter(source => !existing.has(source.id))
     if (additions.length === 0) return
     await this.context.commit({ ...this.context.state, sources: [...this.context.state.sources, ...additions] })
-    // New sources change the fingerprint, but their content arrives through
-    // an acquire, so mark the scan cache dirty conservatively.
-    this.context.invalidateScans()
     this.context.invalidateSnapshot(true)
   }
 

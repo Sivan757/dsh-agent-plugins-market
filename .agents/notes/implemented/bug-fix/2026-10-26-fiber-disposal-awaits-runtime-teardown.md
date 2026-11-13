@@ -27,7 +27,7 @@ The entry's lifecycle effect applies the rule to four things. It sets its own `d
 Three writers sit behind that list, and each one now hands its promise to the caller above it:
 
 - `ReconcileScheduler.dispose()` returns the pass it had in flight. A pass creates every stdio mount's `${PLUGIN_DATA}` directory and mounts servers.
-- `Catalog.dispose()` awaits `TranslationService.dispose()`, which awaits `TranslationLocalizer.dispose()`, which returns `flush()`. That flush writes `translation-cache.json` under the plugin data root whenever a completed provider call left the cache dirty. `SnapshotCache.dispose()` stays synchronous: it only clears its keep-warm timer.
+- `Catalog.dispose()` awaits the snapshot/index teardown and `TranslationService.dispose()`, which awaits `TranslationLocalizer.dispose()` and its `flush()`. The flush writes `translation-cache.json` when a completed provider call left it dirty. [Source-owned discovery indexes](../architecture/2026-11-12-source-owned-discovery-indexes.md) add durable writes under `catalog-index/`, so `SnapshotCache.dispose()` also joins discovery and index persistence before storage teardown.
 - `SourceAutoUpdater.dispose()` returns the refresh pass it found running. That pass clones source checkouts and commits state under `<userRoot>/agent-plugins/.sources`, so a fiber that reported unloaded first left it writing there.
 
 Only `MarketSettingsNamespace.dispose()` stays synchronous with nothing to return: it releases watchers and arms nothing.

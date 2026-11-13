@@ -63,7 +63,7 @@ async function fakeCatalog(root: string) {
     localePreference: 'en',
     now: () => Date.now(),
     isInstalled: () => true,
-    readUserCatalog: async () => snapshot,
+    readInstalledCatalog: async () => snapshot,
     readProjectCatalog: async () => snapshot,
     enabledUserSuites: async () => [],
     translateFields: (_surface: string, _id: string, fields: Record<string, unknown>) => ({ fields, pending: 0 }),

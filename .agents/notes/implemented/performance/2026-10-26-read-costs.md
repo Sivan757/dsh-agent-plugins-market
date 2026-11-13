@@ -60,25 +60,23 @@ Same machine, same harness shape, before and after on this branch.
 
 The frontmatter row is a paired run in one process, interleaved in five rounds and taken best-of, because the end-to-end scan is dominated by file reads and varies between runs. The percent saving on the frontmatter portion is the attributable number, and the scan row is the same change seen through the whole read.
 
-## The visible poll's inventory rebuild stays
+## Visible polls verify document freshness
 
-`ExtensionRuntime.window` rebuilds the whole inventory on every read, which the audit recorded as an unclaimed finding. It was measured rather than assumed, and it stays, because skipping it cannot be done without changing what a reader sees.
+Visible window polls build the inventory from current panel and status queries. [Source-owned discovery indexes](../architecture/2026-11-12-source-owned-discovery-indexes.md) partially supersede this note: runtime inventory reads use installed sources, and panel stores can reuse rows after checking the files they already know. The overview request, cadence, parser, workspace sharing and visibility decisions above remain active.
 
-Measured on a 60-document panel set across three surfaces, with each read placed one poll interval after the last so the row cache is genuinely expired:
+The original audit measured a 60-document panel set across three surfaces, with each read one poll interval after the last:
 
-| Scenario                               | Inventory reads | Cost                               |
+| Audit scenario                         | Inventory reads | Recorded cost                      |
 | -------------------------------------- | --------------- | ---------------------------------- |
 | Nothing changed, four polls            | 4 of 4          | 22 to 94 ms per poll, median 45 ms |
 | One suite toggled, next poll           | 1               | 15 to 119 ms                       |
 | The same read with the rebuild skipped | 0               | 0.2 to 1.2 ms                      |
 
-The skip is a 98 percent cut on the steady state, which at 24 polls a minute is about 1.1 seconds of CPU per minute per session. It is not taken, for one reason.
+Skipping the rebuild cut that audit workload by 98 percent, about 1.1 seconds of CPU per minute per session at 24 polls a minute. These historical measurements explain the rejected stale-only gate below. They do not measure the current source-indexed catalog.
 
-`stale` is set by every in-process catalog change, so gating on `stale` and `dirty` loses nothing there. What it loses is an edit to a document on disk. `PanelResources.scan` re-reads the text of every declared document on each scan (`packages/market-runtime/src/application/panel-resources.ts:417-424`), derives `description` and `disabled` from it, and `readExtensionInventory` carries those into the preset manager's rows as `description`, `available` and `globalEnabled` (`packages/market-bundle/src/application/extension-inventory.ts:297-328`). The poll at 2500 ms always outlives the 2000 ms row cache, so that re-read is the only path by which a hand-edited frontmatter field reaches the manager, and it does so within one poll interval.
+A `stale` or `dirty` flag sees in-process changes but cannot observe a document edited on disk. The panel store therefore keeps its own row age and file signatures. After `ROW_CACHE_MAX_AGE_MS`, it checks known files before reusing rows. A changed or unverifiable signature causes a fresh read and parse. The bounded sweep and source discovery window also limit reuse when documents are added or removed.
 
-Gating would move that from one poll interval to the next in-process catalog event, which may never come. A stale flag cannot see the filesystem, and no bound that matches the poll interval can help: the poll re-arms only after its read completes, so consecutive polls are already more than one interval apart and every one of them misses any bound set to the interval.
-
-The design that would keep the freshness is a fingerprint guard rather than a stale-flag guard: `stamp` already stats every row it produced, so a scan could compare those modification times first and re-read only the documents whose stamp moved. That preserves one-poll visibility exactly, at the cost of a new freshness key inside the panel store that all three surfaces depend on. It is a larger change than the rest of this wave and is left as a follow-up with this measurement rather than landed here.
+This preserves the reason to keep visible polling while avoiding an unconditional document read and parse for every poll. Source discovery freshness and stable installed-snapshot identity belong to the source index note. Row freshness still belongs to the panel store, not to a catalog-wide event flag.
 
 ## Alternatives considered
 
@@ -106,7 +104,7 @@ A mount, a poll, a scan, and a session's share of a workspace now cost what the 
 
 `packages/market-ui/test/extension-window-poll.test.ts` drives the real hook under fake timers with `document.hidden` stubbed, and counts reads while visible, while hidden, on resume, and after the panel unmounts.
 
-`packages/market-runtime/test/row-cache-cadence.test.ts` pins the derived bound, the two edges it must satisfy, the refusal of a schedule that violates either, and that a read inside the bound reuses the scan while a read past it rescans.
+`packages/market-runtime/test/row-cache-cadence.test.ts` pins the derived bound, the two edges it must satisfy and refusal of a schedule that violates either. Panel row tests distinguish reuse inside the bound from file-signature verification after it.
 
 `packages/market-bundle/test/integration/project-readers.test.ts` counts scans as `stat` calls, because a scan stamps every row it produced. Two sessions in one workspace produce one scan, a workspace still in use keeps its cache when one session leaves, and the last session leaving lets the next one rescan.
 

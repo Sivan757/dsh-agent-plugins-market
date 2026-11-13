@@ -1,0 +1,762 @@
+{
+  "generatedAt": "2026-11-13T03:54:17.511Z",
+  "baselineCommit": "b23faa92c425351a79372dfc71270fed41ef77a1",
+  "scope": "Catalog and source-index preparation in Node v24.21.0; three samples per synthetic workload. Catalog reopen creates a new instance in the same process. Excludes full host startup, surface mounts, browser work, and child-process CPU.",
+  "synthetic": [
+    {
+      "name": "managed-before",
+      "data": {
+        "node": "v24.21.0",
+        "workload": {
+          "sources": 2,
+          "suitesPerSource": 600,
+          "installed": 1
+        },
+        "endpoint": "catalog startup preparation; excludes fixture creation, module import, host mounts, network and browser",
+        "samples": [
+          {
+            "sample": 0,
+            "phase": "first-import",
+            "wallMs": 1361,
+            "cpuMs": 3415,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 7227,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 0,
+            "phase": "after-freshness-window",
+            "wallMs": 1210,
+            "cpuMs": 3025,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 5427,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 0,
+            "phase": "catalog-reopen",
+            "wallMs": 1212,
+            "cpuMs": 3027,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 5427,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 1,
+            "phase": "first-import",
+            "wallMs": 1266,
+            "cpuMs": 3210,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 7227,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 1,
+            "phase": "after-freshness-window",
+            "wallMs": 1215,
+            "cpuMs": 3021,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 5427,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 1,
+            "phase": "catalog-reopen",
+            "wallMs": 1216,
+            "cpuMs": 3049,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 5427,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 2,
+            "phase": "first-import",
+            "wallMs": 1272,
+            "cpuMs": 3167,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 7227,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 2,
+            "phase": "after-freshness-window",
+            "wallMs": 1207,
+            "cpuMs": 3014,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 5427,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 2,
+            "phase": "catalog-reopen",
+            "wallMs": 1220,
+            "cpuMs": 3001,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 5427,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          }
+        ],
+        "aggregates": [
+          {
+            "phase": "first-import",
+            "medianWallMs": 1272,
+            "medianCpuMs": 3210
+          },
+          {
+            "phase": "after-freshness-window",
+            "medianWallMs": 1210,
+            "medianCpuMs": 3021
+          },
+          {
+            "phase": "catalog-reopen",
+            "medianWallMs": 1216,
+            "medianCpuMs": 3027
+          }
+        ]
+      }
+    },
+    {
+      "name": "managed-after",
+      "data": {
+        "node": "v24.21.0",
+        "workload": {
+          "sources": 2,
+          "sourceMode": "managed",
+          "suitesPerSource": 600,
+          "installed": 1
+        },
+        "endpoint": "catalog startup preparation; excludes fixture creation, module import, host mounts, network and browser",
+        "samples": [
+          {
+            "sample": 0,
+            "phase": "first-import",
+            "wallMs": 469,
+            "cpuMs": 1164,
+            "sourceCalls": {
+              "stat": 31237,
+              "readFile": 2409,
+              "readdir": 4802
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 0,
+            "phase": "after-freshness-window",
+            "wallMs": 1,
+            "cpuMs": 2,
+            "sourceCalls": {
+              "stat": 2
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 0,
+            "phase": "catalog-reopen",
+            "wallMs": 17,
+            "cpuMs": 25,
+            "sourceCalls": {
+              "stat": 2
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 1,
+            "phase": "first-import",
+            "wallMs": 445,
+            "cpuMs": 1087,
+            "sourceCalls": {
+              "stat": 31237,
+              "readFile": 2409,
+              "readdir": 4802
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 1,
+            "phase": "after-freshness-window",
+            "wallMs": 1,
+            "cpuMs": 1,
+            "sourceCalls": {
+              "stat": 2
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 1,
+            "phase": "catalog-reopen",
+            "wallMs": 15,
+            "cpuMs": 18,
+            "sourceCalls": {
+              "stat": 2
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 2,
+            "phase": "first-import",
+            "wallMs": 437,
+            "cpuMs": 1067,
+            "sourceCalls": {
+              "stat": 31237,
+              "readFile": 2409,
+              "readdir": 4802
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 2,
+            "phase": "after-freshness-window",
+            "wallMs": 1,
+            "cpuMs": 1,
+            "sourceCalls": {
+              "stat": 2
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 2,
+            "phase": "catalog-reopen",
+            "wallMs": 13,
+            "cpuMs": 13,
+            "sourceCalls": {
+              "stat": 2
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          }
+        ],
+        "aggregates": [
+          {
+            "phase": "first-import",
+            "medianWallMs": 445,
+            "medianCpuMs": 1087
+          },
+          {
+            "phase": "after-freshness-window",
+            "medianWallMs": 1,
+            "medianCpuMs": 1
+          },
+          {
+            "phase": "catalog-reopen",
+            "medianWallMs": 15,
+            "medianCpuMs": 18
+          }
+        ]
+      }
+    },
+    {
+      "name": "adopted-after",
+      "data": {
+        "node": "v24.21.0",
+        "workload": {
+          "sources": 2,
+          "sourceMode": "adopted",
+          "suitesPerSource": 600,
+          "installed": 1
+        },
+        "endpoint": "catalog startup preparation; excludes fixture creation, module import, host mounts, network and browser",
+        "samples": [
+          {
+            "sample": 0,
+            "phase": "first-import",
+            "wallMs": 462,
+            "cpuMs": 1177,
+            "sourceCalls": {
+              "stat": 31238,
+              "readFile": 2428,
+              "readdir": 4802
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 0,
+            "phase": "after-freshness-window",
+            "wallMs": 3,
+            "cpuMs": 4,
+            "sourceCalls": {
+              "stat": 34,
+              "readFile": 22,
+              "readdir": 8
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 0,
+            "phase": "catalog-reopen",
+            "wallMs": 5,
+            "cpuMs": 7,
+            "sourceCalls": {
+              "stat": 34,
+              "readFile": 22,
+              "readdir": 8
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 1,
+            "phase": "first-import",
+            "wallMs": 449,
+            "cpuMs": 1086,
+            "sourceCalls": {
+              "stat": 31238,
+              "readFile": 2428,
+              "readdir": 4802
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 1,
+            "phase": "after-freshness-window",
+            "wallMs": 2,
+            "cpuMs": 3,
+            "sourceCalls": {
+              "stat": 34,
+              "readFile": 22,
+              "readdir": 8
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 1,
+            "phase": "catalog-reopen",
+            "wallMs": 4,
+            "cpuMs": 5,
+            "sourceCalls": {
+              "stat": 34,
+              "readFile": 22,
+              "readdir": 8
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 2,
+            "phase": "first-import",
+            "wallMs": 423,
+            "cpuMs": 1057,
+            "sourceCalls": {
+              "stat": 31238,
+              "readFile": 2428,
+              "readdir": 4802
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 2,
+            "phase": "after-freshness-window",
+            "wallMs": 3,
+            "cpuMs": 3,
+            "sourceCalls": {
+              "stat": 34,
+              "readFile": 22,
+              "readdir": 8
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 2,
+            "phase": "catalog-reopen",
+            "wallMs": 4,
+            "cpuMs": 5,
+            "sourceCalls": {
+              "stat": 34,
+              "readFile": 22,
+              "readdir": 8
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          }
+        ],
+        "aggregates": [
+          {
+            "phase": "first-import",
+            "medianWallMs": 449,
+            "medianCpuMs": 1086
+          },
+          {
+            "phase": "after-freshness-window",
+            "medianWallMs": 3,
+            "medianCpuMs": 3
+          },
+          {
+            "phase": "catalog-reopen",
+            "medianWallMs": 4,
+            "medianCpuMs": 5
+          }
+        ]
+      }
+    },
+    {
+      "name": "adopted-before",
+      "data": {
+        "node": "v24.21.0",
+        "workload": {
+          "sources": 2,
+          "sourceMode": "adopted",
+          "suitesPerSource": 600,
+          "installed": 1
+        },
+        "endpoint": "catalog startup preparation; excludes fixture creation, module import, host mounts, network and browser",
+        "samples": [
+          {
+            "sample": 0,
+            "phase": "first-import",
+            "wallMs": 1321,
+            "cpuMs": 3285,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 7227,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 0,
+            "phase": "after-freshness-window",
+            "wallMs": 1182,
+            "cpuMs": 2897,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 5427,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 0,
+            "phase": "catalog-reopen",
+            "wallMs": 1187,
+            "cpuMs": 2959,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 5427,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 1,
+            "phase": "first-import",
+            "wallMs": 1259,
+            "cpuMs": 3123,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 7227,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 1,
+            "phase": "after-freshness-window",
+            "wallMs": 1161,
+            "cpuMs": 2859,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 5427,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 1,
+            "phase": "catalog-reopen",
+            "wallMs": 1203,
+            "cpuMs": 2991,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 5427,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 2,
+            "phase": "first-import",
+            "wallMs": 1296,
+            "cpuMs": 3199,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 7227,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 2,
+            "phase": "after-freshness-window",
+            "wallMs": 1203,
+            "cpuMs": 2984,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 5427,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          },
+          {
+            "sample": 2,
+            "phase": "catalog-reopen",
+            "wallMs": 1214,
+            "cpuMs": 2978,
+            "sourceCalls": {
+              "stat": 93705,
+              "readFile": 5427,
+              "readdir": 14406
+            },
+            "result": {
+              "enabled": 1,
+              "declarations": 1
+            }
+          }
+        ],
+        "aggregates": [
+          {
+            "phase": "first-import",
+            "medianWallMs": 1296,
+            "medianCpuMs": 3199
+          },
+          {
+            "phase": "after-freshness-window",
+            "medianWallMs": 1182,
+            "medianCpuMs": 2897
+          },
+          {
+            "phase": "catalog-reopen",
+            "medianWallMs": 1203,
+            "medianCpuMs": 2978
+          }
+        ]
+      }
+    }
+  ],
+  "realSources": {
+    "node": "v24.21.0",
+    "generatedAt": "2026-11-13T03:36:57.931Z",
+    "scope": "Read-only current source trees; derived indexes in a disposable directory; Node CPU and Node fs calls exclude Git child internals and host startup",
+    "sources": 23,
+    "installedRecords": 44,
+    "rows": [
+      {
+        "phase": "import-all-current-sources",
+        "wallMs": 1504,
+        "cpuMs": 2685,
+        "sourceCalls": {
+          "stat": 38783,
+          "readFile": 5989,
+          "realpath": 7326,
+          "readdir": 8569
+        },
+        "suiteCount": 1023
+      },
+      {
+        "phase": "installed-catalog-reopen",
+        "wallMs": 45,
+        "cpuMs": 55,
+        "sourceCalls": {
+          "stat": 227,
+          "readFile": 74,
+          "realpath": 48,
+          "readdir": 56
+        },
+        "sample": 0,
+        "matchedInstalled": 30
+      },
+      {
+        "phase": "installed-after-freshness-window",
+        "wallMs": 7,
+        "cpuMs": 13,
+        "sourceCalls": {
+          "stat": 227,
+          "readFile": 74,
+          "realpath": 48,
+          "readdir": 56
+        },
+        "sample": 0,
+        "matchedInstalled": 30
+      },
+      {
+        "phase": "installed-catalog-reopen",
+        "wallMs": 41,
+        "cpuMs": 57,
+        "sourceCalls": {
+          "stat": 227,
+          "readFile": 74,
+          "realpath": 48,
+          "readdir": 56
+        },
+        "sample": 1,
+        "matchedInstalled": 30
+      },
+      {
+        "phase": "installed-after-freshness-window",
+        "wallMs": 6,
+        "cpuMs": 12,
+        "sourceCalls": {
+          "stat": 227,
+          "readFile": 74,
+          "realpath": 48,
+          "readdir": 56
+        },
+        "sample": 1,
+        "matchedInstalled": 30
+      },
+      {
+        "phase": "installed-catalog-reopen",
+        "wallMs": 39,
+        "cpuMs": 49,
+        "sourceCalls": {
+          "stat": 227,
+          "readFile": 74,
+          "realpath": 48,
+          "readdir": 56
+        },
+        "sample": 2,
+        "matchedInstalled": 30
+      },
+      {
+        "phase": "installed-after-freshness-window",
+        "wallMs": 6,
+        "cpuMs": 12,
+        "sourceCalls": {
+          "stat": 227,
+          "readFile": 74,
+          "realpath": 48,
+          "readdir": 56
+        },
+        "sample": 2,
+        "matchedInstalled": 30
+      }
+    ],
+    "failures": []
+  }
+}
