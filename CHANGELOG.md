@@ -9,6 +9,28 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.15.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.14.5...dsh-agent-plugins-market-v0.15.0) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **agents:** spawn_teammate_role is gone. subagent_role is the only role creation entry, and the Team integration no longer exists.
+
+### Features
+
+* **agents:** roles ride the subagent seam instead of the Team member API ([9baacf1](https://github.com/Sivan757/dsh-agent-plugins-market/commit/9baacf19a393d4cb4a003636b1f47e0993c95139))
+* **catalog:** index discovery per source and read only installed sources ([ef677e0](https://github.com/Sivan757/dsh-agent-plugins-market/commit/ef677e07f6f2560b121071b69e2d559c99877d20))
+* **feedback:** an experience report carries a diagnostic bundle ([86567a7](https://github.com/Sivan757/dsh-agent-plugins-market/commit/86567a79adf32d83fb16ccd503cf418caa508635))
+* **mcp:** attribute a failed tool call to the server it never reached ([d540259](https://github.com/Sivan757/dsh-agent-plugins-market/commit/d54025934094740f3b9a19c278ca462b2a319ab0))
+* **mcp:** tell the session when an MCP server stops serving tools ([0dfec73](https://github.com/Sivan757/dsh-agent-plugins-market/commit/0dfec73b1d9fc5807f0cdcb2a0f5eca49f1512e0))
+
+
+### Bug Fixes
+
+* **commands:** forward the invocation text once ([1d3a3b1](https://github.com/Sivan757/dsh-agent-plugins-market/commit/1d3a3b191d115370052055e2ae9ca2e24b9b998d))
+* **deps:** take the patched @hono/node-server ([5e155d0](https://github.com/Sivan757/dsh-agent-plugins-market/commit/5e155d0c46ee4cdc3f8f55e016deea4a2661bdd5))
+* **mcp:** confirm a recovery only after the connection stays up ([c6dd3c7](https://github.com/Sivan757/dsh-agent-plugins-market/commit/c6dd3c739bacde1bdd634eca0ec5441207b73e9d))
+
 ## [0.14.5](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.14.4...dsh-agent-plugins-market-v0.14.5) (2026-11-11)
 
 
