@@ -15,6 +15,6 @@
  * Both the gate and the repository tests read the window from here, so a floor move edits one
  * place and the tests follow.
  */
-export const HOST_SUPPORT_FLOOR = '0.2.2-rc.1'
+export const HOST_SUPPORT_FLOOR = '0.2.2-rc.3'
 export const HOST_SUPPORT_CEILING = '0.3.0-0'
 export const HOST_SUPPORT_RANGE = `>=${HOST_SUPPORT_FLOOR} <${HOST_SUPPORT_CEILING}`
