@@ -28,6 +28,7 @@ import { defineTool } from '@deepseek-ai/dsh-tools'
 import type { GenericCallView } from '@deepseek-ai/dsh-tools'
 import { platformBrowserOpener } from '../../../market-mcp/src/index.js'
 import { toolsServiceOf } from '../../../market-runtime/src/index.js'
+import { renderDiagnosticsSection, writeDiagnosticBundle, type DiagnosticSnapshot } from './diagnostics.js'
 
 const execFileAsync = promisify(execFile)
 
@@ -59,6 +60,12 @@ export interface FeedbackOutcome {
   location?: string
   /** The complete issue title and body; present when nothing was filed automatically. */
   issueText?: string
+  /**
+   * The saved bundle: `report.md` and `state.json` under the plugin's data root.
+   * Written for every accepted report, filed or not, so the evidence survives a
+   * rate limit, a missing `gh`, or a browser that never opened.
+   */
+  reportPath?: string
   reason?: string
 }
 
@@ -78,6 +85,8 @@ export interface FeedbackPorts {
   ghIssue?: (title: string, body: string) => Promise<string | undefined>
   /** Open the prefilled issue page; best effort. */
   openPage?: (url: string) => Promise<void>
+  /** Read the deployment snapshot the report carries; undefined when it cannot be read. */
+  diagnostics?: () => Promise<DiagnosticSnapshot | undefined>
 }
 
 /** The public "new issue" page for one report, prefilled with title and body. */
@@ -94,10 +103,30 @@ export function newIssueUrl(title: string, body: string): string {
 export async function submitFeedback(dataRoot: string, report: FeedbackReport, now = Date.now(), ports: FeedbackPorts = {}): Promise<FeedbackOutcome> {
   const title = report.title.trim()
   if (title === '') return { ok: false, reason: 'title is required' }
-  const body = renderFeedbackBody(report)
+  // Snapshot first: the bundle is written for every accepted report, so a rate
+  // limit, a missing `gh` or a browser that refuses to open costs the user the
+  // filing, never the evidence. A collection or write failure is reported as an
+  // unavailable section instead of failing the report.
+  let snapshot: DiagnosticSnapshot | undefined
+  try {
+    snapshot = await ports.diagnostics?.()
+  } catch {
+    snapshot = undefined
+  }
+  let reportPath: string | undefined
+  try {
+    reportPath = (await writeDiagnosticBundle(dataRoot, report, snapshot, now)).reportPath
+  } catch {
+    reportPath = undefined
+  }
+  const body = renderIssueBody(report, snapshot)
   const lastAt = await readLastSubmitAt(dataRoot)
   if (now - lastAt < SUBMIT_COOLDOWN_MS) {
-    return { ok: false, reason: 'a feedback report was submitted less than a minute ago; wait and try again' }
+    return {
+      ok: false,
+      ...(reportPath === undefined ? {} : { reportPath }),
+      reason: 'a feedback report was submitted less than a minute ago; wait and try again'
+    }
   }
   const ghIssue = ports.ghIssue ?? createIssueWithGh
   let ghFailure: string | undefined
@@ -105,7 +134,7 @@ export async function submitFeedback(dataRoot: string, report: FeedbackReport, n
     const url = await ghIssue(title, body)
     if (url !== undefined) {
       await stampSubmitAt(dataRoot, now)
-      return { ok: true, location: url }
+      return { ok: true, location: url, ...(reportPath === undefined ? {} : { reportPath }) }
     }
   } catch (error) {
     ghFailure = error instanceof Error ? error.message : String(error)
@@ -115,7 +144,7 @@ export async function submitFeedback(dataRoot: string, report: FeedbackReport, n
     try {
       const url = await createIssue(token, title, body)
       await stampSubmitAt(dataRoot, now)
-      return { ok: true, location: url }
+      return { ok: true, location: url, ...(reportPath === undefined ? {} : { reportPath }) }
     } catch (error) {
       ghFailure ??= error instanceof Error ? error.message : String(error)
     }
@@ -133,6 +162,7 @@ export async function submitFeedback(dataRoot: string, report: FeedbackReport, n
     ok: true,
     location: url,
     issueText: `${title}\n\n${body}`,
+    ...(reportPath === undefined ? {} : { reportPath }),
     reason: opened ? `${detail}; the prefilled issue page was opened — submit it in the browser` : `${detail}; open the issue page at the returned location to submit it`
   }
 }
@@ -188,6 +218,11 @@ function textOf(value: unknown): string {
   return String(value)
 }
 
+/** The issue body one report produces: the person's report, then the deployment it happened in. */
+export function renderIssueBody(report: FeedbackReport, snapshot: DiagnosticSnapshot | undefined): string {
+  return renderFeedbackBody(report) + '\n\n' + renderDiagnosticsSection(snapshot)
+}
+
 /** Render the model's structured report into a deterministic issue body. */
 export function renderFeedbackBody(report: FeedbackReport): string {
   const lines = ['## Experience feedback', '', `**Problem:** ${report.description.trim()}`, '']
@@ -220,6 +255,8 @@ export const FEEDBACK_TOOL_NAME = 'report_market_issue' as const
 
 const FEEDBACK_DESCRIPTION =
   'File an experience-feedback issue for dsh-agent-plugins-market (the DeepSeek Harness agent plugin market). ' +
+  'Every accepted report also saves a diagnostic bundle — plugin version, suite and source totals, surface ' +
+  'switches, and the scanner notes — at the `reportPath` it returns, and attaches that state to the issue. ' +
   'Call this ONLY when the human describes a problem caused by the agent plugins market itself — a failed or ' +
   'stuck install/uninstall, a market source that will not scan, wrong market UI behavior, or a runtime injection ' +
   'defect the user attributes to a market suite. Do not call it for problems in other plugins, in the harness, ' +
@@ -233,7 +270,12 @@ const FEEDBACK_DESCRIPTION =
  * diagnostic instead of an error, since the setting can simply have no effect
  * on this host.
  */
-export function mountFeedbackTool(hostCtx: Context, dataRoot: string, t: (key: string, params?: Record<string, string>) => string): (() => void) | undefined {
+export function mountFeedbackTool(
+  hostCtx: Context,
+  dataRoot: string,
+  t: (key: string, params?: Record<string, string>) => string,
+  diagnostics?: () => Promise<DiagnosticSnapshot | undefined>
+): (() => void) | undefined {
   // Read the service store rather than the context property: this plugin's own
   // fiber injects `skills` and `commands` only, and the host provides `tools`
   // from a sibling fiber, so a property read throws on every profile.
@@ -260,6 +302,7 @@ export function mountFeedbackTool(hostCtx: Context, dataRoot: string, t: (key: s
             ok: { type: 'boolean', required: true },
             location: { type: 'string' },
             issueText: { type: 'string' },
+            reportPath: { type: 'string' },
             reason: { type: 'string' }
           }
         },
@@ -273,7 +316,7 @@ export function mountFeedbackTool(hostCtx: Context, dataRoot: string, t: (key: s
           ...(typeof input['expected'] === 'string' ? { expected: input['expected'] } : {}),
           ...(typeof input['actual'] === 'string' ? { actual: input['actual'] } : {})
         }
-        return await submitFeedback(dataRoot, report)
+        return await submitFeedback(dataRoot, report, Date.now(), diagnostics === undefined ? {} : { diagnostics })
       },
       presentCall: (args: unknown) => {
         const input = args as { title?: unknown }

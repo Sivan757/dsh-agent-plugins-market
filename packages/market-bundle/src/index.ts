@@ -28,6 +28,7 @@ import { resolveInventoryRetry } from '../../market-runtime/src/index.js'
 import { RuntimeReconciler } from '../../market-runtime/src/index.js'
 import { ReconcileScheduler } from '../../market-runtime/src/index.js'
 import { MarketSettingsNamespace } from './platform/settings-namespace.js'
+import { collectDiagnostics, pluginVersion } from './platform/diagnostics.js'
 import { SurfaceToggleService } from '../../market-runtime/src/index.js'
 import { ALL_SURFACES_ON } from '../../market-contracts/src/contracts/surface-toggles.js'
 import { McpHealthMonitor, deleteMcpAuthGrant, mcpConnectionSnapshot, observeMcpConnections } from '../../market-mcp/src/index.js'
@@ -335,6 +336,16 @@ export async function apply(
     syncTranslationEnabled: () => {
       catalog.syncTranslationEnabled()
     },
+    // Read at report time, not at mount: the snapshot must describe the state
+    // the report is about, and every member here is live.
+    diagnostics: async () =>
+      collectDiagnostics({
+        version: pluginVersion(),
+        userRoot: catalog.userRoot,
+        dataRoot: catalog.dataRoot,
+        overview: () => catalog.overview(),
+        toggles: () => surfaceToggles.currentToggles()
+      })
   })
 
   // Legacy surface and entry routes share one committed workspace policy.

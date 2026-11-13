@@ -20,4 +20,4 @@ Agent 预设管理器默认开启；不需要入口时可在插件设置中关�
 
 ## 体验反馈
 
-`feedbackEnabled` 默认 `true`。宿主提供 tools 和 settings 时，启用面向模型的 `report_market_issue` 工具，在本插件的 GitHub 仓库提交 issue：装有并已登录 `gh` 命令时用 `gh`，否则用 `GITHUB_TOKEN` / `GH_TOKEN`。两者都不可用时不会提交任何东西：工具会在浏览器中打开预填好的「新建 issue」页面，并把完整 issue 文本与链接返回给模型转交给你。成功提交后 60 秒内不会再次提交。在插件配置卡片中关闭该设置即可注销工具。
+`feedbackEnabled` 默认 `true`。宿主提供 tools 和 settings 时，启用面向模型的 `report_market_issue` 工具。每份被接受的报告先保存一份诊断包到 `data/feedback/<时间戳>/`：`report.md` 记录发生了什么与部署段，`state.json` 记录可机读状态。该状态包含插件与宿主版本、套件与来源计数、各面开关以及扫描诊断，同一段也会附到 issue 正文，让维护者看到问题发生时的部署。随后按三步提交：`gh` 命令、`GITHUB_TOKEN` / `GH_TOKEN` 的 GitHub REST API、最后在浏览器打开预填好的「新建 issue」页面并把完整文本返回给模型。三种情况下诊断包都会落盘，包括 60 秒冷却拒绝第二次提交时。在插件配置卡片中关闭该设置即可注销工具。
