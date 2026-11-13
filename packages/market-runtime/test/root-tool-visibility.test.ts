@@ -10,23 +10,23 @@
  * of that sits the plugin's own per-agent gate, which denies the managed
  * capabilities an agent's selection does not name.
  *
- * The owner's symptom — the model says it cannot find MCP in a teammate or a
- * subagent while the market panel still says connected — is the second
- * question. A child session has no panel of its own: nobody chooses its
- * resources, so its selection must follow the session that started it instead
- * of inventing an answer of its own.
+ * The owner's symptom — the model says it cannot find MCP in a child while the
+ * market panel still says connected — is the second question. A child session
+ * has no panel of its own: nobody chooses its resources, so its selection must
+ * follow the session that started it instead of inventing an answer of its own.
  *
- * Measured at 0.2.2-rc.1:
+ * Measured at 0.2.2-rc.2, where the host derives Team membership from the
+ * subagent tree, so one child measures every delegation path:
  *
  * - there is ONE tool registry. An agent's `ctx.tools` differs from the root's
  *   only because Cordis hands each context a traceable wrapper of the same
  *   service; the registry state is the same object.
  * - an agent's scope chain has no parent link, so an agent inherits the
  *   global layer and nothing else.
- * - a root-registered tool is therefore visible and admitted by the Lead, by a
- *   teammate, and by a plain subagent.
- * - a tool registered in an agent's own scope stays in that agent: neither a
- *   teammate nor a subagent inherits it.
+ * - a root-registered tool is therefore visible and admitted by the Lead and by
+ *   a plain subagent.
+ * - a tool registered in an agent's own scope stays in that agent: a subagent
+ *   does not inherit it.
  * - a child session inherits its parent's committed selection, so the child's
  *   gate answers exactly as the parent's does.
  */
@@ -43,7 +43,6 @@ import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import { LlmAdapter, type GenerateOptions, type StreamChunk } from '@deepseek-ai/dsh-llm'
 import Subagents from '@deepseek-ai/dsh-subagent'
 import * as Spawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
-import TeamService from '@deepseek-ai/dsh-experimental-agent-team'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { scopeChainOf } from '@deepseek-ai/dsh-scope'
 import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persistence.js'
@@ -125,7 +124,6 @@ async function setup() {
   await ctx.plugin(AgentLoop, { agents: [] })
   await ctx.plugin(Subagents)
   await ctx.plugin(Spawn)
-  await ctx.plugin(TeamService)
   const adapter = new QuietAdapter()
   ctx.llm.registerAdapter(['mock'], adapter)
   const lead = await ctx.agentLoop.create(SessionId('lead'), { provider: 'mock', model: 'parent' }, { cwd: join(root, 'lead') })
@@ -151,46 +149,10 @@ function visibleNames(ctx: Context, agent: Agent): string[] {
 }
 
 /**
- * Create one native Team member whose first turn is held open.
- *
- * A run that has settled has disposed the member's scope, and a gate attached
- * afterwards cannot be created on it. The member stays mid-turn until
- * `settle` releases it, so the gate attaches to a live agent.
- */
-async function spawnHeldMember(ctx: Context, lead: Agent, name: string, adapter: QuietAdapter): Promise<{ member: Agent; settle: () => Promise<void> }> {
-  const ended = Promise.withResolvers<void>()
-  let member: Agent | undefined
-  const offCreated = ctx.on('agent/created', async ({ agent }) => {
-    if (member === undefined) member = agent
-  })
-  const off = ctx.on('subagent/end', () => ended.resolve())
-  adapter.hold = true
-  void ctx.agentTeams
-    .spawnTeammate(lead, {
-      name,
-      description: name + ' description',
-      prompt: [{ type: 'text', text: 'Work as ' + name + '.' }],
-      context: 'fresh',
-      provider: 'spawn',
-      signal: new AbortController().signal
-    })
-    .catch(() => {})
-  await vi.waitFor(() => {
-    if (member === undefined) throw new Error('the teammate was never published')
-  })
-  const settle = async (): Promise<void> => {
-    adapter.hold = false
-    adapter.release()
-    await ended.promise
-    off()
-    offCreated()
-  }
-  return { member: member!, settle }
-}
-
-/**
- * Start one continuable child whose first turn is held open, for the same
- * reason the held member is: the gate has to attach to a live scope.
+ * Start one continuable child whose first turn is held open: a settled run has
+ * disposed the child's scope, and a gate attached afterwards cannot be created
+ * on it. The child stays mid-turn until `settle` releases it, so the gate
+ * attaches to a live agent.
  */
 async function startHeldSubagent(ctx: Context, parent: Agent, adapter: QuietAdapter): Promise<{ child: Agent; settle: () => Promise<void> }> {
   const ended = Promise.withResolvers<void>()
@@ -203,7 +165,7 @@ async function startHeldSubagent(ctx: Context, parent: Agent, adapter: QuietAdap
   void startContinuableChild(ctx.subagents, {
     provider: 'spawn',
     label: 'plain subagent',
-    request: { parent, prompt: [{ type: 'text', text: 'Work outside the Team.' }] },
+    request: { parent, prompt: [{ type: 'text', text: 'Work on your own.' }] },
     signal: new AbortController().signal
   }).catch(() => {})
   await vi.waitFor(() => {
@@ -219,36 +181,7 @@ async function startHeldSubagent(ctx: Context, parent: Agent, adapter: QuietAdap
   return { child: child!, settle }
 }
 
-/** Create one native Team member and wait for the end of its first turn. */
-async function spawnMember(ctx: Context, lead: Agent, name: string): Promise<Agent> {
-  const ended = Promise.withResolvers<void>()
-  const created = new Map<string, Agent>()
-  const offCreated = ctx.on('agent/created', async ({ agent }) => {
-    created.set(agent.id, agent)
-  })
-  const off = ctx.on('subagent/end', () => ended.resolve())
-  try {
-    const result = await ctx.agentTeams.spawnTeammate(lead, {
-      name,
-      description: name + ' description',
-      prompt: [{ type: 'text', text: 'Work as ' + name + '.' }],
-      context: 'fresh',
-      provider: 'spawn',
-      signal: new AbortController().signal
-    })
-    await ended.promise
-    // The member is resident only while its run lasts, so the published Agent
-    // is captured from the creation event.
-    const member = created.get(result.member.id)
-    if (member === undefined) throw new Error('the teammate was never published')
-    return member
-  } finally {
-    off()
-    offCreated()
-  }
-}
-
-/** Start one continuable child outside Team creation and wait for its first turn. */
+/** Start one continuable child and wait for the end of its first turn. */
 async function startPlainSubagent(ctx: Context, parent: Agent): Promise<Agent> {
   const ended = Promise.withResolvers<void>()
   const created = new Map<string, Agent>()
@@ -260,7 +193,7 @@ async function startPlainSubagent(ctx: Context, parent: Agent): Promise<Agent> {
     const started = await startContinuableChild(ctx.subagents, {
       provider: 'spawn',
       label: 'plain subagent',
-      request: { parent, prompt: [{ type: 'text', text: 'Work outside the Team.' }] },
+      request: { parent, prompt: [{ type: 'text', text: 'Work on your own.' }] },
       signal: new AbortController().signal
     })
     await ended.promise
@@ -350,25 +283,20 @@ describe('the tool registry a child scope sees', () => {
     // A project mount registers in the agent's own scope.
     cleanups.push(lead.ctx.tools.register(probeTool('probe_lead_scope_tool')))
 
-    const member = await spawnMember(ctx, lead, 'worker')
     const child = await startPlainSubagent(ctx, lead)
 
     // An agent's scope chain carries no parent link.
     expect(scopeChainOf(lead)).toHaveLength(1)
-    expect(scopeChainOf(member)).toHaveLength(1)
     expect(scopeChainOf(child)).toHaveLength(1)
 
     // A root registration is global: every scope sees it and admits it.
     expect(visibleNames(ctx, lead)).toContain('probe_root_tool')
     expect(await admittedNames(ctx, lead)).toContain('probe_root_tool')
-    expect(visibleNames(ctx, member)).toContain('probe_root_tool')
-    expect(await admittedNames(ctx, member)).toContain('probe_root_tool')
     expect(visibleNames(ctx, child)).toContain('probe_root_tool')
     expect(await admittedNames(ctx, child)).toContain('probe_root_tool')
 
     // An agent-scope registration stays with that agent.
     expect(visibleNames(ctx, lead)).toContain('probe_lead_scope_tool')
-    expect(visibleNames(ctx, member)).not.toContain('probe_lead_scope_tool')
     expect(visibleNames(ctx, child)).not.toContain('probe_lead_scope_tool')
   })
 })
@@ -394,21 +322,6 @@ describe('the gate a child session answers with', () => {
     // So the child's gate answers exactly as the parent's does.
     expect(runtime.allows(child, RESOURCE)).toBe(true)
     expect(await admittedNames(ctx, child)).toContain(tool.name)
-    await settle()
-  })
-
-  it('keeps the tools a teammate session was granted', async () => {
-    const { ctx, lead, root, adapter } = await setup()
-    const { runtime, tool, attach, grant } = await setupRuntime(ctx, root)
-    await vi.waitFor(() => expect(runtime.state.status(lead).ready).toBe(true))
-    await grant(lead)
-
-    const { member, settle } = await spawnHeldMember(ctx, lead, 'worker', adapter)
-    attach(member)
-    await vi.waitFor(() => expect(runtime.state.status(member).ready).toBe(true))
-
-    expect(runtime.allows(member, RESOURCE)).toBe(true)
-    expect(await admittedNames(ctx, member)).toContain(tool.name)
     await settle()
   })
 

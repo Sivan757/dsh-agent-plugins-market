@@ -52,6 +52,16 @@ interface Mount {
   mcp?: McpMountPort
   /** One entry per contribution; `label` names the suite and `kind` what it contributed. */
   instructions: Array<{ id: string; parent: string; label: string; kind: string; text: string }>
+  /**
+   * Register the instruction section only while a suite actually contributes one.
+   *
+   * Only Kimi manifests can carry `systemPrompt`/`systemPromptPath`, so almost
+   * every deployment has nothing to say here. An always-registered section with
+   * an empty body costs no prompt bytes (the host drops empty sections) but does
+   * put a name in every agent's section list that says nothing, so the surface is
+   * mounted and dropped as the contributions come and go.
+   */
+  syncInstructions?: () => void
   active: boolean
   hostMcpWorkspace?: string
 }
@@ -85,7 +95,7 @@ export function agentInstructionSection(rows: ReadonlyArray<{ parent: string; la
     sections.set(key, entry)
   }
   const blocks = [...sections.values()].map(entry => ({ heading: entry.heading, kind: entry.kind, body: entry.bodies.join('\n\n') }))
-  return ['## Agent plugin instructions', INSTRUCTION_PRECEDENCE, attribute(blocks)].filter(block => block.length > 0).join('\n\n')
+  return ['## Plugin suite instructions', INSTRUCTION_PRECEDENCE, attribute(blocks)].filter(block => block.length > 0).join('\n\n')
 }
 
 const suiteId = (suite: Suite): string => 'market:' + suite.sourceId + '/' + suite.id
@@ -188,15 +198,24 @@ export class ScopedExtensionContributors {
         }
         return projected
       })
-      scope.systemPrompt.section({
-        name: 'agent-plugins:instructions',
-        order: 500,
-        // Suite-authored Markdown is literal text, never a template: the host
-        // interpolates by default and refuses an unknown `{{name}}`, so a suite
-        // that quotes `{{cwd}}` would fail prompt assembly before any request.
-        interpolate: false,
-        text: () => (mount.active ? agentInstructionSection(mount.instructions.filter(row => this.ports.allows(agent, row.parent) && this.ports.allows(agent, row.id))) : '')
-      })
+      const visibleInstructions = () => (mount.active ? mount.instructions.filter(row => this.ports.allows(agent, row.parent) && this.ports.allows(agent, row.id)) : [])
+      let instructionSection: (() => void) | undefined
+      mount.syncInstructions = () => {
+        if (visibleInstructions().length === 0) {
+          instructionSection?.()
+          instructionSection = undefined
+          return
+        }
+        instructionSection ??= scope.systemPrompt.section({
+          name: 'agent-plugins:instructions',
+          order: 500,
+          // Suite-authored Markdown is literal text, never a template: the host
+          // interpolates by default and refuses an unknown `{{name}}`, so a suite
+          // that quotes `{{cwd}}` would fail prompt assembly before any request.
+          interpolate: false,
+          text: () => (mount.active ? agentInstructionSection(visibleInstructions()) : '')
+        })
+      }
       scope.effect(
         () => async () => {
           // Hooks close first, while the grant above is still open: the bridge's
@@ -205,6 +224,8 @@ export class ScopedExtensionContributors {
           await mount.hooks?.dispose()
           mount.active = false
           mount.instructions = []
+          mount.syncInstructions?.()
+          mount.syncInstructions = undefined
           mount.commands?.disposeAll()
           mount.users?.disposeAll()
           await mount.mcp?.disposeAll()
@@ -260,6 +281,7 @@ export class ScopedExtensionContributors {
       }
     }
     mount.instructions = instructions
+    mount.syncInstructions?.()
     if (backend === 'host') {
       await mount.mcp!.reconcile([])
       // Host compatibility remains global-managed, independent of session projection.

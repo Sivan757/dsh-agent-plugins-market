@@ -37,9 +37,6 @@ import { createTranslationProviders } from '../../market-translation/src/index.j
 import { migratePluginStorage } from '../../market-catalog/src/index.js'
 import { mountAgentRoleTool } from '../../market-runtime/src/index.js'
 import { mountMcpHealthNotices, mountMcpHealthSection } from '../../market-runtime/src/index.js'
-import { mountUnlessAgentTeams } from '../../market-runtime/src/index.js'
-import { mountTeammateRoleTool } from '../../market-runtime/src/index.js'
-import { mountTeamCoordination } from '../../market-runtime/src/index.js'
 import { readExtensionSuiteDeclarations } from '../../market-runtime/src/index.js'
 import type { ExtensionSuiteCandidate } from '../../market-runtime/src/index.js'
 import { loadUserMcpSuite } from '../../market-mcp/src/index.js'
@@ -337,7 +334,7 @@ export async function apply(
     setAutoUpdateSources: enabled => autoUpdate.setEnabled(enabled),
     syncTranslationEnabled: () => {
       catalog.syncTranslationEnabled()
-    }
+    },
   })
 
   // Legacy surface and entry routes share one committed workspace policy.
@@ -501,12 +498,13 @@ export async function apply(
     return new UserPanelSkillProvider(panels.skills)
   })
 
-  // Both entry points read the same live user/project role set. Team owns the
-  // enhanced entry's member identities and all subsequent collaboration.
+  // One role surface, over the host's own subagent seam. The host derives Team
+  // membership from the subagent tree, so a role child is a Team member wherever
+  // collaboration is on, and this mount needs no Team service of its own.
   const listRoles = sessionExtensions.roles
 
   ctx.inject(['tools', 'llm', 'subagents', 'agents', 'systemPrompt'], hostCtx => {
-    hostCtx.effect(() => mountUnlessAgentTeams(hostCtx, () => mountAgentRoleTool(hostCtx, listRoles)), 'dsh-agent-plugins-market: agent role routing')
+    hostCtx.effect(() => mountAgentRoleTool(hostCtx, listRoles), 'dsh-agent-plugins-market: agent role routing')
   })
 
   // The output-style section is per agent: a selection belongs to a workspace,
@@ -528,15 +526,6 @@ export async function apply(
   // the request that would have used the missing tools.
   ctx.inject(['agents'], hostCtx => {
     hostCtx.effect(() => mountMcpHealthNotices(hostCtx, mcpHealth, { locale: () => localePreference }), 'dsh-agent-plugins-market: mcp health notices')
-  })
-
-  // Coordination also serves native teammates and does not depend on role discovery.
-  ctx.inject(['agents', 'agentTeams', 'systemPrompt'], teamCtx => {
-    teamCtx.effect(() => mountTeamCoordination(teamCtx), 'dsh-agent-plugins-market: Team coordination')
-  })
-
-  ctx.inject(['tools', 'llm', 'subagents', 'agents', 'agentTeams', 'sessions', 'sessionQuery', 'systemPrompt'], teamCtx => {
-    teamCtx.effect(() => mountTeammateRoleTool(teamCtx, listRoles), 'dsh-agent-plugins-market: role teammates')
   })
 
   ctx.inject(['webServer', 'loader'], hostCtx => {

@@ -24,6 +24,7 @@ import { PERSONA_PREFIX_SECTION, type SystemPrompt } from '@deepseek-ai/dsh-syst
 import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persistence.js'
 import { mountAgentRoleTool } from '../../../packages/market-runtime/src/runtime/agents/agent-role-router.js'
 import { ROLE_ABANDON_DEADLINE_MS, ROLE_CHILD_SOURCE, RoleComposition } from '../../../packages/market-runtime/src/runtime/agents/role-composition.js'
+import { startContinuableChild } from '../../../packages/market-runtime/src/runtime/agents/subagent-seam.js'
 import type { AgentRoleEntry } from '../../../packages/market-runtime/src/application/agent-roles.js'
 
 class TestQuery extends SessionQueryEngine {
@@ -259,19 +260,21 @@ describe('one role child receives its card body from the plugin composition', ()
     off()
   })
 
-  it('releases a live child through the seam drain member when an identity cannot be composed', async () => {
+  it('releases a live child through the handle its start returned', async () => {
     const { ctx, lead, adapter } = await setup()
     adapter.hold = true
-    const result = await invoke(ctx, lead, {})
-    expect(result.isError).toBe(false)
-    if (result.isError) throw new Error(result.error.message)
-    const childId = (result.value as { subagentId: string }).subagentId
-    // The continuable call returns once the child starts, so the child is live and
-    // mid-turn here. abandon is the release path a mismatched identity takes, so it
-    // must genuinely free the child rather than only drop a reservation.
-    expect(ctx.agents.get(SessionId(childId))).toBeDefined()
-    await new RoleComposition(ctx).abandon(childId)
-    expect(ctx.agents.get(SessionId(childId))).toBeUndefined()
+    // The activation line has no per-child drain member: its service closes whole
+    // trees. abandon therefore releases through the handle the start returned, so
+    // this drives the seam the way the refusal path does.
+    const started = await startContinuableChild(ctx.subagents, {
+      provider: 'spawn',
+      label: 'reviewer',
+      request: { parent: lead, prompt: [{ type: 'text', text: 'Review it.' }], maxDepth: 1 },
+      signal: new AbortController().signal
+    })
+    expect(ctx.agents.get(SessionId(started.childId))).toBeDefined()
+    await new RoleComposition(ctx).abandon(started.childId, started.release)
+    expect(ctx.agents.get(SessionId(started.childId))).toBeUndefined()
     adapter.release()
   })
 

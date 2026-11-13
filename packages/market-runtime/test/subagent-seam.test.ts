@@ -21,7 +21,31 @@ describe('subagent seam across host release lines', () => {
     const startActivation = vi.fn(async () => ({ childId: 'child-2', result: Promise.resolve({ output: [], stopReason: 'completed' }), dispose: async () => {} }))
 
     await expect(startContinuableChild({ startActivation }, input)).resolves.toMatchObject({ childId: 'child-2' })
-    expect(startActivation).toHaveBeenCalledWith({ ...input, delivery: 'parent' })
+    // The activation spreads the request's fields into the spec instead of
+    // nesting them, so the host finds the parent and the prompt it requires.
+    expect(startActivation).toHaveBeenCalledWith({ provider: 'spawn', label: 'reviewer', signal, delivery: 'parent' })
+  })
+
+  it('spreads the child request into the activation spec the newer host declares', async () => {
+    const startActivation = vi.fn(async () => ({ childId: 'child-3', result: Promise.resolve({ output: [], stopReason: 'completed' }), dispose: async () => {} }))
+    const parentAgent = { id: 'lead' } as never
+    const request = { parent: parentAgent, prompt: [{ type: 'text', text: 'Review it' }], maxDepth: 1, agentOptions: { model: 'card-model' } }
+    const childId = 'child-3' as unknown as SessionId
+
+    await startContinuableChild({ startActivation }, { provider: 'spawn', label: 'reviewer', request, signal, childId })
+
+    // A host rejecting a missing parent or prompt is the failure this shape prevents.
+    expect(startActivation).toHaveBeenCalledWith({
+      parent: parentAgent,
+      prompt: [{ type: 'text', text: 'Review it' }],
+      maxDepth: 1,
+      agentOptions: { model: 'card-model' },
+      provider: 'spawn',
+      label: 'reviewer',
+      childId,
+      signal,
+      delivery: 'parent'
+    })
   })
 
   it('refuses a host that exposes neither start member', async () => {
@@ -66,6 +90,25 @@ describe('subagent seam across host release lines', () => {
   })
 })
 
+describe('release handle on the activation line', () => {
+  it('returns the handle that releases exactly this activation', async () => {
+    const dispose = vi.fn(async () => {})
+    const startActivation = vi.fn(async () => ({ childId: 'child-4', messageId: 'message-4', result: Promise.resolve({ output: [], stopReason: 'completed' }), dispose }))
+
+    const started = await startContinuableChild({ startActivation }, input)
+    expect(started).toMatchObject({ childId: 'child-4', messageId: 'message-4' })
+    // The service drains whole trees on this line, so one child is released here.
+    await started.release?.()
+    expect(dispose).toHaveBeenCalledOnce()
+  })
+
+  it('carries no handle on the older line, which keeps the drain members', async () => {
+    const startContinuable = vi.fn(async () => ({ childId: 'child-5' }))
+
+    await expect(startContinuableChild({ startContinuable }, input)).resolves.toEqual({ childId: 'child-5' })
+  })
+})
+
 describe('one-shot foreground seam across host release lines', () => {
   const run = { output: [{ type: 'text', text: 'done' }], stopReason: 'completed' }
 
@@ -74,7 +117,7 @@ describe('one-shot foreground seam across host release lines', () => {
     const startActivation = vi.fn(async () => ({ childId: 'child-2', result: Promise.resolve(run), dispose }))
 
     const started = await startOneShotChild({ startActivation }, { ...input, request: { prompt: [] } })
-    expect(startActivation).toHaveBeenCalledWith({ provider: 'spawn', label: 'reviewer', request: { prompt: [] }, signal, delivery: 'caller' })
+    expect(startActivation).toHaveBeenCalledWith({ provider: 'spawn', label: 'reviewer', prompt: [], signal, delivery: 'caller' })
     // The activation names the child; the foreground result keeps the run-id meaning.
     expect(started.runId).toBe('child-2')
     await expect(started.result).resolves.toEqual(run)

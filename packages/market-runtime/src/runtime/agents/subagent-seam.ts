@@ -19,13 +19,21 @@
  */
 import type { Agent } from '@deepseek-ai/dsh-agent'
 import type { SessionId } from '@deepseek-ai/dsh-session'
-import type { SubagentProvider } from '@deepseek-ai/dsh-subagent'
+import type { SubagentActivationSpec, SubagentProvider } from '@deepseek-ai/dsh-subagent'
 
 /** The child identity both releases return once the child accepts its first prompt. */
 export interface ContinuableChildStart {
   /** The host reserves a branded session id; the plugin only forwards the value. */
   readonly childId: string
   readonly messageId?: string
+  /**
+   * Release exactly this child.
+   *
+   * The activation line owns one handle per start, so a child that must not stay
+   * resident is released through it. The older line exposes no handle and keeps
+   * the per-child drain members instead; there this field is absent.
+   */
+  readonly release?: () => Promise<void>
 }
 
 /** One child start as this plugin issues it, in the older release's spelling. */
@@ -92,15 +100,17 @@ export type SeamOperation = keyof typeof SEAM_MEMBER_ALTERNATIVES
 /**
  * The host subagent members this plugin drives, across both release lines.
  *
- * The 0.2.1-alpha.4 activation additionally requires `delivery`; the older
- * continuable start always notified the parent, so the adapter supplies that
- * value explicitly, and the older one-shot start instead takes its cancellation
- * signal inside the request.
+ * The two start spellings take different arguments: the older continuable start
+ * nests the child request under `request`, while the 0.2.1-alpha.4 activation
+ * spreads those fields into the spec and adds `delivery`. The adapter owns that
+ * translation; the activation member is typed as the installed host declares it
+ * so a release that renames a field fails here rather than at call time. The
+ * older one-shot start instead takes its cancellation signal inside the request.
  */
 export interface SubagentSeam {
   start?(provider: string, request: unknown): Promise<LegacyOneShotRun>
   startContinuable?(spec: ContinuableStartInput): Promise<ContinuableChildStart>
-  startActivation?(spec: ContinuableStartInput & { readonly delivery?: 'parent' | 'caller' }): Promise<ActivationChildStart>
+  startActivation?(spec: SubagentActivationSpec): Promise<ActivationChildStart>
   drainContinuableChildren?(parent: Agent, childIds: readonly SessionId[]): Promise<void>
   drainChildren?(parent: Agent, childIds: readonly SessionId[]): Promise<void>
   registerProvider?(provider: SubagentProvider): () => void
@@ -156,6 +166,25 @@ export function roleInstructionChannel(seam: SubagentSeam): RoleInstructionChann
 }
 
 /**
+ * One activation spec in the newer host's spelling: the child request's fields
+ * sit at the top level, and `delivery` states who receives the result.
+ * @param input - provider, label, delegation request, and cancellation.
+ * @param delivery - parent notification or caller-only result.
+ * @returns the spec the activation member accepts.
+ */
+function activationSpec(input: ContinuableStartInput, delivery: 'parent' | 'caller'): SubagentActivationSpec {
+  const request = (input.request ?? {}) as Omit<SubagentActivationSpec, 'provider' | 'label' | 'signal' | 'delivery' | 'childId'>
+  return {
+    ...request,
+    provider: input.provider,
+    label: input.label,
+    signal: input.signal,
+    delivery,
+    ...(input.childId === undefined ? {} : { childId: input.childId })
+  }
+}
+
+/**
  * Start one continuable child on whichever start member the host exposes.
  * @param seam - the live `ctx.subagents` service.
  * @param input - provider, label, delegation request, and cancellation.
@@ -166,8 +195,11 @@ export function startContinuableChild(seam: SubagentSeam, input: ContinuableStar
   const resolved = resolveMember(seam, 'continuableChild')
   if (resolved?.name === 'startContinuable') return (resolved.call as (spec: ContinuableStartInput) => Promise<ContinuableChildStart>)(input)
   if (resolved?.name === 'startActivation') {
-    const spec = { ...input, delivery: 'parent' as const }
-    return (resolved.call as (spec: ContinuableStartInput & { readonly delivery: 'parent' }) => Promise<ContinuableChildStart>)(spec)
+    return (resolved.call as (spec: SubagentActivationSpec) => Promise<ActivationChildStart>)(activationSpec(input, 'parent')).then(activation => ({
+      childId: activation.childId,
+      ...(activation.messageId === undefined ? {} : { messageId: activation.messageId }),
+      release: () => activation.dispose()
+    }))
   }
   return Promise.reject(missingMember('continuableChild'))
 }
@@ -193,9 +225,8 @@ export function startOneShotChild(seam: SubagentSeam, input: ContinuableStartInp
     return (resolved.call as OneShotStart)(input.provider, request).then(run => ({ runId: run.id, result: run.result, dispose: () => run.dispose() }))
   }
   if (resolved?.name === 'startActivation') {
-    type ActivationStart = (spec: ContinuableStartInput & { readonly delivery: 'caller' }) => Promise<ActivationChildStart>
-    const spec = { ...input, delivery: 'caller' as const }
-    return (resolved.call as ActivationStart)(spec).then(activation => ({
+    type ActivationStart = (spec: SubagentActivationSpec) => Promise<ActivationChildStart>
+    return (resolved.call as ActivationStart)(activationSpec(input, 'caller')).then(activation => ({
       runId: activation.childId,
       result: activation.result,
       dispose: () => activation.dispose()
@@ -206,7 +237,11 @@ export function startOneShotChild(seam: SubagentSeam, input: ContinuableStartInp
 
 /**
  * Release selected resident continuable children on whichever drain member the
- * host exposes.
+ * older host exposes.
+ *
+ * The activation line has no per-child drain: its service closes whole trees, so
+ * a single child is released through the handle {@link startContinuableChild}
+ * returns. Callers prefer that handle and fall back here.
  * @param seam - the live `ctx.subagents` service.
  * @param parent - exact live direct parent authorizing the release.
  * @param childIds - durable direct-child ids to release when resident.

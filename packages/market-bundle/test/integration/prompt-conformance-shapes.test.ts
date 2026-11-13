@@ -11,7 +11,6 @@ import { agentInstructionSection } from '../../../../packages/market-runtime/src
 import { forwardCommandText } from '../../../../packages/market-runtime/src/application/command-resources.js'
 import { renderCatalogText } from '../../../../packages/market-runtime/src/runtime/agents/subagent-catalog.js'
 import { AGENT_ROLE_TOOL_DESCRIPTION } from '../../../../packages/market-runtime/src/runtime/agents/agent-role-router.js'
-import { TEAMMATE_ROLE_TOOL_DESCRIPTION } from '../../../../packages/market-runtime/src/runtime/agents/teammate-role-tool.js'
 
 describe('one contributor label names its source and kind', () => {
   it('renders the host workspace-instruction shape with the suite kind', () => {
@@ -33,7 +32,7 @@ describe('one contributor label names its source and kind', () => {
 
   it('keeps the section heading and the precedence sentence out of the label', () => {
     const section = agentInstructionSection([{ parent: 'p', label: 'demo', kind: 'plugin suite', text: 'Body.' }])
-    expect(section.startsWith('## Agent plugin instructions')).toBe(true)
+    expect(section.startsWith('## Plugin suite instructions')).toBe(true)
     expect(section).toContain('More specific instructions take precedence over broader ones.')
     // The precedence sentence is the host's hedged wording, never an override.
     expect(section).not.toContain('IMPORTANT:')
@@ -81,10 +80,7 @@ describe('a command follow-up carries the measured metadata', () => {
 })
 
 describe('a tool description reads as an instruction list', () => {
-  for (const [name, description] of [
-    ['subagent_role', AGENT_ROLE_TOOL_DESCRIPTION],
-    ['spawn_teammate_role', TEAMMATE_ROLE_TOOL_DESCRIPTION]
-  ] as const) {
+  for (const [name, description] of [['subagent_role', AGENT_ROLE_TOOL_DESCRIPTION]] as const) {
     it(name + ' opens with a purpose line, then spaced bullets', () => {
       const lines = description.split('\n')
       // A purpose line first, as every measured Claude Code tool description has.
@@ -108,20 +104,21 @@ describe('a tool description reads as an instruction list', () => {
   it('gives the delegation tool a prompt-writing section', () => {
     const description = AGENT_ROLE_TOOL_DESCRIPTION
     expect(description).toContain('\n## Writing the prompt\n')
-    // The briefing rules survive the rewrite.
-    expect(description).toContain('Explain what you are trying to accomplish and why.')
-    expect(description).toContain('Describe what you have already learned or ruled out.')
+    // The tool owns how it is used: briefing rules, the background default and
+    // what a settled child's report means all live here rather than in the catalog.
+    expect(description).toContain('Brief the child like a colleague who just walked into the room')
     expect(description).toContain('research only, or may edit files')
+    expect(description).toContain('run_in_background unset. It defaults to true')
+    expect(description).toContain('settlement notice arrives as a user message')
   })
 })
 
 describe('the catalog list markup matches the measured form', () => {
   it('lists one entry per line with the name in a code span', () => {
     const text = renderCatalogText([{ name: 'reviewer', title: 'Reviewer', description: 'Review code' }], false)
-    // The unquoted list line dev shipped, with the name still a code span.
-    expect(text).toContain('\n- reviewer: Review code\n')
-    // No invented emphasis tag and no inner heading: the frame is the only envelope.
-    expect(text).not.toContain('available_subagents')
+    // The host skill catalog's own line shape, so the Web client presents a role
+    // list the same way it presents a skill list.
+    expect(text).toContain('<available_subagents>\n- `reviewer`: Review code\n</available_subagents>')
     expect(text).not.toContain('## subagent-catalog')
   })
 })

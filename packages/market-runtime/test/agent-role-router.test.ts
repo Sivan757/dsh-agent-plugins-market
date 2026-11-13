@@ -345,13 +345,17 @@ describe('agent role metadata and runtime routing', () => {
 
     const newer = activationHostFixture()
     await executeAgentRole(newer.host, async () => [entry], entry.name, 'Review', parent, {}, 'continuable', signal())
-    const newerRequest = newer.startActivation.mock.calls[0]?.[0].request as Record<string, unknown>
-    // The 0.2.1 line removed the request field; the plugin composes a section instead.
-    expect(newerRequest).not.toHaveProperty('persona')
+    const newerSpec = newer.startActivation.mock.calls[0]?.[0] as unknown as Record<string, unknown>
+    // The newer line spreads the request into the spec and removed `persona`;
+    // the plugin composes a prompt section instead.
+    expect(newerSpec).not.toHaveProperty('persona')
+    expect(newerSpec).toMatchObject({ provider: 'spawn' })
+    expect(newerSpec).toHaveProperty('parent')
+    expect(newerSpec).toHaveProperty('prompt')
 
     const newerForeground = activationHostFixture()
     await executeAgentRole(newerForeground.host, async () => [entry], entry.name, 'Review', parent, {}, 'foreground', signal())
-    expect(newerForeground.startActivation.mock.calls[0]?.[0].request).not.toHaveProperty('persona')
+    expect(newerForeground.startActivation.mock.calls[0]?.[0]).not.toHaveProperty('persona')
 
     const olderForeground = hostFixture()
     await executeAgentRole(olderForeground.host, async () => [entry], entry.name, 'Review', parent, {}, 'foreground', signal())
@@ -434,7 +438,7 @@ describe('agent role metadata and runtime routing', () => {
     expect(reservedId).toMatch(/^[0-9a-f-]{36}$/)
     // The child the host published is released, not left resident without its
     // instructions, and the failed call leaves no reservation behind.
-    expect(composition.abandon).toHaveBeenCalledWith('host-generated')
+    expect(composition.abandon).toHaveBeenCalledWith('host-generated', expect.any(Function))
     expect(composition.release).toHaveBeenCalledWith(reservedId)
   })
 

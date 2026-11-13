@@ -18,7 +18,7 @@ The idle case stays host-owned: once the member's Agent is released, `TeamMember
 
 **Keep an idle member resident.** No public seam holds a continuable child open. Natural settlement disposes an idle activation, and defeating it with a pending inbox item or a dummy owned child would leak one Agent per member.
 
-**Shadow `list_agents` with a plugin tool.** The host registers the Team tools in the Lead's Agent scope, so a wider-scope registration is shadowed, and duplicating the host management surface was already rejected in [the role entry note](../architecture/2026-10-02-role-aware-team-entry.md).
+**Shadow `list_agents` with a plugin tool.** The host registers the Team tools in the Lead's Agent scope, so a wider-scope registration is shadowed, and duplicating the host management surface was already rejected in [roles on the subagent seam](../architecture/2026-11-13-roles-on-the-subagent-seam.md).
 
 **Have the host carry a per-member route.** That remains the complete fix for the idle readout, and it is out of scope for this change at the user's direction.
 

@@ -1,58 +1,8 @@
 /** A role revoked while its model route validates must not spawn a child. */
-import { mkdtemp, rm } from 'node:fs/promises'
-import { tmpdir } from 'node:os'
-import { join } from 'node:path'
-import { afterEach, describe, expect, it } from 'vitest'
-import { Context } from '@deepseek-ai/cordis'
-import AgentLoop from '@deepseek-ai/dsh-agent-loop'
-import { mountAgentLoopTestDependencies } from '@deepseek-ai/dsh-agent-loop-testkit'
-import TeamService from '@deepseek-ai/dsh-experimental-agent-team'
-import * as TeamTools from '@deepseek-ai/dsh-experimental-tool-agent-team'
-import { LlmAdapter, ToolCallId, type StreamChunk } from '@deepseek-ai/dsh-llm'
-import type { ToolBatchResult, ToolExecutionResult } from '@deepseek-ai/dsh-tools'
-import { SessionId } from '@deepseek-ai/dsh-session'
-import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persistence.js'
-import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
-import Subagents from '@deepseek-ai/dsh-subagent'
-import * as Spawn from '@deepseek-ai/dsh-subagent-spawn-in-process'
+import { describe, expect, it } from 'vitest'
 import { executeAgentRole, type AgentRoleHost, type AgentRoleParent } from '../../../packages/market-runtime/src/runtime/agents/agent-role-router.js'
-import { mountTeammateRoleTool } from '../../../packages/market-runtime/src/runtime/agents/teammate-role-tool.js'
 import type { AgentRoleEntry } from '../../../packages/market-runtime/src/application/agent-roles.js'
 import type { RoleChildComposition } from '../../../packages/market-runtime/src/runtime/agents/role-composition.js'
-
-/**
- * The one call's outcome out of the batch the host returns.
- *
- * The host executes a batch of calls and answers with one result per call, so
- * a single call's outcome is the batch's first result's result.
- * @param batch - the batch the host settled.
- * @returns that call's outcome.
- */
-function oneOutcome(batch: ToolBatchResult): ToolExecutionResult {
-  const first = batch.results[0]
-  if (!first) throw new Error('the tool batch carried no result')
-  return first.result
-}
-class TestQuery extends SessionQueryEngine {
-  searchSessions(): Promise<never> {
-    return Promise.reject(new Error('not used'))
-  }
-  searchEvents(): Promise<never> {
-    return Promise.reject(new Error('not used'))
-  }
-}
-class QuietAdapter extends LlmAdapter {
-  override resolveModel(provider: string, model: string) {
-    return Promise.resolve({ provider, id: model, name: model })
-  }
-  async *stream(): AsyncIterable<StreamChunk> {
-    yield { type: 'finish', reason: { kind: 'stop' } }
-  }
-}
-const cleanups: Array<() => void | Promise<void>> = []
-afterEach(async () => {
-  for (const dispose of cleanups.splice(0).reverse()) await dispose()
-})
 
 /** One reviewable card; the frontmatter declares the route the executor should apply. */
 const card = (name = 'reviewer'): AgentRoleEntry => ({
@@ -153,73 +103,16 @@ describe('a role revoked during model route validation never spawns', () => {
       roleComposition: composition()
     }
     const outcome = await executeAgentRole(activationHost, async () => roles, 'reviewer', 'Review it', parent, {}, 'continuable', new AbortController().signal)
-    const started = spawns[0] as { label: string; request: Record<string, unknown>; childId?: string }
+    const started = spawns[0] as Record<string, unknown> & { label: string; childId?: string }
     // The host publishes the identity this call reserved.
     expect(outcome).toEqual({ kind: 'continuable', subagentId: started.childId })
     expect(started.label).toBe('reviewer')
+    // This line spreads the child request into the spec, so the parent and prompt
+    // arrive as top-level fields.
+    expect(started).toHaveProperty('parent')
+    expect(started).toHaveProperty('prompt')
     // The card body travels as the child's own prompt section on this line,
     // never as the removed request field.
-    expect(started.request).not.toHaveProperty('persona')
-  })
-
-  it('keeps the teammate path closed when the role is revoked mid-validation', async () => {
-    const root = await mkdtemp(join(tmpdir(), 'market-role-final-'))
-    cleanups.push(() => rm(root, { recursive: true, force: true }))
-    const ctx = new Context()
-    cleanups.push(() => ctx.fiber.dispose())
-    // 0.2.1 mounts the subagent service behind the working-directory service.
-    await mountAgentLoopTestDependencies(ctx, { workingDirectory: true })
-    await ctx.plugin(Persistence, { root })
-    await ctx.plugin(TestQuery)
-    await ctx.plugin(AgentLoop, { agents: [] })
-    await ctx.plugin(Subagents)
-    await ctx.plugin(Spawn)
-    await ctx.plugin(TeamService)
-    await ctx.plugin(TeamTools)
-    ctx.llm.registerAdapter(['mock'], new QuietAdapter())
-    const lead = await ctx.agentLoop.create(SessionId('lead'), { provider: 'mock', model: 'parent' })
-    const roles: AgentRoleEntry[] = [card()]
-    const dispose = await mountTeammateRoleTool(ctx, async () => roles)
-    cleanups.push(dispose)
-    const entered = Promise.withResolvers<void>()
-    const release = Promise.withResolvers<void>()
-    const service = ctx.llm as unknown as { resolveCallConfig: (...args: unknown[]) => Promise<unknown> }
-    const original = service.resolveCallConfig
-    service.resolveCallConfig = async (...args: unknown[]) => {
-      entered.resolve()
-      await release.promise
-      return original.apply(service, args)
-    }
-    const running = ctx.tools
-      .execute({
-        calls: [
-          {
-            type: 'tool-call',
-            id: ToolCallId('spawn_teammate_role'),
-            name: 'spawn_teammate_role',
-            arguments: JSON.stringify({
-              agent: 'reviewer',
-              name: 'revoked-member',
-              description: 'Review',
-              prompt: 'Review it',
-              provider: 'mock',
-              model: 'override-model'
-            })
-          }
-        ],
-        agent: lead,
-        signal: new AbortController().signal
-      })
-      .then(oneOutcome)
-    await entered.promise
-    roles.length = 0
-    release.resolve()
-    const result = await running
-    expect(result.isError).toBe(true)
-    if (!result.isError) throw new Error('expected a refusal')
-    expect(result.error.message).toContain('is unavailable')
-    // No member was created, and the native Team tools keep their own behavior.
-    expect(ctx.agentTeams.listMembers(lead).map(member => member.name)).toEqual(['lead'])
-    expect(ctx.tools.get('spawn_teammate', lead)).toBeDefined()
+    expect(started).not.toHaveProperty('persona')
   })
 })

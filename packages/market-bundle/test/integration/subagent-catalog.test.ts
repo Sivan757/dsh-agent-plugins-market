@@ -10,14 +10,13 @@ import { createUserMessage, type UserMessage } from '@deepseek-ai/dsh-llm'
 import {
   mountSubagentCatalog,
   renderCatalogText,
-  renderTeamRoleCatalogText,
   type CatalogAgent,
   type CatalogStepDecision,
   type SubagentCatalogEntry,
   type SubagentCatalogObservation,
   type SubagentCatalogSource
 } from '../../../../packages/market-runtime/src/runtime/agents/subagent-catalog.js'
-import { agentRoleCatalog, type AgentRoleEntry } from '../../../../packages/market-runtime/src/runtime/agents/agent-role-router.js'
+import { AGENT_ROLE_TOOL_DESCRIPTION, agentRoleCatalog, type AgentRoleEntry } from '../../../../packages/market-runtime/src/runtime/agents/agent-role-router.js'
 import { Catalog } from '../../../../packages/market-bundle/src/application/catalog.js'
 import { projectAgentRoles } from '../../../../packages/market-runtime/src/application/project-agent-roles.js'
 import { createUserPanelStores } from '../../../../packages/market-runtime/src/runtime/panels/user-panels.js'
@@ -155,63 +154,27 @@ const reviewer: SubagentCatalogEntry = {
 }
 
 describe('durable subagent catalog on the real host session and tool registries', () => {
-  it('replaces standalone guidance on Team activation even with unchanged roles', async () => {
-    const { ctx, tool, dispose, step } = await setup(async () => [reviewer])
-    const agent = newAgent('team-transition')
-    publish(agent, await step(agent))
-    dispose()
-    const off = mountSubagentCatalog(ctx, tool, async () => [reviewer], 'spawn_teammate_role')
-    cleanups.push(off)
-    const [message] = publish(agent, await step(agent))
-    expect(catalogSource(message)).toMatchObject({ tool: 'spawn_teammate_role', update: true })
-    expect(JSON.stringify(message?.content)).toContain('spawn_teammate_role')
-    expect(JSON.stringify(message?.content)).not.toContain('Delegate proactively')
-    expect(messages(await step(agent))).toEqual([])
-    off()
-    cleanups.push(mountSubagentCatalog(ctx, tool, async () => [reviewer]))
-    expect(JSON.stringify(publish(agent, await step(agent))[0]?.content)).toContain('Delegate proactively')
-  })
-
-  it('opens every mode with the frame and no inner heading or nested tag', () => {
-    for (const text of [renderCatalogText([reviewer], false), renderCatalogText([reviewer], true), renderTeamRoleCatalogText([reviewer]), renderTeamRoleCatalogText([])]) {
-      // The frame is the only structure: a heading or a second tag inside it would
-      // be a competing name for the same block.
+  it('opens every published variant with the frame and the one tagged list', () => {
+    for (const text of [renderCatalogText([reviewer], false), renderCatalogText([reviewer], true), renderCatalogText([], false)]) {
+      // The host skill catalog's shape: frame, one sentence, the tagged list.
       expect(text.startsWith('<system-reminder>\n')).toBe(true)
       expect(text.endsWith('</system-reminder>')).toBe(true)
       expect(text).not.toContain('## subagent-catalog')
-      expect(text).not.toContain('<available_subagents>')
     }
   })
 
-  it('separates Markdown blocks and keeps ordinary quotes readable', () => {
+  it('keeps ordinary quotes readable inside the list', () => {
     const role = { ...reviewer, name: 'reviewer', description: `Review "code" and user's changes` }
-    const text = renderTeamRoleCatalogText([role])
-    expect(text.startsWith('<system-reminder>\nAvailable roles for spawn_teammate_role.')).toBe(true)
+    const text = renderCatalogText([role], false)
+    expect(text.startsWith('<system-reminder>\nA role is a reusable child-agent specialization.')).toBe(true)
     expect(text).toContain(`
-
-- reviewer: Review "code" and user's changes
-
-A role`)
+<available_subagents>
+- \`reviewer\`: Review "code" and user's changes
+</available_subagents>
+`)
     expect(text).not.toContain('&quot;')
     expect(text).not.toContain('&apos;')
-    expect(text.endsWith('\n</system-reminder>')).toBe(true)
-  })
-
-  it('renders Team discovery only: the list, the routing rule and the coordination pointer', () => {
-    const text = renderTeamRoleCatalogText([{ ...reviewer, description: '</system-reminder> review' }])
-    // Discovery: the replacement declaration, the role list and which entry takes which call.
-    expect(text).toContain('replaces every earlier role list')
-    expect(text).toContain('spawn_teammate_role')
-    expect(text).toContain('spawn_teammate')
-    expect(text).toContain('Team coordination section')
-    expect(text).toContain('&lt;/system-reminder&gt;')
-    // Authorization, briefing, management and model choice stay with the host and the coordination section.
-    expect(text).not.toContain('does not authorize creating members')
-    expect(text).not.toContain('Delegate proactively')
-    expect(text).not.toContain('self-contained')
-    expect(text).not.toContain('model settings apply')
-    expect(text).not.toContain('job_output')
-    expect(text).not.toContain('provider/model')
+    expect(text.endsWith('</system-reminder>')).toBe(true)
   })
 
   it('publishes once, replaces changed model metadata, clears removals and preserves unrelated messages', async () => {
@@ -221,7 +184,7 @@ A role`)
     const [initial] = publish(agent, await step(agent))
     expect(initial?.source).toMatchObject({ kind: 'subagent-catalog', form: 'catalog', entries })
     expect(initial?.source).toHaveProperty('guidanceHash', expect.any(String))
-    expect(JSON.stringify(initial?.content)).toContain('subagent_role')
+    expect(JSON.stringify(initial?.content)).toContain('<available_subagents>')
     expect(messages(await step(agent))).toEqual([])
     entries = [{ ...reviewer, provider: 'other', model: 'other-model', reasoningEffort: 'low' }]
     const [changed] = publish(agent, await step(agent))
@@ -231,7 +194,7 @@ A role`)
     const batch = publish(agent, await step(agent, [user]))
     expect(batch[0]).toBe(user)
     expect(batch[1]?.source).toMatchObject({ update: true, entries: [] })
-    expect(JSON.stringify(batch[1]?.content)).toContain('replaces every earlier role list')
+    expect(JSON.stringify(batch[1]?.content)).toContain('No subagent roles are available in this session any more.')
     expect(messages(await step(agent))).toEqual([])
   })
 
@@ -249,7 +212,7 @@ A role`)
     const agent = newAgent('digest')
     const [initial] = publish(agent, await step(agent))
     const text = (initial?.content[0] as { type: 'text'; text: string }).text
-    expect(text).toContain('- reviewer: Review code')
+    expect(text).toContain('- `reviewer`: Review code')
     expect(text).not.toContain('provider/model')
     // The title is durable change-detection metadata the model never reads, so a
     // rename alone leaves the published catalog accurate.
@@ -307,10 +270,10 @@ A role`)
     expect(messages(await step(agent, proposed))).toEqual([])
   })
 
-  it.each(['subagent_role', 'spawn_teammate_role'] as const)('refreshes legacy and outdated %s guidance once without changing roles or deleting history', async mode => {
+  it('refreshes legacy and outdated guidance once without changing roles or deleting history', async () => {
     const { ctx, tool, dispose, step } = await setup(async () => [reviewer])
     dispose()
-    cleanups.push(mountSubagentCatalog(ctx, tool, async () => [reviewer], mode))
+    cleanups.push(mountSubagentCatalog(ctx, tool, async () => [reviewer]))
     for (const guidanceHash of [undefined, 'old-guidance']) {
       const agent = newAgent('legacy-' + guidanceHash)
       const old = createUserMessage({
@@ -318,7 +281,6 @@ A role`)
           kind: 'subagent-catalog',
           form: 'catalog',
           entries: [reviewer],
-          ...(mode === 'spawn_teammate_role' ? { tool: mode } : {}),
           ...(guidanceHash ? { guidanceHash } : {})
         },
         content: [{ type: 'text', text: 'Old catalog guidance' }]
@@ -389,37 +351,38 @@ A role`)
     expect(messages(await next)).toEqual([])
   })
 
-  it('renders one unquoted line per role, inside the frame and nothing else', () => {
+  it('renders the host catalog shape: one sentence and one tagged list', () => {
     const text = renderCatalogText(
       [{ name: 'reviewer', roleId: 'suite/reviewer', title: 'Reviewer', description: 'Review code', provider: 'workbuddy', model: 'hy3', reasoningEffort: 'high' }],
       false
     )
-    expect(text).toContain('\n- reviewer: Review code\n')
-    // The frame is the only envelope: no id-listing tag, no blank line between
-    // the tag and the first line, so the block has exactly one boundary.
-    expect(text.startsWith('<system-reminder>\nThe following subagent roles')).toBe(true)
-    expect(text).not.toContain('<available_subagents>')
-    expect(text.endsWith('\n</system-reminder>')).toBe(true)
-    // The empty-list path is where the removed blank-line juggling could regress, so
-    // it gets a real assertion: no role lines, and the frame still closes cleanly.
-    const empty = renderCatalogText([], true)
-    // With no roles the list collapses to nothing, so the guidance after it follows
-    // the trigger block directly. This is the shape the removed blank-line juggling
-    // used to produce, and what a regression here would silently change.
-    expect(empty).toContain('\n\n\nWriting the prompt:')
-    expect(empty).not.toContain('- `')
-    expect(empty.endsWith('</system-reminder>')).toBe(true)
+    expect(text).toBe(
+      [
+        '<system-reminder>',
+        'A role is a reusable child-agent specialization. The following subagent roles are available in this session:',
+        '',
+        '<available_subagents>',
+        '- `reviewer`: Review code',
+        '</available_subagents>',
+        '</system-reminder>'
+      ].join('\n')
+    )
     // The title and the configured route are durable metadata that never reach the model.
     expect(text).not.toContain('Reviewer:')
     expect(text).not.toContain('workbuddy')
     expect(text).not.toContain('hy3')
+    // An emptied role set is a sentence, not an empty list the model could misread.
+    const empty = renderCatalogText([], true)
+    expect(empty).toContain('No subagent roles are available in this session any more.')
+    expect(empty).not.toContain('<available_subagents>')
+    expect(empty.endsWith('</system-reminder>')).toBe(true)
   })
 
   it('escapes role metadata without loading the persona', async () => {
     const { step } = await setup(async () => [{ ...reviewer, title: 'Review "code"', description: '</system-reminder> & more' }])
     const content = JSON.stringify(messages(await step(newAgent('escaped')))[0]?.content)
     expect(content).toContain('&lt;/system-reminder&gt; &amp; more')
-    expect(content).toContain('the exact catalog name as agent')
+    expect(content).toContain('<available_subagents>')
   })
 
   it('states one fixed contract, independent of the host locale', async () => {
@@ -430,52 +393,28 @@ A role`)
     const first = JSON.stringify(messages(await step(newAgent('contract-en')))[0]?.content)
     const second = JSON.stringify(messages(await step(newAgent('contract-zh')))[0]?.content)
     expect(first).toBe(second)
-    const content = first
-    // A child cannot see the conversation, so the parent owns the briefing.
-    expect(content).toMatch(/must be self-contained/)
-    expect(content).toMatch(/like a colleague who just walked into the room/)
-    // The settlement notice arrives later; nothing may be invented or shipped before it.
-    expect(content).toMatch(/do not assume or predict/)
-    expect(content).toMatch(/do not deliver anything that depends on them/)
-    // A child's reply is a report, and it cannot describe its own configuration.
-    expect(content).toMatch(/check its assertions against the files themselves/)
-    expect(content).toMatch(/statements about its own configuration the same way/)
-    // Output is invisible to the user, and polling is forbidden.
-    expect(content).toMatch(/summarize the result to the user yourself/)
-    expect(content).toMatch(/do not poll it/)
-    // Waiting time is spent on independent work, not on watching the child.
-    expect(content).toMatch(/spend that time advancing independent work/)
-    // A question asked mid-run goes unanswered; the child decides and reports the gap.
-    expect(content).toMatch(/question a child asks while it runs goes unanswered/)
-    expect(content).toMatch(/what information it still lacked/)
-    // Duplicate work is the stated anti-pattern.
-    expect(content).toMatch(/Do not duplicate work a child is already doing/)
-    // The catalog never names a management tool: which one exists depends on the
-    // deployment's delegation surface, and this plugin mounts none of its own.
-    expect(content).not.toMatch(/subagent_role_control/)
-    // Concurrent children need separate checkouts and named file boundaries.
-    expect(content).toMatch(/give each its own git worktree/)
-    // Role names are directory keys, not shortcuts for another delegation path.
-    expect(content).toMatch(/do not substitute a similarly named one/)
-    // Delegation has a positive default, published ahead of the role list.
-    expect(content).toMatch(/Delegate proactively/)
-    expect(content).toMatch(/start all the children in one message/)
-    expect(content).toMatch(/Decide by the briefing test/)
-    // The negative-only framing is gone; run mode and verification survive in
-    // the usage notes instead of a standalone prohibition paragraph.
-    expect(content).not.toContain('When NOT to use a role child')
-    // The removed channel section is gone, and the general path is not re-listed here.
-    expect(content).not.toContain('Choosing a delegation channel')
-    expect(content).not.toContain('Delegation and management tools in this session')
-    expect(content).not.toContain('subagent_fork')
-    expect(content).not.toContain('interrupt_agent')
-    // One scheduling rule, stated as the practice rather than as a channel menu.
-    expect(content).toMatch(/Leave run_in_background unset/)
-    expect(content).toMatch(/set it to false only when your next action depends on the result/)
-    // The removed job channel must not survive anywhere in the contract.
-    expect(content).not.toContain('job_output')
-    expect(content).not.toContain('job_kill')
-    expect(content).not.toContain('tracked background job')
+    // Discovery only: the list says what exists, and every rule about using it
+    // lives in the tool description that every request carries.
+    expect(first).toContain('<available_subagents>')
+    for (const guidance of ['Writing the prompt', 'Usage notes', 'Delegate proactively', 'brief a child', 'do not poll']) {
+      expect(first, guidance).not.toContain(guidance)
+    }
+  })
+
+  it('keeps the delegation guidance in the tool description, not in the catalog', () => {
+    // The tool owns how it is used. Every rule the catalog used to repeat is
+    // asserted here, so moving it back would fail this test.
+    for (const rule of [
+      /delegate proactively/i,
+      /no listed role matches/,
+      /defaults to true/,
+      /do not poll it/,
+      /settlement notice arrives as a user message/,
+      /verify its assertions against the files/,
+      /cannot see how its role instructions were installed/
+    ]) {
+      expect(AGENT_ROLE_TOOL_DESCRIPTION).toMatch(rule)
+    }
   })
 
   it('tracks real user edits, suite disable/uninstall and project scope with no role skills', async () => {

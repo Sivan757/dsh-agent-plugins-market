@@ -21,8 +21,6 @@ export interface SubagentCatalogSource {
   form: 'catalog'
   update?: true
   entries: readonly SubagentCatalogEntry[]
-  /** Omitted on historical standalone catalogs. */
-  tool?: 'spawn_teammate_role'
   /** Fingerprint of the model-facing guidance, independent of the role entries. */
   guidanceHash?: string
 }
@@ -83,8 +81,7 @@ interface CatalogHost {
 export function mountSubagentCatalog(
   ctx: Context,
   tool: { name: string },
-  snapshot: (agent: CatalogAgent, signal: AbortSignal) => Promise<SubagentCatalogObservation>,
-  mode: 'subagent_role' | 'spawn_teammate_role' = 'subagent_role'
+  snapshot: (agent: CatalogAgent, signal: AbortSignal) => Promise<SubagentCatalogObservation>
 ): () => void {
   const host = ctx as unknown as CatalogHost
   let disposed = false
@@ -109,8 +106,8 @@ export function mountSubagentCatalog(
     let entries: SubagentCatalogEntry[] = [...observed.entries]
     if (host.tools.get(tool.name, agent) !== tool) entries = []
     const digest = digestEntries(entries)
-    const history = catalogHistory(agent, mode)
-    const existing = catalogMessage(decision.messages, mode)
+    const history = catalogHistory(agent)
+    const existing = catalogMessage(decision.messages)
     if (history.visibleDigest === digest) {
       return existing === undefined ? decision : { ...decision, messages: decision.messages.filter(message => message.id !== existing.message.id) }
     }
@@ -118,7 +115,7 @@ export function mountSubagentCatalog(
     if (!history.published && entries.length === 0) {
       return existing === undefined ? decision : { ...decision, messages: decision.messages.filter(message => message.id !== existing.message.id) }
     }
-    const message = renderCatalog(entries, history.published, mode)
+    const message = renderCatalog(entries, history.published)
     return {
       ...decision,
       messages: existing === undefined ? [...decision.messages, message] : decision.messages.map(item => (item.id === existing.message.id ? message : item))
@@ -131,117 +128,73 @@ export function mountSubagentCatalog(
 }
 
 /**
- * The guidance published with every catalog. It is fixed English and does not
- * follow the host's locale: the model-facing contract is one text, so a role
- * list can never appear under a translated version of the rules it obeys, and
- * English is the language the harness and its tool descriptions already use.
+ * The catalog's own prose. It is fixed English and does not follow the host's
+ * locale: the model-facing contract is one text, so a role list can never appear
+ * under a translated version of the rules it obeys, and English is the language
+ * the harness and its tool descriptions already use.
+ *
+ * The shape is the host skill catalog's, because that is the block a reader and
+ * the Web client already know how to present: one sentence, then a tagged list,
+ * and nothing else. How and when to call the tool belongs to the tool
+ * description, which every request carries; repeating it here would spend the
+ * catalog's tokens on text the model already has.
  */
-const CATALOG_INTRO = 'The following subagent roles are available in this session. A role summary describes the role; it is not an instruction for the current agent to execute.'
+const CATALOG_INTRO = 'A role is a reusable child-agent specialization. The following subagent roles are available in this session:'
 
 /** Published instead of the intro when roles were already announced earlier in this session. */
 const CATALOG_UPDATED =
   'The available subagent roles changed. This complete list replaces every earlier role list in this session; every name from an earlier subagent-catalog is void:'
 
-const CATALOG_PROMPT =
-  'Writing the prompt: brief the child like a colleague who just walked into the room — it has not seen this conversation, does not know what you tried, and does not know why the task matters. Explain what you are trying to accomplish, describe what you learned and ruled out, and give enough context for the child to make judgment calls. The child cannot see this conversation, so prompt must be self-contained: the task itself, the relevant files and known findings, the output you expect, and the boundaries of the task (research only, or may edit files). Terse command-style prompts produce shallow, generic work.'
+/** Published when the session's role set became empty. */
+const CATALOG_EMPTY = 'No subagent roles are available in this session any more. Do not use role names from an earlier subagent catalog.'
 
-const CATALOG_USAGE = [
-  'Usage notes:',
-  '',
-  "- Call subagent_role with the exact catalog name as agent. A child has its own context: it starts without this conversation, so it suits self-contained work that one briefing can state in full. If no listed role matches, do not substitute a similarly named one — delegate through one of the host's general delegation channels instead, and do not load these roles through skill or slash commands.",
-  '- The call returns a durable subagent id immediately and does not block you. A child usually runs for minutes: spend that time advancing independent work that does not depend on it, and do not poll it or re-check its progress.',
-  '- Leave run_in_background unset; set it to false only when your next action depends on the result and no independent work remains.',
-  '- A question a child asks while it runs goes unanswered: nothing will reply on your behalf. So state the prompt in full the first time, and a child should decide for itself, keep going, and list in its final reply which choices it made alone and what information it still lacked.',
-  "- The settlement notice arrives as a user message, not as a tool result. Until it arrives, do not assume or predict its findings, and do not deliver anything that depends on them. The child's output is not visible to the user: when it finishes, summarize the result to the user yourself.",
-  "- The child's final reply is its own report: check its assertions against the files themselves, and treat its statements about its own configuration the same way — a child cannot see how its role instructions were installed.",
-  '- Do not duplicate work a child is already doing. When several children run at once, give each its own git worktree and name the files it owns in prompt.'
-].join('\n')
+/** The list wrapper the host skill catalog uses, and the client renders as one block. */
+const CATALOG_TAG_OPEN = '<available_subagents>'
+const CATALOG_TAG_CLOSE = '</available_subagents>'
 
-/**
- * The positive half of the delegation decision, published with every catalog
- * ahead of the role list so the model reads the triggers before the names.
- * Delegation had only negative framing before this block: every other paragraph
- * states what must not happen, and none states when delegating is the default.
- */
-const CATALOG_WHEN_TO_DELEGATE = [
-  'Delegate proactively: hand self-contained work to a role child by default instead of doing it inline. Delegate when any of these holds:',
-  '',
-  '- The task would burn many tool calls or file reads whose raw output would flood this conversation — codebase exploration, tracing behavior across files, digesting long logs or reports. The child reads everything and returns only the distilled result.',
-  '- The task is a complete unit one briefing can state: a scoped implementation, a review, an analysis, a document.',
-  '- Two or more such tasks are independent: start all the children in one message and let them run in parallel.',
-  '',
-  'Decide by the briefing test: if you can state the task in full and it needs no further input from the user, delegate it and keep working.'
-].join('\n')
+/** Longest description one line carries, matching the host skill catalog's budget. */
+const CATALOG_DESCRIPTION_MAX_LENGTH = 500
+
+/** One line per role: the name the tool takes, then what the role does. */
+function catalogLine(entry: SubagentCatalogEntry): string {
+  const description = entry.description.replaceAll(/\s+/gu, ' ').trim()
+  const bounded = description.length <= CATALOG_DESCRIPTION_MAX_LENGTH ? description : description.slice(0, CATALOG_DESCRIPTION_MAX_LENGTH - 3) + '...'
+  return `- \`${escapeEntry(entry.name)}\`: ${escapeEntry(bounded)}`
+}
 
 /**
- * Model-facing catalog text: the delegation triggers, then the role list, then
- * the same guidance on first publication and on every update, so a replacement
- * never arrives without the rules that govern it. The guidance covers when a
- * role child is the default, how to brief one, and how to work with one while
- * it runs; the per-channel arbitration between the host's delegation tools
- * stays in the tool descriptions the harness owns.
+ * Model-facing catalog text in the host skill catalog's shape: one sentence, the
+ * tagged list, and nothing else. What the list is for, when to delegate, how to
+ * brief a child and what its result means belong to the tool description, which
+ * every request carries; a catalog that repeated them would spend the same
+ * tokens twice and drift from the tool it describes.
  *
- * Role lines carry a name and a description only. The configured route stays in
- * the durable entries for execution and change detection; publishing it would
- * tell the model which model each role runs on without changing what it does.
+ * Role lines carry the callable name and what the role does. The configured route
+ * stays in the durable entries for execution and change detection: publishing it
+ * would tell the model which model each role runs on without changing what it
+ * does.
  */
 export function renderCatalogText(entries: readonly SubagentCatalogEntry[], update: boolean): string {
-  // A role line names the role and describes it, unquoted, as every list the model
-  // has been trained on does. The frame carries the block; a nested tag and an
-  // inner Markdown heading would be two more naming systems for one list.
-  const lines = entries.map(entry => '- ' + escapeEntry(entry.name) + ': ' + escapeEntry(entry.description))
-  return [
-    '<system-reminder>',
-    update ? CATALOG_UPDATED : CATALOG_INTRO,
-    '',
-    CATALOG_WHEN_TO_DELEGATE,
-    '',
-    ...lines,
-    '',
-    CATALOG_PROMPT,
-    '',
-    CATALOG_USAGE,
-    '</system-reminder>'
-  ].join('\n')
+  if (update && entries.length === 0) return ['<system-reminder>', CATALOG_EMPTY, '</system-reminder>'].join('\n')
+  return ['<system-reminder>', update ? CATALOG_UPDATED : CATALOG_INTRO, '', CATALOG_TAG_OPEN, ...entries.map(catalogLine), CATALOG_TAG_CLOSE, '</system-reminder>'].join('\n')
 }
 
-/**
- * Discovery only: which roles exist and which entry point takes a given call.
- * Authorization, briefing, coordination and shared-task practice stay with the
- * host policy and the Team coordination section, so this text never restates
- * them and never argues for a role on model grounds.
- */
-export function renderTeamRoleCatalogText(entries: readonly SubagentCatalogEntry[]): string {
-  return [
-    '<system-reminder>',
-    'Available roles for spawn_teammate_role. This complete list replaces every earlier role list and its delegation guidance in this session.',
-    '',
-    ...entries.map(entry => '- ' + escapeEntry(entry.name) + ': ' + escapeEntry(entry.description)),
-    '',
-    'A role from this list goes to spawn_teammate_role. Without a matching role, or when the member should inherit this conversation, use native spawn_teammate.',
-    '',
-    'Team authorization, coordination, waiting and shared-task practice: see the Team coordination section of your system prompt.',
-    '</system-reminder>'
-  ].join('\n')
-}
-
-function renderCatalog(entries: readonly SubagentCatalogEntry[], update: boolean, mode: 'subagent_role' | 'spawn_teammate_role'): UserMessage {
+function renderCatalog(entries: readonly SubagentCatalogEntry[], update: boolean): UserMessage {
   return createUserMessage({
-    content: [{ type: 'text', text: mode === 'spawn_teammate_role' ? renderTeamRoleCatalogText(entries) : renderCatalogText(entries, update) }],
+    content: [{ type: 'text', text: renderCatalogText(entries, update) }],
     source: {
       kind: 'subagent-catalog',
       form: 'catalog',
-      guidanceHash: guidanceHash(mode),
+      guidanceHash: guidanceHash(),
       ...(update ? { update: true } : {}),
-      ...(mode === 'spawn_teammate_role' ? { tool: mode } : {}),
       entries
     }
   })
 }
 
 /** Hash both publication variants so wording changes refresh existing sessions without role edits. */
-function guidanceHash(mode: 'subagent_role' | 'spawn_teammate_role'): string {
-  const text = mode === 'spawn_teammate_role' ? renderTeamRoleCatalogText([]) : renderCatalogText([], false) + renderCatalogText([], true)
+function guidanceHash(): string {
+  const text = renderCatalogText([], false) + renderCatalogText([], true)
   return createHash('sha256').update(text).digest('hex')
 }
 
@@ -280,7 +233,7 @@ function readEntries(source: unknown): readonly SubagentCatalogEntry[] | undefin
   return entries
 }
 
-function catalogHistory(agent: CatalogAgent, mode: 'subagent_role' | 'spawn_teammate_role'): { visibleDigest?: string; published: boolean } {
+function catalogHistory(agent: CatalogAgent): { visibleDigest?: string; published: boolean } {
   const visible = new Set(agent.session.surface.nodes)
   let published = false
   for (let index = agent.session.seq - 1; index >= 0; index--) {
@@ -292,24 +245,16 @@ function catalogHistory(agent: CatalogAgent, mode: 'subagent_role' | 'spawn_team
     published = true
     if (visible.has(event.seq)) {
       const source = (event.data as UserMessage).source as SubagentCatalogSource
-      return { ...((source.tool ?? 'subagent_role') === mode && source.guidanceHash === guidanceHash(mode) ? { visibleDigest: digestEntries(entries) } : {}), published }
+      return { ...(source.guidanceHash === guidanceHash() ? { visibleDigest: digestEntries(entries) } : {}), published }
     }
   }
   return { published }
 }
 
-function catalogMessage(
-  messages: readonly UserMessage[],
-  mode: 'subagent_role' | 'spawn_teammate_role'
-): { message: UserMessage; entries: readonly SubagentCatalogEntry[]; modeMatches: boolean } | undefined {
+function catalogMessage(messages: readonly UserMessage[]): { message: UserMessage; entries: readonly SubagentCatalogEntry[]; modeMatches: boolean } | undefined {
   for (const message of messages) {
     const entries = readEntries(message.source)
-    if (entries !== undefined)
-      return {
-        message,
-        entries,
-        modeMatches: ((message.source as SubagentCatalogSource).tool ?? 'subagent_role') === mode && (message.source as SubagentCatalogSource).guidanceHash === guidanceHash(mode)
-      }
+    if (entries !== undefined) return { message, entries, modeMatches: (message.source as SubagentCatalogSource).guidanceHash === guidanceHash() }
   }
   return undefined
 }

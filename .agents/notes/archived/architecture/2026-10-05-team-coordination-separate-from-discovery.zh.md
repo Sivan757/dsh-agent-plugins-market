@@ -1,6 +1,7 @@
 # Agent Note: Team 协调独立于角色发现
 
 Status: implemented
+Archived: 2026-11-13
 
 ## Problem
 
@@ -8,7 +9,7 @@ Status: implemented
 
 ## Decision
 
-`team-coordination.ts` 在宿主 Team 策略之后贡献一个动态 `market:team-coordination` 系统段。每次组装通过注册表和 Team 身份解析准确的活跃 Agent。Lead 文案涵盖授权后的主动分派、独立调研交底、范围与依赖归属、用户纠正、成员复用、避免重复劳动及验证后交付。成员文案涵盖身份、基于 target 的 Lead／同伴通信、范围内执行、决策升级及证据回报。无 scope、过期／伪造身份或非 Team 子代理不渲染该贡献。
+`agentTeams.tryMembership` 可调用时，`team-coordination.ts` 在宿主 Team 策略之后贡献一个动态 `market:team-coordination` 系统段。仅提供任务图的服务会在注册段落前被跳过并记录诊断，避免普通提示组装调用不存在的成员方法。每次组装通过注册表和 Team 身份解析准确的活跃 Agent。Lead 文案涵盖授权后的主动分派、独立调研交底、范围与依赖归属、用户纠正、成员复用、避免重复劳动及验证后交付。成员文案涵盖身份、基于 target 的 Lead／同伴通信、范围内执行、决策升级及证据回报。无 scope、过期／伪造身份或非 Team 子代理不渲染该贡献。
 
 该贡献只需 agents、agentTeams 和 systemPrompt，独立于角色发现、agents 资源过滤和增强创建的依赖。原生成员及无角色目录的会话仍获得同一协作约定。入口 inject 管理服务出现／消失，提示注册表负责释放；不新增逐 Agent 监听器／映射、计时器、轮询或名册。
 

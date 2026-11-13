@@ -1,6 +1,7 @@
 # Agent Note: Role-aware teammates over public host hooks
 
 Status: implemented
+Archived: 2026-11-13
 
 ## Problem
 
@@ -8,7 +9,7 @@ The Team profile replaces host subagent control tools. A standalone role child i
 
 ## Decision
 
-In a Team deployment, `spawn_teammate_role` replaces `subagent_role`; native Team tools remain unchanged. The enhanced entry calls `agentTeams.spawnTeammate`. A uniquely named continuation provider contributes a fresh creation specification and associates its reserved child id with a call-local role snapshot. The awaited `agent/created` hook verifies the exact parent/member identity before applying scoped persona, the role route on the member's own options, and `installModelSelection`. It never mutates parent options, patches host methods or creates a separate roster.
+On hosts that expose `membership`, `tryMembership`, and `spawnTeammate`, `spawn_teammate_role` replaces `subagent_role`. The entry checks those methods before creating its runtime or restoring bindings. A service for task graphs, such as the packaged `@deepseek-ai/dsh-agent-team@0.2.2-rc.2`, skips this enhancement with a diagnostic. Service presence continues to reserve delegation for native host tools. The enhanced entry calls `agentTeams.spawnTeammate`. A uniquely named continuation provider contributes a fresh creation specification and associates its reserved child id with a call-local role snapshot. The awaited `agent/created` hook verifies the exact parent/member identity before applying scoped persona, the role route on the member's own options, and `installModelSelection`. It never mutates parent options, patches host methods or creates a separate roster.
 
 The validated role snapshot is stored in source metadata on a `teammate-role-binding` context message injected into the host inbox and flushed before initial task acceptance. The source records child id, role identity, instructions and effective route. Recovery observes the child-owned log through `sessionQuery`; inherited role bindings cannot become another member's role. A dedicated external event was rejected by the released persistence reader, and appending a user surface before the first system head made replay invalid; the inbox preserves both the known event envelope and correct message order.
 
@@ -35,12 +36,14 @@ Claude Code 2.1.284 (`/opt/homebrew/bin/claude`) exposes `subagent_type` and mod
 - Role identity is reusable; Team member names are lifetime-unique and the native member limit still applies. Follow-up work should message existing members rather than repeatedly creating them.
 - The enhanced entry always starts fresh and returns a native target plus effective route. It has no foreground/job channel or fork parameter. Native spawn_teammate stays available for ordinary members.
 - Card edits affect new members only; recovery uses the creation snapshot. Plugin unload drains live role children before removing composition. Keep the plugin installed when resuming role members; the host does not independently reconstruct this plugin's role source.
-- The rc.2 native roster is not a route readout for an idle member: a member row uses the live Agent's model, which the plugin sets to the role route, and falls back to the Lead's model once that member is inactive and its Agent is released (`live?.options.model ?? root.options.model` in `list`). The enhanced tool result and the persisted request header identify the effective model; no native presentation is patched, so the documentation points operators at the tool result rather than at `list_agents`. The options write and the residual idle gap are [the role-route decision](../bug-fix/2026-10-09-role-route-on-child-options.md).
+- The legacy Team roster is not a route readout for an idle member: a member row uses the live Agent's model, which the plugin sets to the role route, and falls back to the Lead's model once that member is inactive and its Agent is released (`live?.options.model ?? root.options.model` in `list`). The enhanced tool result and the persisted request header identify the effective model; no native presentation is patched, so the documentation points operators at the tool result rather than at `list_agents`. The options write and the residual idle gap are [the role-route decision](../bug-fix/2026-10-09-role-route-on-child-options.md).
 - Agent, Session, Subagent, system-prompt, Team and Session-query packages are declared peers with exact development mirrors. Team/query peers are optional; integration tests use published loop/testkit/persistence/native-Team packages. Their transitive native koffi build is disabled because these tests do not exercise desktop I/O. The alignment gate permits dev-only packages absent from production imports, but still checks their exact pins; tests prove importing one from src without a runtime declaration fails and repair does not promote test-only dependencies to consumer peers.
 
 ## Testing
 
 Real published Team/AgentLoop/JSONL tests cover first-request role and route, an explicit call effort, native roster and messaging addressed by the member's own Session, cold resume across a complete Context restart, plugin replacement, a live member composed only by restore(), parallel snapshot isolation, initialization cancellation, direct-provider refusal, Lead-only and empty-prompt refusal, a seeded fork whose inherited binding belongs to its parent, late Team activation/removal and repeated compact initialization. Assertions on member traffic select requests by Session rather than array position, which is what keeps them independent of Lead scheduling. Catalog tests cover mode replacement and non-authorizing Team wording. Model adapters are in-memory: no paid provider calls or desktop profile restart is claimed. Each guarded behavior was confirmed by mutation: disabling the composition, the route, the binding filter, the restore, or either refusal fails the suite.
+
+The Desktop 0.2.2-rc.2 bundled CLI ran each local tarball in an isolated `market-demo` profile. With `0.14.6-local.20261113.1`, the enhanced tool's `agent/created` listener threw `ctx.agentTeams.tryMembership is not a function`. The browser could not create a session. With `0.14.6-local.20261113.2`, the browser created a session, sent a prompt, and displayed the response from a loopback model fixture. The market overview and installed skill list also returned the synthetic suite and its skill.
 
 ## Related decisions
 

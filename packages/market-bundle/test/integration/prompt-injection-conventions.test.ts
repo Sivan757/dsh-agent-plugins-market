@@ -22,7 +22,7 @@ import { withDefaultSurfaces } from './helpers/projected-suite.js'
 import { removeTempRoot } from './helpers/temp-root.js'
 import { ExtensionHooks } from '../../../../packages/market-runtime/src/runtime/surfaces/extension-hooks.js'
 import { agentInstructionSection } from '../../../../packages/market-runtime/src/runtime/host/scoped-contributors.js'
-import { renderCatalogText, renderTeamRoleCatalogText } from '../../../../packages/market-runtime/src/runtime/agents/subagent-catalog.js'
+import { renderCatalogText } from '../../../../packages/market-runtime/src/runtime/agents/subagent-catalog.js'
 
 const SYSTEM_REMINDER_OPEN = '<system-reminder>'
 const SYSTEM_REMINDER_CLOSE = '</system-reminder>'
@@ -181,19 +181,13 @@ describe('R3 no invented tags', () => {
   it('uses no angle-bracket tag beyond the familiar frame and the emphasis block', async () => {
     const section = agentInstructionSection([{ parent: 'p', label: 'alpha', kind: 'plugin suite', text: 'body' }])
     const role = { name: 'r', title: 'R', description: 'd' }
-    // Every producer that frames content, plus every variant of each: an update
-    // variant and the Team catalog are separate literals, so a tag invented in one
-    // would otherwise ship green.
-    const texts = [
-      section,
-      renderCatalogText([role], false),
-      renderCatalogText([role], true),
-      renderCatalogText([], true),
-      renderTeamRoleCatalogText([role]),
-      renderTeamRoleCatalogText([])
-    ]
-    // The known vocabulary only: the frame, the emphasis block, and skill content.
-    const allowed = new Set(['system-reminder', 'available_skills', 'skill_content'])
+    // Every producer that frames content, plus every variant of the catalog: an
+    // update and a first publication are separate literals, so a tag invented in
+    // one would otherwise ship green.
+    const texts = [section, renderCatalogText([role], false), renderCatalogText([role], true), renderCatalogText([], true)]
+    // The known vocabulary only: the frame, the host's skill list and its emphasis
+    // block, and the role list, which mirrors the skill list's own shape.
+    const allowed = new Set(['system-reminder', 'available_skills', 'available_subagents', 'skill_content'])
     for (const text of texts) {
       for (const match of text.matchAll(/<\/?([a-zA-Z][\w-]*)>/gu)) expect(allowed.has(match[1]!)).toBe(true)
     }
@@ -265,7 +259,7 @@ describe('R5 attribution', () => {
       { parent: 'market:source/alpha', label: 'alpha', kind: 'plugin suite', text: 'alpha body' },
       { parent: 'market:source/beta', label: 'beta', kind: 'plugin suite', text: 'beta body' }
     ])
-    expect(section.startsWith('## Agent plugin instructions')).toBe(true)
+    expect(section.startsWith('## Plugin suite instructions')).toBe(true)
     expect(section).toContain('More specific instructions take precedence over broader ones.')
     expect(section).toContain('Instructions from: alpha (plugin suite):')
     expect(section).toContain('Instructions from: beta (plugin suite):')
@@ -332,7 +326,7 @@ describe('R6 user input stays unframed', () => {
 describe('R7 a system prompt section is system weight', () => {
   it('gives the suite instruction section a heading rather than a frame', () => {
     const section = agentInstructionSection([{ parent: 'p', label: 'alpha', kind: 'plugin suite', text: 'body' }])
-    expect(section.startsWith('## Agent plugin instructions')).toBe(true)
+    expect(section.startsWith('## Plugin suite instructions')).toBe(true)
     expect(section).not.toContain(SYSTEM_REMINDER_OPEN)
   })
 
@@ -351,12 +345,7 @@ describe('conforming producers stay plain', () => {
    * by accident. Each is a plain-prose site, so the pin is that it never reaches
    * for the frame module. The command body has its own behavioural case above.
    */
-  const PLAIN_PRODUCERS = [
-    'runtime/agents/role-composition.ts',
-    'runtime/agents/team-coordination.ts',
-    'runtime/host/extension-session-state.ts',
-    'runtime/surfaces/commands-mounts.ts'
-  ]
+  const PLAIN_PRODUCERS = ['runtime/agents/role-composition.ts', 'runtime/host/extension-session-state.ts', 'runtime/surfaces/commands-mounts.ts']
 
   it('no plain-prose producer imports the frame module', async () => {
     for (const relative of PLAIN_PRODUCERS) {
@@ -364,11 +353,6 @@ describe('conforming producers stay plain', () => {
       expect(source, relative).not.toContain('prompt-frame')
       expect(source, relative).not.toContain('system-reminder')
     }
-  })
-
-  it('the team coordination section keeps its own Markdown heading', async () => {
-    const source = await readFile(new URL('../../../../packages/market-runtime/src/runtime/agents/team-coordination.ts', import.meta.url), 'utf8')
-    expect(source).toContain("'## Team coordination'")
   })
 
   it('the session-state bookkeeping messages carry no model-facing text at all', async () => {
