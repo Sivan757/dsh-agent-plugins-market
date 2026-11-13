@@ -31,6 +31,8 @@
 | `runtime/host/extension-session-state.ts` 的选择、意图与唤醒标记 | `agent.inject`、`agent.steer` | 完全没有内容块，记录由来源类型承载 | 它们用于记录持久事件并在请求前被移除。空的载体即使过滤器漏掉也无法被读取。 |
 | `runtime/surfaces/commands-mounts.ts` 与 `runtime/panels/user-commands.ts` 的命令正文 | `agent.followup` | 纯文本用户消息，外层为 `<command-message>`、`<command-name>`、可选 `<command-args>`，再是分隔线、正文与可选 `ARGUMENTS:` 行 | 依据 R6。正文保持用户权重，所以不加框架。元数据告诉模型执行了斜杠命令，以及哪个元素承载参数。 |
 | `runtime/agents/agent-role-router.ts` 与 `teammate-role-tool.ts` 的工具描述 | 工具 schema | 目的行、一个空行，然后是 `-` 列表与可选的 `## Writing the prompt` 段落 | 测量到的 Claude Code 工具描述形态。单段规则会被略读，而其中最难发现的恰是跳过规则。 |
+| `runtime/host/mcp-health-section.ts` 的 `mcpHealthSectionText` | `systemPrompt.section` | Markdown 段落：`## MCP servers not serving tools (dsh-agent-plugins-market)`，每个不可用服务器一行 `-`，写明所属套件、重试预算与最近错误，最后一句要求模型点名缺失的能力 | 依据 R7 与 R5。它本身就是系统权重，再套框架等于在权重上叠加权重；服务器消失之后，套件标签是回答「这个工具是谁提供的」的唯一依据，而所有服务器健康时该段落渲染为空。 |
+| `runtime/host/mcp-health-notice.ts` 的 `mcpHealthNoticeCopy` | `agent.inject` | 纯文本，每次状态变化一句，由 `notice` 形式的来源承载，其 `summary` 即折叠后的一行 | 依据 R2。连接变化的一次性说明不是常驻指令；用 `inject` 而非 `followup`，健康变化不会开启新回合。 |
 
 ## 框架形态
 

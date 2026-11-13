@@ -30,12 +30,13 @@ import { ReconcileScheduler } from '../../market-runtime/src/index.js'
 import { MarketSettingsNamespace } from './platform/settings-namespace.js'
 import { SurfaceToggleService } from '../../market-runtime/src/index.js'
 import { ALL_SURFACES_ON } from '../../market-contracts/src/contracts/surface-toggles.js'
-import { deleteMcpAuthGrant, mcpConnectionSnapshot } from '../../market-mcp/src/index.js'
+import { McpHealthMonitor, deleteMcpAuthGrant, mcpConnectionSnapshot, observeMcpConnections } from '../../market-mcp/src/index.js'
 import { inspectToolRegistry, toolsServiceOf } from '../../market-runtime/src/index.js'
 import { createLlmTranslator } from '../../market-translation/src/index.js'
 import { createTranslationProviders } from '../../market-translation/src/index.js'
 import { migratePluginStorage } from '../../market-catalog/src/index.js'
 import { mountAgentRoleTool } from '../../market-runtime/src/index.js'
+import { mountMcpHealthNotices, mountMcpHealthSection } from '../../market-runtime/src/index.js'
 import { mountUnlessAgentTeams } from '../../market-runtime/src/index.js'
 import { mountTeammateRoleTool } from '../../market-runtime/src/index.js'
 import { mountTeamCoordination } from '../../market-runtime/src/index.js'
@@ -253,6 +254,20 @@ export async function apply(
 
   const runtime = new RuntimeReconciler(ctx, dataRoot, createRuntimeMounts(ctx, dataRoot), key => hostLocale.t(key))
   const sessionExtensions = createSessionExtensions({ ctx, dataRoot, agentsRoot, runtime, hostLocale, inventoryRetry })
+
+  // MCP connection health. One fold of the supervisors' phase edges feeds two
+  // surfaces: a prompt section naming the servers that cannot serve their tools,
+  // and one localized notice per transition. Both read this monitor, so the
+  // panel, the prompt and the notice cannot describe one server differently.
+  const mcpHealth = new McpHealthMonitor({ owner: serverName => runtime.mcpServerOwner(serverName) })
+  ctx.effect(
+    () =>
+      observeMcpConnections({
+        observed: observation => mcpHealth.observe(observation),
+        forgotten: serverName => mcpHealth.forget(serverName)
+      }),
+    'dsh-agent-plugins-market: mcp connection health'
+  )
 
   // User panel stores (skills / commands / agent personas) and their runtime
   // contributions: one extra skill provider plus one command mount registry.
@@ -500,6 +515,19 @@ export async function apply(
   // the agent's own scope.
   ctx.inject(['agents', 'systemPrompt'], hostCtx => {
     hostCtx.effect(() => mountOutputStyleSection(hostCtx, outputStyles), 'dsh-agent-plugins-market: output style section')
+  })
+
+  // The health section is process-wide: MCP mounts belong to the process, not to
+  // a workspace, so every agent reads the same list of missing tools.
+  ctx.inject(['systemPrompt'], hostCtx => {
+    hostCtx.effect(() => mountMcpHealthSection(hostCtx, () => mcpHealth.unhealthy()), 'dsh-agent-plugins-market: mcp health section')
+  })
+
+  // One notice per transition reaches every live session, idle or running.
+  // inject() never starts a turn, so an idle session carries the account until
+  // the request that would have used the missing tools.
+  ctx.inject(['agents'], hostCtx => {
+    hostCtx.effect(() => mountMcpHealthNotices(hostCtx, mcpHealth, { locale: () => localePreference }), 'dsh-agent-plugins-market: mcp health notices')
   })
 
   // Coordination also serves native teammates and does not depend on role discovery.
