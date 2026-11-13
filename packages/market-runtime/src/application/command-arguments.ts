@@ -15,11 +15,13 @@
  * Quotes are removed from the value. There is no escape syntax, and an
  * unterminated quote runs to the end of the input.
  *
- * A body with no placeholder at all receives the input appended as one blank
- * line and `User input: <text>`, so a command never drops what its user typed.
- * Placeholders expand inside code fences exactly as elsewhere: the suites that
- * declare them also write argument references inside shell snippets the model
- * is meant to run with those values.
+ * A body with no placeholder is left exactly as its author wrote it: the
+ * invocation text already travels in the forwarded message's `ARGUMENTS:`
+ * trailer, so appending it again to the body would say the same thing twice and
+ * would put a label the author never wrote into authored prose. Placeholders
+ * expand inside code fences exactly as elsewhere: the suites that declare them
+ * also write argument references inside shell snippets the model is meant to run
+ * with those values.
  * @module application/command-arguments
  */
 
@@ -36,8 +38,8 @@ export interface CommandExpansion {
   missing: string[]
 }
 
-/** The rendering appended to a body that carries no placeholder at all. */
-export const APPENDED_INPUT_LABEL = 'User input: '
+/** The label `forwardCommandText` puts before the invocation text it carries. */
+export const ARGUMENTS_TRAILER_LABEL = 'ARGUMENTS: '
 
 /** One substitution pass, so a value containing a dollar sequence is never re-read. */
 const PLACEHOLDER = /\$(ARGUMENTS|[A-Za-z_][A-Za-z0-9_]*|[1-9])/g
@@ -87,22 +89,19 @@ export function splitCommandInput(rawInput: string): string[] {
  * @param declared - the names the `arguments:` frontmatter declares, in order.
  * @returns the prompt text and the placeholders that had no value.
  */
-export function expandCommandArguments(body: string, rawInput: string, declared: readonly string[] = []): CommandExpansion {
-  const input = rawInput.trim()
+export function expandCommandArguments(body: string, rawInput: string | undefined, declared: readonly string[] = []): CommandExpansion {
+  // A host line that types `rawInput` as required can still deliver nothing for
+  // a command typed with no trailing text; a phrase command must never fail on it.
+  const input = (rawInput ?? '').trim()
   const tokens = splitCommandInput(input)
   const declaredIndex = new Map(declared.map((name, index) => [name, index]))
   const missing: string[] = []
-  let replaced = false
   const noteMissing = (placeholder: string): void => {
     if (!missing.includes(placeholder)) missing.push(placeholder)
   }
   const text = body.replace(PLACEHOLDER, (match: string, token: string) => {
-    if (token === 'ARGUMENTS') {
-      replaced = true
-      return input
-    }
+    if (token === 'ARGUMENTS') return input
     if (/^[1-9]$/.test(token)) {
-      replaced = true
       const value = tokens[Number(token) - 1]
       if (value === undefined) {
         noteMissing(match)
@@ -112,7 +111,6 @@ export function expandCommandArguments(body: string, rawInput: string, declared:
     }
     const index = declaredIndex.get(token)
     if (index === undefined) return match
-    replaced = true
     const value = tokens[index]
     if (value === undefined) {
       noteMissing(match)
@@ -120,6 +118,5 @@ export function expandCommandArguments(body: string, rawInput: string, declared:
     }
     return value
   })
-  if (replaced || input === '') return { text, missing }
-  return { text: `${body.replace(/\s+$/, '')}\n\n${APPENDED_INPUT_LABEL}${input}`, missing }
+  return { text, missing }
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { APPENDED_INPUT_LABEL, expandCommandArguments, splitCommandInput } from '../src/application/command-arguments.js'
+import { expandCommandArguments, splitCommandInput } from '../src/application/command-arguments.js'
 
 describe('command input splitting', () => {
   it('splits on whitespace', () => {
@@ -75,20 +75,24 @@ describe('command argument expansion', () => {
     expect(expansion.text).toBe('Harden $system.')
   })
 
-  it('appends the input to a body with no placeholder at all', () => {
+  it('leaves a body with no placeholder exactly as its author wrote it', () => {
+    // The invocation text travels in the forwarded message's ARGUMENTS trailer;
+    // rewriting the body too would say it twice and add a label the author never
+    // wrote.
     const expansion = expandCommandArguments('Follow the release checklist.\n', 'deploy staging', [])
-    expect(expansion.text).toBe(`Follow the release checklist.\n\n${APPENDED_INPUT_LABEL}deploy staging`)
+    expect(expansion.text).toBe('Follow the release checklist.\n')
     expect(expansion.missing).toEqual([])
   })
 
-  it('appends the input when only an undeclared name is written', () => {
+  it('leaves an undeclared name literal and the body untouched', () => {
     const expansion = expandCommandArguments('Harden $system.', 'payment-service', [])
-    expect(expansion.text).toBe(`Harden $system.\n\n${APPENDED_INPUT_LABEL}payment-service`)
+    expect(expansion.text).toBe('Harden $system.')
   })
 
-  it('appends nothing when the input is empty', () => {
-    const expansion = expandCommandArguments('Follow the checklist.\n', '   ', [])
+  it('accepts an absent invocation text', () => {
+    const expansion = expandCommandArguments('Follow the checklist.\n', undefined, [])
     expect(expansion.text).toBe('Follow the checklist.\n')
+    expect(expansion.missing).toEqual([])
   })
 
   it('expands placeholders inside a code fence like the rest of the body', () => {
