@@ -134,10 +134,13 @@ export function startConnection(
   observe?: (observation: McpConnectionObservation) => void
 ): ConnectionHandle {
   const label = `mcp-client(${config.serverName})`
+  /** The last edge published, so a failed call can say which state it is in. */
+  let lastObservation: McpConnectionObservation | undefined
   const opts: ToolBridgeOptions = {
     registrationFailure: 'contain',
     serverName: config.serverName,
     toolCallTimeoutMs: config.toolCallTimeoutMs,
+    connection: () => lastObservation,
     // Every attempt is bounded: an unreachable server must not hold its
     // process, transport and browser leg while nothing can arrive.
     startupTimeoutMs: config.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS,
@@ -177,8 +180,9 @@ export function startConnection(
    * @param edge - the phase and what the supervisor knows at this moment.
    */
   const report = (edge: Omit<McpConnectionObservation, 'serverName'>): void => {
+    lastObservation = { serverName: config.serverName, ...edge }
     if (observe === undefined) return
-    observe({ serverName: config.serverName, ...edge })
+    observe(lastObservation)
   }
 
   /** A generation may act only while it is the current one on a live bridge. */
