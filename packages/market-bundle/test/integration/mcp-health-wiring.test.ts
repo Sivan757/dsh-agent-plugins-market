@@ -29,7 +29,17 @@ afterEach(() => {
 
 describe('MCP health wiring', () => {
   it('turns one published outage into a notice, a prompt section, and a recovery', () => {
-    const monitor = new McpHealthMonitor({ owner: serverName => (serverName === 'signoz' ? owner : undefined) })
+    // Recovery waits out the uptime window; the test fires it by hand.
+    const window = { run: undefined as (() => void) | undefined }
+    const monitor = new McpHealthMonitor({
+      owner: serverName => (serverName === 'signoz' ? owner : undefined),
+      schedule(run) {
+        window.run = run
+        return () => {
+          window.run = undefined
+        }
+      }
+    })
     cleanups.push(observeMcpConnections({ observed: item => monitor.observe(item), forgotten: name => monitor.forget(name) }))
 
     const sections: Array<{ name: string; text: () => string }> = []
@@ -68,9 +78,12 @@ describe('MCP health wiring', () => {
     expect(sections[0]?.text()).toContain('reconnecting (attempt 2/10')
 
     recordMcpConnection(observation({ phase: 'connected', attempt: 0, retryAt: undefined }))
+    // Back but unconfirmed: the section clears at once, the notice waits for the window.
+    expect(messages).toHaveLength(1)
+    expect(sections[0]?.text()).toBe('')
+    window.run?.()
     expect(messages).toHaveLength(2)
     expect(messages[1]?.content[0]?.text).toContain('connected again')
-    expect(sections[0]?.text()).toBe('')
     expect(mcpConnectionSnapshot().find(item => item.serverName === 'signoz')?.phase).toBe('connected')
 
     forgetMcpConnection('signoz')

@@ -86,9 +86,16 @@ describe('MCP health is mounted by the plugin entry', () => {
     expect(messages[0]?.source).toMatchObject({ kind: 'plugin-market-mcp', form: 'notice' })
 
     recordMcpConnection(observation({ phase: 'connected', attempt: 0, retryAt: undefined }))
+    // The section stops listing the server at once; the recovery notice waits
+    // out the uptime window, which this case observes for real.
     expect(health?.text()).toBe('')
-    expect(messages).toHaveLength(2)
+    expect(messages).toHaveLength(1)
+
+    await vi.waitFor(() => expect(messages).toHaveLength(2), { timeout: 8_000, interval: 100 })
+    // The stub host serves no locale setting, so the host copy falls back to zh.
+    expect(messages[1]?.content[0]?.text).toContain('signoz')
+    expect(messages[1]?.source).toMatchObject({ kind: 'plugin-market-mcp', form: 'notice' })
 
     cleanups.forEach(cleanup => cleanup())
-  })
+  }, 15_000)
 })

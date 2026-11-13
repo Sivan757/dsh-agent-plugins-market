@@ -266,6 +266,7 @@ export async function apply(
       }),
     'dsh-agent-plugins-market: mcp connection health'
   )
+  ctx.effect(() => () => mcpHealth.dispose(), 'dsh-agent-plugins-market: mcp health disposal')
 
   // User panel stores (skills / commands / agent personas) and their runtime
   // contributions: one extra skill provider plus one command mount registry.
