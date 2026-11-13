@@ -1,0 +1,100 @@
+{
+  "node": "v24.21.0",
+  "generatedAt": "2026-11-13T03:36:57.931Z",
+  "scope": "Read-only current source trees; derived indexes in a disposable directory; Node CPU and Node fs calls exclude Git child internals and host startup",
+  "sources": 23,
+  "installedRecords": 44,
+  "rows": [
+    {
+      "phase": "import-all-current-sources",
+      "wallMs": 1504,
+      "cpuMs": 2685,
+      "sourceCalls": {
+        "stat": 38783,
+        "readFile": 5989,
+        "realpath": 7326,
+        "readdir": 8569
+      },
+      "suiteCount": 1023
+    },
+    {
+      "phase": "installed-catalog-reopen",
+      "wallMs": 45,
+      "cpuMs": 55,
+      "sourceCalls": {
+        "stat": 227,
+        "readFile": 74,
+        "realpath": 48,
+        "readdir": 56
+      },
+      "sample": 0,
+      "matchedInstalled": 30
+    },
+    {
+      "phase": "installed-after-freshness-window",
+      "wallMs": 7,
+      "cpuMs": 13,
+      "sourceCalls": {
+        "stat": 227,
+        "readFile": 74,
+        "realpath": 48,
+        "readdir": 56
+      },
+      "sample": 0,
+      "matchedInstalled": 30
+    },
+    {
+      "phase": "installed-catalog-reopen",
+      "wallMs": 41,
+      "cpuMs": 57,
+      "sourceCalls": {
+        "stat": 227,
+        "readFile": 74,
+        "realpath": 48,
+        "readdir": 56
+      },
+      "sample": 1,
+      "matchedInstalled": 30
+    },
+    {
+      "phase": "installed-after-freshness-window",
+      "wallMs": 6,
+      "cpuMs": 12,
+      "sourceCalls": {
+        "stat": 227,
+        "readFile": 74,
+        "realpath": 48,
+        "readdir": 56
+      },
+      "sample": 1,
+      "matchedInstalled": 30
+    },
+    {
+      "phase": "installed-catalog-reopen",
+      "wallMs": 39,
+      "cpuMs": 49,
+      "sourceCalls": {
+        "stat": 227,
+        "readFile": 74,
+        "realpath": 48,
+        "readdir": 56
+      },
+      "sample": 2,
+      "matchedInstalled": 30
+    },
+    {
+      "phase": "installed-after-freshness-window",
+      "wallMs": 6,
+      "cpuMs": 12,
+      "sourceCalls": {
+        "stat": 227,
+        "readFile": 74,
+        "realpath": 48,
+        "readdir": 56
+      },
+      "sample": 2,
+      "matchedInstalled": 30
+    }
+  ],
+  "failures": []
+}

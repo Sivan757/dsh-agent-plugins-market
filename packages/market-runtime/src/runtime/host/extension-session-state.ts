@@ -179,6 +179,10 @@ export class ExtensionSessionState {
     )
     this.off.push(
       ctx.on('agent/pre-step', async (event, next): Promise<PreStepDecision> => {
+        // This service's envelopes are durable in their splice records, so a queued
+        // copy is never input. Clearing it before the claim is what keeps a session
+        // that this service does not govern from delivering one as an ordinary turn.
+        this.purgeQueued(event.agent)
         if (!this.governs(event.agent)) return next()
         this.currentTurns.set(event.agent, event.turn)
         if (this.intents.get(event.agent) !== undefined && this.intentTurns.get(event.agent) === undefined) {
@@ -352,6 +356,7 @@ export class ExtensionSessionState {
   }
   private async attach(agent: Agent): Promise<void> {
     if (!this.governs(agent)) return
+    this.purgeQueued(agent)
     this.unavailable.add(agent)
     try {
       await this.maintenance(agent, signal => this.initialize(agent, 'legacy', signal))
@@ -810,6 +815,24 @@ export class ExtensionSessionState {
     agent.inbox.remove(message.id)
     if (!(await this.ctx.sessions.flush(agent.session))) throw failure('extension-session-persistence-unavailable')
   }
+  /**
+   * Drop queued copies of this service's envelopes.
+   *
+   * A release before the removal in {@link persist} left the pending and committed
+   * copies queued until a turn claimed them, and a session that outlived that host
+   * can still carry one. They are never input, and the splice record already holds
+   * the binding, so initialization and every pre-step clear them. A wake marker is
+   * not cleared: it is what starts a turn for input stranded while this service
+   * denied the session, and dropping it would leave that input waiting.
+   * @param agent - the session whose queued bookkeeping is removed.
+   */
+  private purgeQueued(agent: Agent): void {
+    for (const queue of [agent.inbox.nextStep, agent.inbox.nextTurn]) {
+      for (const message of [...queue]) {
+        if (message.source.kind === EXTENSION_SESSION_SOURCE || message.source.kind === EXTENSION_INTENT_SOURCE) agent.inbox.remove(message.id)
+      }
+    }
+  }
   private maintenance<T>(agent: Agent, task: (signal: AbortSignal) => Promise<T>): Promise<T> {
     if (this.disposed) return Promise.reject(failure('extension-session-not-ready'))
     let operation: Promise<T>
@@ -873,12 +896,15 @@ export class ExtensionSessionState {
     agent.cancel({ kind: 'disposed' }, { keepInbox: true })
   }
   private async persist(agent: Agent, binding: Binding): Promise<void> {
-    agent.inject(
-      createUserMessage({
-        source: { kind: EXTENSION_SESSION_SOURCE, form: 'context', binding: structuredClone(binding) },
-        content: NO_MODEL_CONTENT
-      })
-    )
+    const message = createUserMessage({
+      source: { kind: EXTENSION_SESSION_SOURCE, form: 'context', binding: structuredClone(binding) },
+      content: NO_MODEL_CONTENT
+    })
+    agent.inject(message)
+    // The splice is the durable record, so the queued copy is never needed. It must
+    // also never be claimed: a host that stops running this plugin would deliver it
+    // as an ordinary user message, which is exactly the leak this removal prevents.
+    agent.inbox.remove(message.id)
     this.checkpoints.get(agent)!.latest = binding
     if (!(await this.ctx.sessions.flush(agent.session))) throw failure('extension-session-persistence-unavailable')
   }

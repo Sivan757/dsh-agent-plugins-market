@@ -28,17 +28,16 @@ import { resolveInventoryRetry } from '../../market-runtime/src/index.js'
 import { RuntimeReconciler } from '../../market-runtime/src/index.js'
 import { ReconcileScheduler } from '../../market-runtime/src/index.js'
 import { MarketSettingsNamespace } from './platform/settings-namespace.js'
+import { collectDiagnostics, pluginVersion } from './platform/diagnostics.js'
 import { SurfaceToggleService } from '../../market-runtime/src/index.js'
 import { ALL_SURFACES_ON } from '../../market-contracts/src/contracts/surface-toggles.js'
-import { deleteMcpAuthGrant, mcpConnectionSnapshot } from '../../market-mcp/src/index.js'
+import { McpHealthMonitor, deleteMcpAuthGrant, mcpConnectionSnapshot, observeMcpConnections } from '../../market-mcp/src/index.js'
 import { inspectToolRegistry, toolsServiceOf } from '../../market-runtime/src/index.js'
 import { createLlmTranslator } from '../../market-translation/src/index.js'
 import { createTranslationProviders } from '../../market-translation/src/index.js'
 import { migratePluginStorage } from '../../market-catalog/src/index.js'
 import { mountAgentRoleTool } from '../../market-runtime/src/index.js'
-import { mountUnlessAgentTeams } from '../../market-runtime/src/index.js'
-import { mountTeammateRoleTool } from '../../market-runtime/src/index.js'
-import { mountTeamCoordination } from '../../market-runtime/src/index.js'
+import { mountMcpHealthNotices, mountMcpHealthSection } from '../../market-runtime/src/index.js'
 import { readExtensionSuiteDeclarations } from '../../market-runtime/src/index.js'
 import type { ExtensionSuiteCandidate } from '../../market-runtime/src/index.js'
 import { loadUserMcpSuite } from '../../market-mcp/src/index.js'
@@ -254,6 +253,21 @@ export async function apply(
   const runtime = new RuntimeReconciler(ctx, dataRoot, createRuntimeMounts(ctx, dataRoot), key => hostLocale.t(key))
   const sessionExtensions = createSessionExtensions({ ctx, dataRoot, agentsRoot, runtime, hostLocale, inventoryRetry })
 
+  // MCP connection health. One fold of the supervisors' phase edges feeds two
+  // surfaces: a prompt section naming the servers that cannot serve their tools,
+  // and one localized notice per transition. Both read this monitor, so the
+  // panel, the prompt and the notice cannot describe one server differently.
+  const mcpHealth = new McpHealthMonitor({ owner: serverName => runtime.mcpServerOwner(serverName) })
+  ctx.effect(
+    () =>
+      observeMcpConnections({
+        observed: observation => mcpHealth.observe(observation),
+        forgotten: serverName => mcpHealth.forget(serverName)
+      }),
+    'dsh-agent-plugins-market: mcp connection health'
+  )
+  ctx.effect(() => () => mcpHealth.dispose(), 'dsh-agent-plugins-market: mcp health disposal')
+
   // User panel stores (skills / commands / agent personas) and their runtime
   // contributions: one extra skill provider plus one command mount registry.
   const panels = createUserPanelStores(agentsRoot)
@@ -322,7 +336,17 @@ export async function apply(
     setAutoUpdateSources: enabled => autoUpdate.setEnabled(enabled),
     syncTranslationEnabled: () => {
       catalog.syncTranslationEnabled()
-    }
+    },
+    // Read at report time, not at mount: the snapshot must describe the state
+    // the report is about, and every member here is live.
+    diagnostics: async () =>
+      collectDiagnostics({
+        version: pluginVersion(),
+        userRoot: catalog.userRoot,
+        dataRoot: catalog.dataRoot,
+        overview: () => catalog.overview(),
+        toggles: () => surfaceToggles.currentToggles()
+      })
   })
 
   // Legacy surface and entry routes share one committed workspace policy.
@@ -486,12 +510,13 @@ export async function apply(
     return new UserPanelSkillProvider(panels.skills)
   })
 
-  // Both entry points read the same live user/project role set. Team owns the
-  // enhanced entry's member identities and all subsequent collaboration.
+  // One role surface, over the host's own subagent seam. The host derives Team
+  // membership from the subagent tree, so a role child is a Team member wherever
+  // collaboration is on, and this mount needs no Team service of its own.
   const listRoles = sessionExtensions.roles
 
   ctx.inject(['tools', 'llm', 'subagents', 'agents', 'systemPrompt'], hostCtx => {
-    hostCtx.effect(() => mountUnlessAgentTeams(hostCtx, () => mountAgentRoleTool(hostCtx, listRoles)), 'dsh-agent-plugins-market: agent role routing')
+    hostCtx.effect(() => mountAgentRoleTool(hostCtx, listRoles), 'dsh-agent-plugins-market: agent role routing')
   })
 
   // The output-style section is per agent: a selection belongs to a workspace,
@@ -502,13 +527,17 @@ export async function apply(
     hostCtx.effect(() => mountOutputStyleSection(hostCtx, outputStyles), 'dsh-agent-plugins-market: output style section')
   })
 
-  // Coordination also serves native teammates and does not depend on role discovery.
-  ctx.inject(['agents', 'agentTeams', 'systemPrompt'], teamCtx => {
-    teamCtx.effect(() => mountTeamCoordination(teamCtx), 'dsh-agent-plugins-market: Team coordination')
+  // The health section is process-wide: MCP mounts belong to the process, not to
+  // a workspace, so every agent reads the same list of missing tools.
+  ctx.inject(['systemPrompt'], hostCtx => {
+    hostCtx.effect(() => mountMcpHealthSection(hostCtx, () => mcpHealth.unhealthy()), 'dsh-agent-plugins-market: mcp health section')
   })
 
-  ctx.inject(['tools', 'llm', 'subagents', 'agents', 'agentTeams', 'sessions', 'sessionQuery', 'systemPrompt'], teamCtx => {
-    teamCtx.effect(() => mountTeammateRoleTool(teamCtx, listRoles), 'dsh-agent-plugins-market: role teammates')
+  // One notice per transition reaches every live session, idle or running.
+  // inject() never starts a turn, so an idle session carries the account until
+  // the request that would have used the missing tools.
+  ctx.inject(['agents'], hostCtx => {
+    hostCtx.effect(() => mountMcpHealthNotices(hostCtx, mcpHealth, { locale: () => localePreference }), 'dsh-agent-plugins-market: mcp health notices')
   })
 
   ctx.inject(['webServer', 'loader'], hostCtx => {

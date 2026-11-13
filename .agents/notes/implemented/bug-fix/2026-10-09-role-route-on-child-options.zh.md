@@ -18,7 +18,7 @@ Status: implemented
 
 **让空闲成员保持活跃。** 没有公开 seam 能按住一个可继续子代理。自然结算会释放空闲 activation，而用待处理 inbox 消息或一个假子代理来阻止结算，会为每个成员泄漏一个 Agent。
 
-**用插件工具遮蔽 `list_agents`。** 宿主把 Team 工具注册在 Lead 的 Agent 作用域，更外层作用域的注册会被遮蔽，而且复制宿主管理面在[角色入口笔记](../architecture/2026-10-02-role-aware-team-entry.md)中已被否决。
+**用插件工具遮蔽 `list_agents`。** 宿主把 Team 工具注册在 Lead 的 Agent 作用域，更外层作用域的注册会被遮蔽，而且复制宿主管理面在[角色走 subagent seam](../architecture/2026-11-13-roles-on-the-subagent-seam.zh.md)中已被否决。
 
 **让宿主携带按成员的路由。** 那仍是空闲读数的彻底修法，按用户指示不在本次范围内。
 

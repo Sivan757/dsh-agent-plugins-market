@@ -1,6 +1,7 @@
 # Agent Note: Selective runtime source discovery
 
 Status: implemented
+Archived: 2026-11-12
 
 ## Problem
 

@@ -12,7 +12,7 @@ Status: implemented
 
 运行时协调器并行执行独立 surface，并保留各 surface 内部的顺序。销毁时等待该 surface 正在执行的工作，跳过销毁后尚未开始的排队任务，且分别处理失败。因此 MCP 连接延迟不会阻止本地资源注册或它们各自的清理。
 
-本决策补充[运行时按需发现来源](../performance/2026-09-07-runtime-selective-discovery.zh.md)，来源选择与扫描缓存语义保持一致。现有发现缓存和运行时 surface 记录没有定义事件调度，因此本决策不替代它们。
+本决策补充[来源拥有的发现索引](2026-11-12-source-owned-discovery-indexes.zh.md)，后者持有按安装集合选择来源、发现生命周期及内容失效规则。本记录持有事件调度与各运行面的独立推进。
 
 ## Alternatives considered
 

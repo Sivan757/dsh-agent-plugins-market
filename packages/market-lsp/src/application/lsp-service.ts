@@ -29,8 +29,8 @@ export class LspService {
   ) {}
 
   /** The LSP status surface: declared servers merged with mount diagnostics. */
-  async status(): Promise<LspStatusPayload> {
-    const snapshot = await this.context.snapshots.readUserCatalog()
+  async status(installedOnly = false): Promise<LspStatusPayload> {
+    const snapshot = installedOnly ? await this.context.snapshots.readInstalledCatalog() : await this.context.snapshots.readUserCatalog()
     const direct = await loadLspServers(this.context.agentsRoot)
     // One preference read for the whole inventory: the host answers it by
     // projecting every active profile entry's live configuration, so resolving
@@ -70,7 +70,7 @@ export class LspService {
       const seam = seams.find(candidate => candidate.profile === profile)
       if (seam === undefined) throw new Error(`the profile "${profile}" no longer registers an LSP layer`)
       const result = await migrateLegacyLspSeam(seam)
-      await this.context.notifyChanged(true)
+      await this.context.notifyChanged()
       return { profile: result.profile, patchPath: result.patchPath, backupPath: result.backupPath, restartRequired: result.restartRequired }
     })
   }
@@ -91,7 +91,7 @@ export class LspService {
       await saveLspServers(this.context.agentsRoot, {
         lspServers: { ...Object.fromEntries(Object.entries(direct.servers).map(([key, value]) => [key, lspConfig(value)])), [name]: lspConfig(spec) }
       })
-      await this.context.notifyChanged(true)
+      await this.context.notifyChanged()
     })
   }
 
@@ -99,7 +99,7 @@ export class LspService {
   async setServers(raw: unknown): Promise<LspServerTable> {
     return this.context.enqueue(async () => {
       const { servers } = await saveLspServers(this.context.agentsRoot, raw)
-      await this.context.notifyChanged(true)
+      await this.context.notifyChanged()
       return servers
     })
   }
@@ -111,7 +111,7 @@ export class LspService {
       if (enabled) disabled.delete(id)
       else disabled.add(id)
       await saveDisabledLspServers(this.context.dataRoot, disabled)
-      await this.context.notifyChanged(true)
+      await this.context.notifyChanged()
     })
   }
 
@@ -128,7 +128,7 @@ export class LspService {
    */
   async restart(id?: string): Promise<void> {
     this.ports.lspRestart?.(id)
-    await this.context.notifyChanged(true)
+    await this.context.notifyChanged()
     await this.context.refreshSettled()
   }
 
@@ -153,7 +153,7 @@ export class LspService {
         direct.servers[current.key] = server
         await saveLspServers(this.context.agentsRoot, { lspServers: Object.fromEntries(Object.entries(direct.servers).map(([key, spec]) => [key, lspConfig(spec)])) })
       } else await saveLspOverride(this.context.dataRoot, id, server)
-      await this.context.notifyChanged(true)
+      await this.context.notifyChanged()
     })
   }
 

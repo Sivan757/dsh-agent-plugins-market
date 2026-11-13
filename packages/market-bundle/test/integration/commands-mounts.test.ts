@@ -339,7 +339,9 @@ describe('suite command argument binding', () => {
     await registry.reconcile(await suitesOf(root))
 
     const definition = required(registered.get('checklist'), 'the checklist command to register')
-    expect((await forward(definition, 'deploy staging')).body).toBe('Follow the release checklist.\n\nUser input: deploy staging')
+    // The body stays exactly as authored; the invocation text travels in the
+    // forwarded message's ARGUMENTS trailer, once.
+    expect((await forward(definition, 'deploy staging')).body).toBe('Follow the release checklist.\n')
     registry.disposeAll()
   })
 

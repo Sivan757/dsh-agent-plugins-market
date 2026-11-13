@@ -16,7 +16,7 @@ runtime 的五个挂载注册表里有三个——MCP、LSP 与 hooks——按 s
 
 每个不变量只有一个归属，每种机制只有一个实现，代码声明的每条边界都有真正生效的门禁。
 
-**`Catalog` 变成协作者之上的薄外观。** `CatalogContext` 拥有不可复制的那部分：持久化状态、串行变更队列、修订号与扫描代次、失效流水线、安装状态投影。`SnapshotCache`、`SourceStore`、`InstallStore`、`McpService`、`LspService` 各自持有 context，各自负责一类用例。队列与代次计数器仍然各只有一个（[扫描缓存](2026-09-02-catalog-scan-cache.zh.md)依赖这一点）。外观为 355 行；构造函数仍完整接受 `{ userRoot, dataRoot, onChanged, git?, projectSnapshotTtlMs?, userSnapshotTtlMs? }`，只新增一个可选 `ports`，因此裸构造依然可用。
+**`Catalog` 是协作者之上的薄外观。** `CatalogContext` 拥有持久化状态、串行变更队列、快照修订号与扫描代次、变更流水线及安装状态投影。`SnapshotCache`、`SourceStore`、`InstallStore`、`McpService`、`LspService` 各自持有 context，各自负责一类用例。context 保持单一变更队列。[来源拥有的发现索引](2026-11-12-source-owned-discovery-indexes.zh.md)另有每个来源的代次和写入顺序，因此某个内容更新不会丢弃全部来源。外观在构造时接收目录选项及可选端口。
 
 **依赖集合是显式声明的，而不是猜出来的。** `CatalogPorts` 列出全部宿主接缝，`resolveCatalogPorts` 在其下补齐默认值。延迟解析被刻意保留：settings 与 tools 服务在 `apply()` 之后才解析，因此这些闭包在调用时读取，而不是捕获当时的值。会抛错的默认实现从类体移到默认值对象里，组装点可以直接看到它。
 

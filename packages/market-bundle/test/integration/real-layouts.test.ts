@@ -181,7 +181,7 @@ describe('README repository layout compatibility (offline snapshots)', () => {
     expect(read.errors).toEqual([])
     expect(read.text).toContain('Kimi Code tool mapping')
     const section = agentInstructionSection([{ parent: 'market:kimi/superpowers', label: enabled.manifest.name, kind: 'plugin suite', text: read.text }])
-    expect(section.startsWith('## Agent plugin instructions')).toBe(true)
+    expect(section.startsWith('## Plugin suite instructions')).toBe(true)
     expect(section).toContain('Instructions from: ' + enabled.manifest.name + ' (plugin suite):')
     expect(section).toContain('Kimi Code tool mapping')
     // Withdrawal: a suite that contributes nothing renders no section at all, so

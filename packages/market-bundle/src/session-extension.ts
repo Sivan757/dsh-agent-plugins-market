@@ -92,7 +92,7 @@ interface SessionExtensions {
 }
 
 /** The catalog reads the settings Hooks page needs. */
-type HooksOverviewCatalog = Pick<Catalog, 'enabledUserSuites' | 'overview' | 'mcpStatus' | 'lspStatus'>
+type HooksOverviewCatalog = Pick<Catalog, 'enabledUserSuites' | 'installedOverview' | 'mcpStatus' | 'lspStatus'>
 
 /**
  * The settings Hooks page's read: one row per declared command hook.
@@ -104,7 +104,7 @@ type HooksOverviewCatalog = Pick<Catalog, 'enabledUserSuites' | 'overview' | 'mc
 async function readHookRows(catalog: HooksOverviewCatalog, suites: readonly Suite[]): Promise<ExtensionResource[]> {
   const rows = await readExtensionInventory(
     {
-      catalog: { overview: () => catalog.overview(), mcpStatus: async () => catalog.mcpStatus(), lspStatus: async () => catalog.lspStatus() },
+      catalog: { overview: () => catalog.installedOverview(), mcpStatus: async () => catalog.mcpStatus(true), lspStatus: async () => catalog.lspStatus(true) },
       panels: { skills: { list: async () => [] }, commands: { list: async () => [] }, agents: { list: async () => [] } }
     },
     { projectSuites: suites }
@@ -246,13 +246,13 @@ export function createSessionExtensions({ ctx, dataRoot, runtime, hostLocale, in
           return readExtensionInventory(
             {
               catalog: {
-                overview: () => catalog.overview(),
+                overview: () => catalog.installedOverview(),
                 mcpStatus: async () => {
-                  const [global, local] = await Promise.all([catalog.mcpStatus(), project.mcpStatus()])
+                  const [global, local] = await Promise.all([catalog.mcpStatus(true), project.mcpStatus()])
                   return { ...global, entries: [...global.entries, ...local.entries] }
                 },
                 lspStatus: async () => {
-                  const [global, local] = await Promise.all([catalog.lspStatus(), project.lspStatus()])
+                  const [global, local] = await Promise.all([catalog.lspStatus(true), project.lspStatus()])
                   return { ...global, entries: [...global.entries, ...local.entries] }
                 }
               },

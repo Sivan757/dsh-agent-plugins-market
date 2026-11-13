@@ -8,12 +8,12 @@ English | [简体中文](resources.zh.md) | [README](../../README.md)
 
 Plugin state lives under `~/.dsh/agent-plugins/`; setting `DSH_HOME` changes it to `$DSH_HOME/agent-plugins/`.
 
-| Path under the root      | Contents                                                                 |
-| ------------------------ | ------------------------------------------------------------------------ |
-| `state.json`             | Configured sources and install state                                     |
-| `.sources/<sourceId>/`   | Source checkouts                                                         |
-| `data/`                  | Overrides, suite `${PLUGIN_DATA}` directories, feedback rate-limit stamp |
-| `translation-cache.json` | Cached translations, keyed by content and provider (kept until cleared)  |
+| Path under the root      | Contents                                                                                                   |
+| ------------------------ | ---------------------------------------------------------------------------------------------------------- |
+| `state.json`             | Configured sources and install state                                                                       |
+| `.sources/<sourceId>/`   | Source checkouts                                                                                           |
+| `data/`                  | Overrides, suite `${PLUGIN_DATA}` directories, experience-report bundles and the feedback rate-limit stamp |
+| `translation-cache.json` | Cached translations, keyed by content and provider (kept until cleared)                                    |
 
 Content you author yourself lives in the shared Agent layout root, `~/.agents/` (`$DSH_AGENTS_HOME` overrides it) — the same directory shape this plugin reads from a project's `.agents/`:
 

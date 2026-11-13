@@ -50,6 +50,7 @@ interface SuiteRoot {
   dir?: string
   hint?: SuiteHint
   remoteUrl?: string
+  entryIndex?: number
 }
 
 // ---------------------------------------------------------------------------
@@ -198,6 +199,18 @@ export async function resolveMarketplaceEntry(checkout: string, entry: Marketpla
 // ---------------------------------------------------------------------------
 
 /** Read one checkout through marketplace manifests, dialect by dialect. */
+/** Share the marketplace declaration rules between full discovery and installed-root reads. */
+export function marketplaceEntryHint(entry: MarketplaceEntry): SuiteHint {
+  return {
+    ...componentDeclarations(entry),
+    layout: entry.layout,
+    name: entry.name,
+    version: entry.version,
+    description: entry.description,
+    ...(entry.lspServers === undefined ? {} : { lspServers: entry.lspServers })
+  }
+}
+
 export class MarketplaceStrategy implements ScanFilter {
   readonly name = 'marketplace'
 
@@ -225,6 +238,12 @@ export class MarketplaceStrategy implements ScanFilter {
           if (extra !== undefined) resolved.push(extra)
         }
       }
+      context.bindings = resolved
+        .filter(suite => suite.remote === undefined)
+        .map(suite => {
+          const root = roots.find(candidate => candidate.dir === suite.root)
+          return { id: suite.id, root: suite.root, ...(root?.entryIndex === undefined ? {} : { entryIndex: root.entryIndex }) }
+        })
       return { kind: 'resolved', suites: resolved }
     }
     if (marketplaces.length > 0) {
@@ -236,17 +255,8 @@ export class MarketplaceStrategy implements ScanFilter {
   private async marketplaceRoots(context: ScanContext, entries: readonly MarketplaceEntry[]): Promise<SuiteRoot[]> {
     const roots: SuiteRoot[] = []
     const seen = new Set<string>()
-    for (const entry of entries) {
-      const hint: SuiteHint = {
-        ...componentDeclarations(entry),
-        layout: entry.layout,
-        name: entry.name,
-        version: entry.version,
-        description: entry.description,
-        // Claude Code declares LSP servers inline on the marketplace entry
-        // (typescript-lsp & co. ship no manifest at all).
-        ...(entry.lspServers !== undefined ? { lspServers: entry.lspServers } : {})
-      }
+    for (const [entryIndex, entry] of entries.entries()) {
+      const hint = marketplaceEntryHint(entry)
       const resolution = await resolveMarketplaceEntry(context.checkout, entry, context.sourceUrl)
       if (resolution.kind === 'unclaimed' || resolution.kind === 'rejected') {
         context.notes.push(`marketplace entry "${String(entry.name ?? '<unnamed>')}": ${resolution.reason}`)
@@ -257,12 +267,12 @@ export class MarketplaceStrategy implements ScanFilter {
         // Dedupe by entry name, not URL: one remote repo can host several
         // plugins that each appear as their own marketplace entry.
         if (entryName !== undefined && !seen.has(entryName)) {
-          roots.push({ hint, remoteUrl: resolution.url })
+          roots.push({ hint, remoteUrl: resolution.url, entryIndex })
           seen.add(entryName)
         }
         continue
       }
-      roots.push(...(await collectRoots(resolution.dir, hint, seen)))
+      roots.push(...(await collectRoots(resolution.dir, hint, seen)).map(root => ({ ...root, entryIndex })))
     }
     return roots
   }

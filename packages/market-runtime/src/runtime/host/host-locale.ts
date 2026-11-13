@@ -14,14 +14,35 @@
  */
 
 /** Host runtime dictionary keys (mirrored for zh and en). */
-export type HostLocaleKey = 'commandAcknowledged' | 'commandNotSelected' | 'commandMissingArguments' | 'userCommandSourceLabel' | 'feedbackToolCardTitle'
+export type HostLocaleKey =
+  | 'commandAcknowledged'
+  | 'commandNotSelected'
+  | 'commandMissingArguments'
+  | 'userCommandSourceLabel'
+  | 'feedbackToolCardTitle'
+  | 'mcpServerDegraded'
+  | 'mcpServerStopped'
+  | 'mcpServerRecovered'
+  | 'mcpServerOrigin'
+  | 'mcpServerFailureClause'
+  | 'mcpServerDegradedSummary'
+  | 'mcpServerStoppedSummary'
+  | 'mcpServerRecoveredSummary'
 
 const zh: Record<HostLocaleKey, string> = {
   commandAcknowledged: '/{command} 已转交模型执行',
   commandNotSelected: '/{command} 未在当前会话启用',
   commandMissingArguments: '/{command} 以下已声明的参数没有取到值，按空值处理：{arguments}',
   userCommandSourceLabel: '用户命令',
-  feedbackToolCardTitle: '提交市场体验反馈'
+  feedbackToolCardTitle: '提交市场体验反馈',
+  mcpServerDegraded: 'MCP 服务器 {server}{origin} 连接已断开，正在重连（第 {attempt}/{max} 次），约 {delay} 秒后重试{failure}',
+  mcpServerStopped: 'MCP 服务器 {server}{origin} 已停止重连；它提供的工具在重新挂载前不可用{failure}',
+  mcpServerRecovered: 'MCP 服务器 {server} 已恢复连接，它提供的工具重新可用。',
+  mcpServerOrigin: '（套件 {suite}，服务器键 {key}）',
+  mcpServerFailureClause: '。最近错误：{error}',
+  mcpServerDegradedSummary: '{server} 连接断开，重连中 {attempt}/{max}',
+  mcpServerStoppedSummary: '{server} 已停止重连，工具不可用',
+  mcpServerRecoveredSummary: '{server} 已恢复连接'
 }
 
 const en: Record<HostLocaleKey, string> = {
@@ -29,7 +50,15 @@ const en: Record<HostLocaleKey, string> = {
   commandNotSelected: '/{command} is not enabled in this session',
   commandMissingArguments: '/{command} did not receive these declared arguments, left empty: {arguments}',
   userCommandSourceLabel: 'user command',
-  feedbackToolCardTitle: 'File market feedback'
+  feedbackToolCardTitle: 'File market feedback',
+  mcpServerDegraded: 'MCP server {server}{origin} lost its connection and is reconnecting (attempt {attempt}/{max}), retrying in about {delay}s{failure}',
+  mcpServerStopped: 'MCP server {server}{origin} stopped reconnecting; its tools stay unavailable until the mount is retried{failure}',
+  mcpServerRecovered: 'MCP server {server} is connected again and its tools are available.',
+  mcpServerOrigin: ' (suite {suite}, server key {key})',
+  mcpServerFailureClause: '. Last error: {error}',
+  mcpServerDegradedSummary: '{server} disconnected, retrying {attempt}/{max}',
+  mcpServerStoppedSummary: '{server} stopped reconnecting; tools unavailable',
+  mcpServerRecoveredSummary: '{server} reconnected'
 }
 
 const DICTS = { zh, en } as const

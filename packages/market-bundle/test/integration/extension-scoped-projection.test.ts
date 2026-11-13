@@ -13,6 +13,7 @@ import type { UserPanelStore } from '../../../../packages/market-runtime/src/run
 import type { SuiteSkillProviderOptions } from '../../../../packages/market-runtime/src/runtime/surfaces/skills-provider.js'
 import { createMcpMount } from '../../../../packages/market-bundle/src/runtime-adapters.js'
 
+const instructionText = vi.hoisted(() => ({ value: '' }))
 const observed = vi.hoisted(() => ({
   skills: [] as unknown[],
   commandPolicies: [] as unknown[][],
@@ -52,7 +53,7 @@ vi.mock('../../../../packages/market-runtime/src/runtime/panels/user-commands.js
     disposeAll() {}
   }
 }))
-vi.mock('../../../../packages/market-runtime/src/runtime/surfaces/project-runtime.js', () => ({ suiteInstructions: async () => ({ text: '' }) }))
+vi.mock('../../../../packages/market-runtime/src/runtime/surfaces/project-runtime.js', () => ({ suiteInstructions: async () => ({ text: instructionText.value }) }))
 vi.mock('../../../../packages/market-runtime/src/runtime/surfaces/extension-hooks.js', () => ({
   ExtensionHooks: class {
     async reconcile() {
@@ -178,8 +179,9 @@ it('uses pending projections for preparation while execution callbacks consult o
   await contributors.disposeAll()
 })
 
-it('registers suite instructions as literal text so a {{...}} in a suite file cannot fail assembly', async () => {
+it('registers no instruction section when no suite declares one', async () => {
   const agent = fixture()
+  const before = observed.sections.length
   const catalog = {
     enabledUserSuites: async () => [],
     readProjectCatalog: async () => ({ enabledSuites: [] }),
@@ -198,12 +200,46 @@ it('registers suite instructions as literal text so a {{...}} in a suite file ca
   })
   try {
     await contributors.reconcile(agent, captureExtensionSelection(null, ['market:source/user']))
-    const instructions = observed.sections.filter(section => section.name === 'agent-plugins:instructions')
-    expect(instructions.length).toBeGreaterThan(0)
-    // The host interpolates a section by default and refuses an unknown `{{name}}`.
-    // Suite files are third-party Markdown, so they must reach the prompt verbatim.
-    for (const section of instructions) expect(section.interpolate).toBe(false)
+    // Only Kimi manifests can carry systemPrompt or systemPromptPath, so a
+    // deployment without one must not put a named, empty section into the prompt
+    // list of every agent it mounts.
+    expect(observed.sections.slice(before).filter(section => section.name === 'agent-plugins:instructions')).toHaveLength(0)
   } finally {
+    await contributors.disposeAll()
+  }
+})
+
+it('registers a suite instruction section as literal text so a {{...}} in a suite file cannot fail assembly', async () => {
+  const agent = fixture()
+  const declaring = { ...suite('user'), enabled: true, systemPrompt: 'Body {{cwd}} stays literal' }
+  const catalog = {
+    enabledUserSuites: async () => [],
+    readProjectCatalog: async () => ({ enabledSuites: [] }),
+    allMcpOverrides: async () => new Map(),
+    mcpBackend: async () => 'builtin'
+  } as unknown as Catalog
+  const contributors = new ScopedExtensionContributors({
+    mcpMounts: createMcpMount,
+    dataRoot: '/unused',
+    catalog,
+    shell: () => undefined,
+    suites: async () => [declaring],
+    allows: () => true,
+    registrationAllows: () => true,
+    panels: { commands: {} as UserPanelStore }
+  })
+  try {
+    // The suite instruction pass is mocked; this test owns the text it returns.
+    instructionText.value = 'Body {{cwd}} stays literal'
+    await contributors.reconcile(agent, captureExtensionSelection(null, ['market:source/user']))
+    const instructions = observed.sections.filter(section => section.name === 'agent-plugins:instructions')
+    expect(instructions).toHaveLength(1)
+    // The host interpolates a section by default and refuses an unknown {{name}}.
+    // Suite files are third-party Markdown, so they must reach the prompt verbatim.
+    expect(instructions[0]?.interpolate).toBe(false)
+    expect(instructions[0]?.text()).toContain('Body {{cwd}} stays literal')
+  } finally {
+    instructionText.value = ''
     await contributors.disposeAll()
   }
 })

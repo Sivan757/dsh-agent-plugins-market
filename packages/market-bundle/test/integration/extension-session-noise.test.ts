@@ -231,10 +231,11 @@ it('still replays a log that holds both old surface copies and their splices', a
   await first.service.change(agent, 1, choice)
   // Rewrite the log the way the previous release did: the claimed envelope was
   // appended to the surface as well, so one identity appears twice.
-  for (const message of [...agent.inbox.nextStep]) {
-    if (message.source.kind !== EXTENSION_SESSION_SOURCE) continue
-    agent.session.append('user/message', message, { surfaceOp: 'append' })
-  }
+  const copies = agent.session
+    .snapshotEvents()
+    .flatMap(event => (event.type === 'agent/inbox/spliced' ? event.data.inserted : []))
+    .filter(message => message.source.kind === EXTENSION_SESSION_SOURCE)
+  for (const message of copies) agent.session.append('user/message', message, { surfaceOp: 'append' })
   await first.ctx.sessions.flush(agent.session)
   const root = await crashCopy(first.root)
   await first.service.dispose()
@@ -277,4 +278,45 @@ it('gives every bookkeeping message no content a model could read', async () => 
   for (const sentence of ['Session extension selection metadata.', 'Session extension selection request.', 'Session extension readiness restored.']) {
     expect(seen).not.toContain(sentence)
   }
+})
+
+it('leaves nothing queued when the plugin stops filtering', async () => {
+  const f = await setup()
+  await f.service.start()
+  const agent = await f.create('plugin-removed')
+  await f.service.change(agent, 1, captureExtensionSelection(null, ['skills:queued']))
+  // The splice is enough: no envelope may wait in the inbox for a later claim.
+  const queued = agent.inbox.nextStep.concat(agent.inbox.nextTurn).filter(message => message.source.kind === EXTENSION_SESSION_SOURCE)
+  expect(queued).toHaveLength(0)
+  // Remove the plugin exactly as a disabled host would: no hook remains to drop
+  // a claimed copy, so the next turn must not carry one.
+  await f.service.dispose()
+  agent.followup(userMessage('Clean the cache.'))
+  await agent.whenIdle()
+  expect(f.adapter.requests.length).toBeGreaterThan(0)
+  expect(requestText(f.adapter)).toContain('Clean the cache.')
+  expect(surfaceCopies(agent)).toBe(0)
+})
+
+it('clears an envelope a previous release left queued', async () => {
+  const first = await setup()
+  await first.service.start()
+  const agent = await first.create('legacy-queue')
+  const committed = agent.session
+    .snapshotEvents()
+    .flatMap(event => (event.type === 'agent/inbox/spliced' ? event.data.inserted : []))
+    .find(message => message.source.kind === EXTENSION_SESSION_SOURCE && message.source.binding.phase === 'committed')
+  if (committed === undefined) throw new Error('the committed envelope was not recorded')
+  // Re-queuing the recorded identity reproduces what an older host left behind;
+  // replay dedupes it, so the durable state stays exactly as it was.
+  agent.inject(committed)
+  await first.ctx.sessions.flush(agent.session)
+  expect(agent.inbox.nextStep.some(message => message.source.kind === EXTENSION_SESSION_SOURCE)).toBe(true)
+  await first.service.dispose()
+  const replacement = new ExtensionSessionState(first.ctx, { initialSelection: first.initialSelection, applySelection: first.applySelection })
+  cleanups.push(() => replacement.dispose())
+  await replacement.start()
+  const remaining = agent.inbox.nextStep.concat(agent.inbox.nextTurn).filter(message => message.source.kind === EXTENSION_SESSION_SOURCE)
+  expect(remaining).toHaveLength(0)
+  expect(replacement.read(agent)?.revision).toBe(1)
 })

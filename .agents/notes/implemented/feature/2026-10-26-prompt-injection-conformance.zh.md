@@ -28,7 +28,7 @@ hook 上下文以裸用户散文进入会话记录（`runtime/surfaces/extension
 
 落地内容：
 
-- 套件指令段落是 `## Agent plugin instructions`、宿主自己的优先级句，然后是 `Instructions from: <套件> (<类型>):` 与正文。同时贡献系统提示词与启动技能的套件渲染成两个带标签的块，因为标签必须对底下所有内容为真。`renderPrompt` 只用空行连接段落、不加任何标题（`packages/core/system-prompt/src/index.ts:290-295`），所以结构必须长在段落内部。优先级句沿用宿主的克制措辞而非强制覆盖：同一请求里对同一类内容给出两个强度不同的声明，比如实出更弱的句子与它的邻居一致要糟。
+- 套件指令段落是 `## Plugin suite instructions`、宿主自己的优先级句，然后是 `Instructions from: <套件> (<类型>):` 与正文。同时贡献系统提示词与启动技能的套件渲染成两个带标签的块，因为标签必须对底下所有内容为真。`renderPrompt` 只用空行连接段落、不加任何标题（`packages/core/system-prompt/src/index.ts:290-295`），所以结构必须长在段落内部。优先级句沿用宿主的克制措辞而非强制覆盖：同一请求里对同一类内容给出两个强度不同的声明，比如实出更弱的句子与它的邻居一致要糟。
 - hook 上下文按持久性分流，且每条送达的块都带事件标签。`SessionStart` 与 `UserPromptSubmit` 的上下文属持久会话指令，成为一条成帧消息，首行为 `<事件>[:<匹配器>] hook additional context:`，其后是说明句与每个贡献套件一个标题。`PreToolUse`、`PostToolUse`、`PostToolUseFailure` 与 `SubagentStart` 的上下文保持纯文本，每个贡献者一块并带标签。拦截理由带 `<事件> hook error:`。`Stop` 引导保持纯文本但带标签 `Stop hook feedback:`，属标签而非 R2 禁止的框架。
 - 标注需要合并过程丢弃的身份，因此 `collect` 现在把每条解码结果连同套件标签一起返回，`PointOutcome` 在合并决定之外携带带归属的上下文。
 - `subagent-catalog.ts` 改为导入 `escapeEntry`，不再保留私有副本；该助手委托给 `@deepseek-ai/dsh-skill` 导出的 `escapeText`，也就是宿主技能目录逐条使用的同一个函数。

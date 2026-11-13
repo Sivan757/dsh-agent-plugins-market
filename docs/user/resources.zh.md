@@ -8,12 +8,12 @@
 
 插件状态位于 `~/.dsh/agent-plugins/`；设置 `DSH_HOME` 后改为 `$DSH_HOME/agent-plugins/`。
 
-| 根目录下的路径           | 内容                                                 |
-| ------------------------ | ---------------------------------------------------- |
-| `state.json`             | 已配置来源和安装状态                                 |
-| `.sources/<sourceId>/`   | 来源 checkout                                        |
-| `data/`                  | 覆盖配置、套件 `${PLUGIN_DATA}` 目录、反馈限流时间戳 |
-| `translation-cache.json` | 按内容与 provider 键控的译文缓存（保留至手动清空）   |
+| 根目录下的路径           | 内容                                                                 |
+| ------------------------ | -------------------------------------------------------------------- |
+| `state.json`             | 已配置来源和安装状态                                                 |
+| `.sources/<sourceId>/`   | 来源 checkout                                                        |
+| `data/`                  | 覆盖配置、套件 `${PLUGIN_DATA}` 目录、体验报告诊断包与反馈限流时间戳 |
+| `translation-cache.json` | 按内容与 provider 键控的译文缓存（保留至手动清空）                   |
 
 你自己创作的内容位于共用的 Agent 布局根目录 `~/.agents/`（`$DSH_AGENTS_HOME` 可覆盖）——与项目管理维度读取的 `.agents/` 目录形态一致：
 

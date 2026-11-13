@@ -352,10 +352,9 @@ export async function executeAgentRole(
         } catch (error) {
           // The child exists, but it is not the one this call reserved, so it
           // carries no role instructions. The foreground channel releases its run
-          // in the finally below; this channel has no such handle, so it releases
-          // the published child through the seam's drain member instead of
-          // leaving an uninstructed child resident.
-          await composition.abandon(started.childId)
+          // in the finally below; this channel releases the published child through
+          // the handle its start returned, so no uninstructed child stays resident.
+          await composition.abandon(started.childId, started.release)
           throw error
         }
       }
@@ -445,21 +444,20 @@ export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) =
       provider: {
         type: 'string',
         description:
-          "LLM provider route for the child. Supply together with model to override the route the role card declares; omit both to use the card's route or inherit the parent route."
+          'Usually omit: the role card’s route applies, or the parent route when the card declares none. Supply together with model to override the route for this one child.'
       },
       model: {
         type: 'string',
         description:
-          "Model id interpreted by provider. Supply together with provider to override the route the role card declares; omit both to use the card's route or inherit the parent route."
+          'Usually omit: the role card’s route applies, or the parent route when the card declares none. Supply together with provider to override the route for this one child.'
       },
       reasoning_effort: {
         type: 'string',
-        description:
-          "Adapter-owned reasoning effort for the effective child route. Omit to use the card's effort on the card's route, or the selected model's default after an explicit route change."
+        description: 'Usually omit: the card’s effort applies on its route, otherwise the selected model’s default. Supply to override the effort for this one child.'
       },
       run_in_background: {
         type: 'boolean',
-        description: 'Defaults to true. Set false only when your next action depends on the result.'
+        description: 'Defaults to true, the common case: the child runs in the background and you continue. Set false only when your next action depends on the result.'
       }
     },
     output: {
@@ -543,23 +541,18 @@ export function mountAgentRoleTool(ctx: Context, listRoles: (parent?: unknown) =
  * The skip rule sits in the bullets because that is what gets skimmed.
  */
 export const AGENT_ROLE_TOOL_DESCRIPTION = [
-  "Delegate a task to a named role child from the session's subagent-catalog. The role's own instructions and its configured model apply, and the child starts without this conversation.",
+  "Delegate one self-contained task to a role child from the session's subagent-catalog. The role's own instructions and its configured model apply, and the child starts without this conversation.",
   '',
-  ' - Use it proactively for self-contained work: codebase exploration whose raw reads would fill this context, a scoped implementation, a review, or an analysis you can brief in one prompt.',
-  ' - Start independent children together in one message so they run concurrently.',
-  ' - The child runs in the background by default and returns a durable subagent id at once, keeping it available for later turns. It usually runs for minutes, so continue with independent work instead of waiting.',
-  " - When no listed role matches, use the host's own 'subagent' tools instead. The current subagent-catalog lists the available roles and the full usage guidance.",
+  ' - Delegate proactively for self-contained work: exploration whose raw reads would flood this context, a scoped implementation, a review, an analysis you can brief in one prompt. Start independent children together in one message so they run concurrently.',
+  " - When no listed role matches, use the host's own delegation tools instead. Never substitute a similarly named role, and do not load a role through a skill or slash command.",
+  ' - The call returns a durable subagent id at once and does not block you. A child usually runs for minutes: advance independent work meanwhile, and do not poll it.',
+  ' - Leave run_in_background unset. It defaults to true, the common case; set false only when your next action depends on the result and no independent work remains.',
+  " - prompt is the child's whole world: it cannot see this conversation, and nothing answers its questions while it runs. It should decide for itself, keep going, and list in its final reply what it chose alone and what it still lacked.",
+  ' - Do not duplicate work a child is already doing. With several children at once, give each its own git worktree and name the files it owns in prompt.',
   '',
-  "When the run settles, the runtime sends the parent a notice carrying its outcome and final reply. When it arrives, verify its assertions against the files and relay the result to the user: the child's output is not visible to them.",
+  "The settlement notice arrives as a user message, not as a tool result. Until it arrives, do not predict its findings or deliver anything that depends on them. When it arrives, verify its assertions against the files and summarize the result to the user: the child's output is not visible to them. Treat its statements about its own configuration the same way, because a child cannot see how its role instructions were installed.",
   '',
   '## Writing the prompt',
   '',
-  'prompt must stand alone, since the child cannot see this conversation, and a question it asks while it runs goes unanswered.',
-  '',
-  ' - Explain what you are trying to accomplish and why.',
-  ' - Describe what you have already learned or ruled out.',
-  ' - Give enough context for the child to make judgment calls rather than following a narrow instruction.',
-  ' - State the boundaries: research only, or may edit files.',
-  '',
-  'Terse command-style prompts produce shallow, generic work.'
+  'Brief the child like a colleague who just walked into the room: it has not seen this conversation, does not know what you tried, and does not know why the task matters. State the task itself, the relevant files and known findings, the output you expect, and the boundaries of the task (research only, or may edit files). Terse command-style prompts produce shallow, generic work.'
 ].join('\n')

@@ -68,4 +68,4 @@ Status: implemented
 
 ## Related decisions
 
-扩展 [persistent subagent catalog and role execution](2026-09-09-subagent-catalog.md) 与 [agent role delegation over the host continuation seam](2026-09-10-agent-role-delegation-via-host-continuation.md)：目录持久化、角色身份、严格解析与可继续委派继续有效；操作约定放在哪里、摘要覆盖哪些字段，由本篇改定。部分被[角色委派提供宿主的两条通道](../../implemented/bug-fix/2026-10-02-role-delegation-two-channels.zh.md)取代：三通道清单及其 `run_in_background` 描述不再有效。由[角色 Team 创建入口](2026-10-02-role-aware-team-entry.zh.md)扩展：独立部署保留本操作约定，Team 部署使用增强成员入口及仅用于发现的精简目录。
+扩展 [persistent subagent catalog and role execution](2026-09-09-subagent-catalog.md) 与 [agent role delegation over the host continuation seam](2026-09-10-agent-role-delegation-via-host-continuation.md)：目录持久化、角色身份、严格解析与可继续委派继续有效；操作约定放在哪里、摘要覆盖哪些字段，由本篇改定。部分被[角色委派提供宿主的两条通道](../../implemented/bug-fix/2026-10-02-role-delegation-two-channels.zh.md)取代：三通道清单及其 `run_in_background` 描述不再有效。由[角色走 subagent seam](2026-11-13-roles-on-the-subagent-seam.zh.md)再次扩展：角色面在所有部署中只有一套，Team 专用入口与其仅用于发现的精简目录已不存在。

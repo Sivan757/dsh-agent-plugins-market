@@ -176,7 +176,7 @@ export class Catalog implements MarketService {
    * @returns fulfillment once the pending translation cache write landed.
    */
   async dispose(): Promise<void> {
-    this.snapshots.dispose()
+    await this.snapshots.dispose()
     await this.translation.dispose()
   }
 
@@ -241,8 +241,13 @@ export class Catalog implements MarketService {
 
   /** Installed local user declarations, including globally disabled suites; never changes global runtime discovery. */
   async installedSuiteDeclarations(): Promise<ExtensionSuiteCandidate[]> {
-    const snapshot = await this.readUserCatalog()
-    return readExtensionSuiteDeclarations(snapshot.suites.filter(suite => this.context.installed(suite.sourceId, suite.id) !== undefined))
+    const snapshot = await this.readInstalledCatalog()
+    return readExtensionSuiteDeclarations(snapshot.suites)
+  }
+
+  /** Read installed resources, including disabled declarations, without importing unrelated sources. */
+  async readInstalledCatalog(): Promise<CatalogSnapshot> {
+    return this.snapshots.readInstalledCatalog()
   }
 
   /** Read one coherent project-dimension snapshot for a workspace cwd. */
@@ -252,14 +257,7 @@ export class Catalog implements MarketService {
 
   /** Runtime discovery scans only sources containing an enabled install. No acquisition or network access. */
   async enabledUserSuites(): Promise<Suite[]> {
-    const state = this.context.state
-    const enabledSources = new Set(
-      Object.entries(state.installed)
-        .filter(([, entry]) => entry.enabled)
-        .map(([key]) => key.slice(0, key.indexOf('/')))
-    )
-    const sources = state.sources.filter(source => enabledSources.has(source.id))
-    const suites = sources.length === 0 ? [] : (await this.snapshots.build({ ...state, sources }, 'user', this.context.userRoot)).enabledSuites
+    const suites = (await this.snapshots.readInstalledCatalog(true)).enabledSuites
     // The user's own Agent layout declarations ride the same mount registries
     // as an installed suite: each direct suite joins the list only when it
     // declares the content its surface count reports, so an absent or empty
@@ -281,7 +279,15 @@ export class Catalog implements MarketService {
    * while anything reports itself pending.
    */
   async overview(): Promise<OverviewPayload> {
-    const snapshot = await this.readUserCatalog()
+    return this.projectOverview(await this.readUserCatalog(), true)
+  }
+
+  /** Session inventory projects the installed catalog without discovering unmanaged or uninstalled sources. */
+  async installedOverview(): Promise<OverviewPayload> {
+    return this.projectOverview(await this.readInstalledCatalog(), false)
+  }
+
+  private async projectOverview(snapshot: CatalogSnapshot, includeUnmanaged: boolean): Promise<OverviewPayload> {
     const sourceRows: SourceOverview[] = await this.sourceStore.overviewRows(snapshot)
     const locale = this.ports.localePreference()
     let translationPending = 0
@@ -317,7 +323,7 @@ export class Catalog implements MarketService {
         enabled: cards.filter(card => card.enabled).length
       },
       roots: { user: this.context.userRoot, data: this.context.dataRoot },
-      unmanaged: await this.sourceStore.unmanaged(),
+      unmanaged: includeUnmanaged ? await this.sourceStore.unmanaged() : [],
       ...(translationPending === 0 ? {} : { translationPending })
     }
   }
@@ -472,8 +478,8 @@ export class Catalog implements MarketService {
   // ---- MCP ----
 
   /** Build the flat MCP service inventory for the status surface. */
-  async mcpStatus(): Promise<McpStatusPayload> {
-    return this.mcp.status()
+  async mcpStatus(installedOnly = false): Promise<McpStatusPayload> {
+    return this.mcp.status(installedOnly)
   }
 
   /** Validate and persist a user-owned MCP service with optional policy before reconciling its mount. */
@@ -583,8 +589,8 @@ export class Catalog implements MarketService {
   // ---- LSP ----
 
   /** The LSP status surface: declared servers merged with mount diagnostics. */
-  async lspStatus(): Promise<LspStatusPayload> {
-    return this.lsp.status()
+  async lspStatus(installedOnly = false): Promise<LspStatusPayload> {
+    return this.lsp.status(installedOnly)
   }
 
   /** The user's direct LSP server table (normalized specs). */

@@ -4,6 +4,7 @@ import { stripFrontmatter } from '../../../market-catalog/src/index.js'
 import { parseFrontmatterRecord } from './panels/user-store.js'
 import type { SuiteMarkdownResource } from '../../../market-contracts/src/model/types.js'
 import { defaultMarkdownResources, resourceText, resourceCommandName } from '../../../market-catalog/src/index.js'
+import { ARGUMENTS_TRAILER_LABEL } from './command-arguments.js'
 
 export interface CommandSpec {
   name: string
@@ -48,8 +49,8 @@ export interface CommandSpec {
  * @param rawInput - the text the person typed after the command name.
  * @returns the follow-up text for the model.
  */
-export function forwardCommandText(name: string, body: string, rawInput: string): string {
-  const input = rawInput.trim()
+export function forwardCommandText(name: string, body: string, rawInput: string | undefined): string {
+  const input = (rawInput ?? '').trim()
   return [
     '<command-message>' + name + '</command-message>',
     '<command-name>/' + name + '</command-name>',
@@ -58,7 +59,7 @@ export function forwardCommandText(name: string, body: string, rawInput: string)
     '---',
     body,
     '',
-    ...(input === '' ? [] : ['ARGUMENTS: ' + input])
+    ...(input === '' ? [] : [ARGUMENTS_TRAILER_LABEL + input])
   ].join('\n')
 }
 

@@ -35,17 +35,28 @@ const adapters = {
 const signal = new AbortController().signal
 const input = { provider: 'spawn', label: 'reviewer', request: {}, signal }
 
+/**
+ * Operations the installed line serves without a service member.
+ *
+ * The activation line replaced per-child drain with one handle per start, so the
+ * release path is the handle `startContinuableChild` returns rather than a
+ * member a host publishes. Listing that here keeps the resolution gate strict:
+ * an operation must resolve through a member or through a named non-member
+ * mechanism, and nothing else.
+ */
+const HANDLE_SERVED: Partial<Record<SeamOperation, string>> = { drainChildren: 'the activation handle returned by startActivation' }
+
 describe('host subagent member contract', () => {
   it('resolves every seam operation through at least one spelling on the installed host', () => {
-    const unresolved = operations.filter(operation => !SEAM_MEMBER_ALTERNATIVES[operation].some(name => members.has(name)))
+    const unresolved = operations.filter(operation => HANDLE_SERVED[operation] === undefined && !SEAM_MEMBER_ALTERNATIVES[operation].some(name => members.has(name)))
     expect(unresolved).toEqual([])
   })
 
   it('drives no member the installed host does not publish', () => {
     // Every spelling in the table is a name a real host line published: the
-    // installed line or the older line this plugin still supports. A name the
+    // installed line or an older line this plugin still supports. A name the
     // host never had would make a guard skip the operation it was written for.
-    const older = new Set(['start', 'startContinuable', 'drainContinuableChildren'])
+    const older = new Set(['start', 'startContinuable', 'drainContinuableChildren', 'drainChildren'])
     const published = operations.flatMap(operation => SEAM_MEMBER_ALTERNATIVES[operation]).filter(name => !members.has(name) && !older.has(name))
     expect(published).toEqual([])
   })

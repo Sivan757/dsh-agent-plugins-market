@@ -7,8 +7,8 @@
 ## 宿主要求
 
 - Node.js 22 或更高版本、DSH Web profile 和宿主技能服务（`ctx.skills`）。Git 来源需要 Git。
-- 当前包声明的 DSH 宿主包版本范围为同一个支持窗口 `>=0.2.1-rc.5 <0.3.0-0`。窗口起点就是本仓库构建并测试所用的宿主版本，声明背后有验证；个别功能仍需要下面列出的服务。
-- 斜杠命令需要宿主命令服务。角色委派需要 agents、tools、LLM、subagents 与持久化。无 Agent Teams 时，`subagent_role` 默认返回可继续子代理（省略或 true），false 等待前台报告。启用 Agent Teams 后，`spawn_teammate_role` 与精简角色目录替代该入口及说明；按角色指令和模型配置创建全新 Team 成员，通信与任务由原生 Team 工具管理。Team 模式还需要会话查询和系统提示词服务，以及用户明确的 Team 使用意图。
+- 当前包声明的 DSH 宿主包版本范围为同一个支持窗口 `>=0.2.2-rc.2 <0.3.0-0`。窗口起点就是本仓库构建并测试所用的宿主版本，声明背后有验证；个别功能仍需要下面列出的服务。
+- 斜杠命令需要宿主命令服务。角色委派需要 agents、tools、LLM、subagents、持久化、会话查询与系统提示词服务。`subagent_role` 默认返回可继续子代理（省略或 true），false 等待前台报告。宿主开启协作时，这样创建的子代理就是 Team 成员，因为宿主从子代理树推导 Team 成员关系。
 - MCP 默认使用内置桥接。宿主客户端兼容模式还需要 `@deepseek-ai/dsh-mcp-client`。会话级 hooks 使用已发布的 hook 协议，需要宿主 shell 与会话投影服务。
 - LSP 支持会随插件安装 `@deepseek-ai/dsh-lsp`、`dsh-lsp-stdio`、`dsh-tool-lsp`，并在启用的套件声明语言服务器时自动挂载，无需额外 profile 配置。只有语言服务器的可执行程序需要本机可用。
 - 宿主凭据服务是可选的。缺失时环境变量引用从启动环境解析，变更后需要重启。

@@ -25,6 +25,7 @@ import type { ContentBlock } from '@deepseek-ai/dsh-llm'
 import { assertSupportedJsonSchema, type JsonSchemaNode } from '@deepseek-ai/dsh-tools'
 import { containsImage, extractText, prepareImageProjection, type PreparedProjection } from './projection.js'
 import { redactErrorMessage } from '../../../../../market-contracts/src/redaction.js'
+import type { McpConnectionObservation } from '../../../../../market-contracts/src/contracts/mcp-status.js'
 import type { JsonValue, McpResult, ToolDefinition, ToolExecution, ToolExecutionResult, ToolHost } from './host-contract.js'
 
 export type { JsonValue, McpResult, ToolDefinition, ToolExecution, ToolExecutionResult, ToolHost } from './host-contract.js'
@@ -38,6 +39,57 @@ export interface ToolBridgeOptions {
   registrationFailure: 'contain' | 'throw'
   serverName: string
   toolCallTimeoutMs: number
+  /**
+   * The supervisor's last published edge for this server.
+   *
+   * Read when a call fails at the transport, so the failure can say what the
+   * connection is doing instead of repeating the SDK's two words.
+   * @returns the current observation, or undefined before the first edge.
+   */
+  connection?: () => McpConnectionObservation | undefined
+}
+
+/**
+ * Failures a dead or unreachable transport leaves, in the SDK's and Node's
+ * words. A server-side tool error never matches: those arrive as a result, not
+ * as a rejection.
+ */
+const TRANSPORT_FAILURE =
+  /not connected|connection closed|connection lost|socket hang up|disconnected|ECONNREFUSED|ECONNRESET|EPIPE|EHOSTUNREACH|ENETUNREACH|fetch failed|timed? out|ETIMEDOUT/i
+
+/**
+ * Describe the supervisor's current state in one clause.
+ * @param observation - the last published edge, when one exists.
+ * @returns an empty string while connected or unknown, otherwise a parenthetical clause.
+ */
+function connectionClause(observation: McpConnectionObservation | undefined): string {
+  if (observation === undefined || observation.phase === 'connected') return ''
+  if (observation.phase === 'failed') return ' (reconnecting has stopped; its tools stay unavailable until the mount is retried)'
+  const retry = observation.retryAt === undefined ? '' : `, next retry in about ${Math.max(1, Math.round((observation.retryAt - Date.now()) / 1000))}s`
+  return ` (reconnecting, attempt ${observation.attempt}/${observation.maxAttempts}${retry})`
+}
+
+/**
+ * Rewrite a transport-shaped failure so the model can tell a dead server from a
+ * tool that ran and failed.
+ *
+ * A raw `Not connected` names neither the server nor what to do about it, so a
+ * model reads it as the tool's own verdict and moves on. The rewritten message
+ * keeps the underlying error, adds the public tool name, the server, and the
+ * supervisor's phase.
+ *
+ * @param error - what the call rejected with.
+ * @param rawName - the server's own tool name.
+ * @param opts - bridge options carrying the server namespace and connection reader.
+ * @param aborted - whether the caller cancelled, which is not a health problem.
+ * @returns the error to rethrow: rewritten for a transport failure, otherwise the original.
+ */
+export function describeToolFailure(error: unknown, rawName: string, opts: ToolBridgeOptions, aborted: boolean): unknown {
+  if (aborted) return error
+  const underlying = redactErrorMessage(error instanceof Error ? error.message : String(error))
+  if (!TRANSPORT_FAILURE.test(underlying)) return error
+  const state = connectionClause(opts.connection?.())
+  return new Error(`${publicToolName(opts.serverName, rawName)} failed: MCP server "${opts.serverName}" is not reachable${state}, so this call never reached it. ${underlying}`)
 }
 
 /** State for one sync generation: the current set of disposers keyed by public name. */
@@ -267,7 +319,14 @@ function createExecutor(
     // string/number/null). Fallback to {} lets the MCP server produce a
     // specific "missing required param" error the model can learn from.
     const argsObj = (typeof args === 'object' && args !== null ? args : {}) as Record<string, unknown>
-    const result = await callToolUncached(client, rawName, argsObj, exec, opts)
+    let result: Awaited<ReturnType<typeof callToolUncached>>
+    try {
+      result = await callToolUncached(client, rawName, argsObj, exec, opts)
+    } catch (error) {
+      // A dead transport rejects here. Attribute it before the host turns it
+      // into a bare tool error the model would read as the tool's own verdict.
+      throw describeToolFailure(error, rawName, opts, exec.signal.aborted)
+    }
 
     // The SDK may return a legacy `toolResult` shape; normalize to content array.
     if (!Array.isArray(result.content)) {

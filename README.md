@@ -73,6 +73,7 @@ Terminal alternative: `dsh plugin --profile <name> add dsh-agent-plugins-market`
 
 - **MCP OAuth with nothing to declare.** A remote MCP server that answers `401` starts RFC 9728 discovery, dynamic client registration and PKCE authorization in your browser, and the granted token persists. OAuth is on by default, so a suite needs no declaration for it.
 - **Per-server MCP control.** Override a declaration without editing its source, switch one tool off, and set the tool-call and startup timeouts.
+- **MCP health that reaches the conversation.** A server that drops its connection reports the retry, its suite and the last error in the chat, and while it is unavailable the model's prompt names the missing tools, so an answer says what is gone instead of silently working around it.
 - **Project and personal resources.** Turn on **Scan project Agent layouts** to read skills, commands, roles, MCP servers and hooks from the project's own directories. Author your own under `~/.agents/` as Markdown, and disable a resource without deleting its file.
 - **Per-workspace control.** Each workspace switches the six mounted surfaces off or on, keeps its own resource filters, saves a resource-window setup as a favorite that works across projects, and stows tabs it does not need into the menu at the end of the tab row.
 - **Hooks that decide, not just observe.** Ten events apply what the hook returns: tool deny, ask and allow, added context, corrective feedback, a forced continuation, and a real halt for `continue: false`. A hook row opens a declaration card with its event, matcher and timeout, plus a dry run in your home directory. [Hook event coverage](docs/reference/hooks-event-coverage.md) lists every event and the three reference fields the host cannot apply yet.
@@ -95,6 +96,8 @@ The workspace has nine tabs:
 | Hooks           | Read each configured hook with its event, matcher and timeout.                      |
 
 A **source** is where content comes from. A **suite** is an installable unit discovered there. Adding a source discovers its suites. Enabling a suite turns its runtime capabilities on.
+
+Session startup and resource panels read sources with installed suites. Managed sources reuse discovery indexes across restarts. Local and adopted sources recheck installed suite directories on demand. Opening Market discovers other configured sources as needed. See [discovery and refresh](docs/user/sources.md#discovery-and-refresh) for when edits become visible.
 
 Your own content lives under `~/.agents/`: skills, commands and personas as Markdown, hooks in `hooks.json`, and the MCP and LSP services you add in `mcp.json` and `lsp.json`. The [instructions guide](https://sivan757.github.io/dsh-agent-plugins-market/docs/instructions/) explains the AGENTS.md chain the host injects and the page that edits it, and the [output styles guide](https://sivan757.github.io/dsh-agent-plugins-market/docs/output-styles/) explains the block that shapes each answer. Project-native resources stay in the project. See [storage and discovery](https://sivan757.github.io/dsh-agent-plugins-market/docs/resources/#storage-and-discovery).
 

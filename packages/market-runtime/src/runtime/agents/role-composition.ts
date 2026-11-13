@@ -78,8 +78,9 @@ export interface RoleChildComposition {
   /**
    * Release a child the host published under an identity this plugin could not compose.
    * @param childId - the identity the host published.
+   * @param handle - the start handle's release, when the host returned one.
    */
-  abandon(childId: string): Promise<void>
+  abandon(childId: string, handle?: () => Promise<void>): Promise<void>
 }
 
 /** Add the role card body as the child's own persona section. */
@@ -244,23 +245,31 @@ export class RoleComposition implements RoleChildComposition {
    * Release one child the host published under an identity this plugin could not compose.
    *
    * A host that ignores the reserved id leaves a live child with no role
-   * instructions. The caller raises the refusal; this method releases the child
-   * through the seam's drain member, using the child's own recorded parent, so an
-   * uncomposed child does not stay resident until the parent tears down. A host
-   * without a drain member, or a child with no live parent, is reported and then
-   * left to the host's own parent teardown, which still owns it.
+   * instructions. The caller raises the refusal; this method releases exactly that
+   * child so it does not stay resident until the parent tears down. The activation
+   * line releases through the start handle the caller already holds; the older
+   * line keeps the per-child drain member, addressed by the child's own recorded
+   * parent. A host that offers neither, or a child with no live parent, is
+   * reported and then left to the host's own parent teardown, which still owns it.
    * @param childId - the identity the host published.
+   * @param handle - the start handle's release, when the host returned one.
    */
-  async abandon(childId: string): Promise<void> {
+  async abandon(childId: string, handle?: () => Promise<void>): Promise<void> {
     try {
       const seam = optionalService(this.ctx, 'subagents') as SubagentSeam | undefined
       const agents = optionalService(this.ctx, 'agents') as { get(id: SessionId): Agent | undefined } | undefined
-      const child = agents?.get(SessionId(childId))
-      const parentId = child?.session.header.parentSession
-      const parent = parentId === undefined ? undefined : agents?.get(parentId)
-      if (seam === undefined || parent === undefined) {
-        this.ctx.logger?.warn(`role child "${childId}" carries no role instructions and has no live parent to release it; the host owns its teardown`)
-        return
+      let release: Promise<void>
+      if (handle !== undefined) {
+        release = handle()
+      } else {
+        const child = agents?.get(SessionId(childId))
+        const parentId = child?.session.header.parentSession
+        const parent = parentId === undefined ? undefined : agents?.get(parentId)
+        if (seam === undefined || parent === undefined) {
+          this.ctx.logger?.warn(`role child "${childId}" carries no role instructions and has no live parent to release it; the host owns its teardown`)
+          return
+        }
+        release = drainContinuableChildIds(seam, parent, [SessionId(childId)])
       }
       // Bounded, because this runs while a refusal is on its way out: a host drain
       // that stalls must not hold the error the caller needs. The rejection is captured
@@ -268,7 +277,7 @@ export class RoleComposition implements RoleChildComposition {
       // host that refuses the release, or exposes no drain member, must still be
       // reported instead of passing as a release.
       let rejection: unknown
-      const release = drainContinuableChildIds(seam, parent, [SessionId(childId)]).catch((error: unknown) => {
+      release = release.catch((error: unknown) => {
         rejection = error
       })
       if (!(await settlesWithin(release, ROLE_ABANDON_DEADLINE_MS))) {

@@ -7,7 +7,7 @@ import { Catalog } from '../../../packages/market-bundle/src/application/catalog
 
 const fixture = fileURLToPath(new URL('./integration/fixtures/v1-suite', import.meta.url))
 
-/** A temp user root with the v1-suite fixture checked out as local source `demo`. */
+/** A temp user root with the v1-suite fixture under the `demo` checkout. */
 async function seededUserRoot(prefix: string): Promise<string> {
   const userRoot = await mkdtemp(join(tmpdir(), prefix))
   await mkdir(join(userRoot, '.sources', 'demo'), { recursive: true })
@@ -40,23 +40,24 @@ describe('Catalog application module', () => {
     // dropped into a local source's working tree stayed invisible until the
     // next catalog mutation.
     const userRoot = await seededUserRoot('dsh-agent-plugins-catalog-ttl-')
-    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {}, userSnapshotTtlMs: 10 })
+    let now = 0
+    const catalog = new Catalog({ userRoot, dataRoot: join(userRoot, 'data'), agentsRoot: join(userRoot, 'agents'), onChanged: () => {}, userSnapshotTtlMs: 10, now: () => now })
     await catalog.load()
-    await catalog.mergeSources([{ id: 'demo', url: 'https://example.test/demo.git' }])
+    await catalog.mergeSources([{ id: 'demo', url: 'https://example.test/demo.git', adopted: true }])
     const before = await catalog.readUserCatalog()
     const [beforeSuite] = before.suites
     if (beforeSuite === undefined) throw new Error('expected the demo source to scan one suite before the refresh')
     expect(beforeSuite.skills.map(skill => skill.name)).not.toContain('late-skill')
-    // Drop a new skill into the working tree out of band, then let the tiny
-    // TTL lapse (a macrotask gap suffices for a 10ms window).
+    // Drop a skill into the mutable working tree, then advance beyond its TTL.
     await mkdir(join(userRoot, '.sources', 'demo', 'skills', 'late'), { recursive: true })
     await writeFile(join(userRoot, '.sources', 'demo', 'skills', 'late', 'SKILL.md'), '---\nname: late-skill\ndescription: late\n---\n')
-    await new Promise(resolve => setTimeout(resolve, 20))
+    now = 11
     const after = await catalog.readUserCatalog()
     expect(after).not.toBe(before)
     const [afterSuite] = after.suites
     if (afterSuite === undefined) throw new Error('expected the demo source to still scan one suite after the refresh')
     expect(afterSuite.skills.map(skill => skill.name)).toContain('late-skill')
+    await catalog.dispose()
     await rm(userRoot, { recursive: true, force: true })
   })
 

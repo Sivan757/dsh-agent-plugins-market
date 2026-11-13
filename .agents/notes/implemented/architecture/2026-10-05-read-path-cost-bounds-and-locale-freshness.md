@@ -22,7 +22,7 @@ That is the contract: the cached value can be stale only where a language change
 
 ### The row cache is bounded at 2000 ms, and Refresh bypasses it
 
-`ROW_CACHE_MAX_AGE_MS` is 2_000 (`packages/market-runtime/src/application/panel-resources.ts:122`). Rows are reused only while three inputs hold at once: the catalog snapshot object, the store's own mutation counter, and an age within the bound (`:302-307`). The bound is one client poll interval — `TRANSLATION_POLL_MS` is 1_500 (`packages/market-ui/src/ui/translation-settle.ts:17`) — plus the slack a slow read needs, so the cache absorbs the reads one interaction produces without ever being the reason a hand edit stays invisible past the next poll. The client's Refresh passes `force`, which skips the reuse test and re-derives every row (`:300`, `:302`).
+`ROW_CACHE_MAX_AGE_MS` is 2_000, derived from the poll cadences in `packages/market-contracts/src/contracts/refresh-cadence.ts`. Rows are reused without file checks while the catalog snapshot object, the store's mutation counter and that age bound hold. After the bound the panel store checks known file signatures before reuse, within a bounded sweep window. A changed or unverifiable file triggers a fresh read. The client's Refresh passes `force` and re-derives every row. [Source-owned discovery indexes](2026-11-12-source-owned-discovery-indexes.md) own the separate source lifetime and preserve installed-snapshot identity for these row checks.
 
 ### The list carries no document text
 
@@ -32,11 +32,11 @@ That is the contract: the cached value can be stale only where a language change
 
 **Resolving the host preference where it is used.** Rejected: the host's answer is a whole-profile projection, so resolving it per entity is what made a panel's latency scale with its row count instead of its work; one operation renders one value, and every entity in it would pay again for an answer that cannot differ.
 
-**Keeping the default parameter on `translateFields` and passing the locale wherever it was remembered.** Rejected: the default is precisely what made an omission silent. A required parameter turns the same mistake into a compile error, and the tests that count the reads (`tests/panel-locale-read.test.ts:39`) pin the resolved-once shape rather than a convention.
+**Keeping the default parameter on `translateFields` and passing the locale wherever it was remembered.** Rejected: the default is precisely what made an omission silent. A required parameter turns the same mistake into a compile error, and the tests that count the reads (`packages/market-bundle/test/integration/panel-locale-read.test.ts`) pin the resolved-once shape rather than a convention.
 
 **Giving the cached locale a TTL or a refresh timer.** Rejected: a timer adds a wake-up and a second freshness rule to a value that already follows the host copy at three points, and it would make the panels fresher than the copy the plugin renders for the host — the two could then disagree with each other, which is the failure the shared refresh points prevent.
 
-**Aging panel rows on the snapshot TTL instead of a row-local bound.** Rejected: the user snapshot lives 30 s (`SCAN_CACHE_TTL_MS`, `packages/market-catalog/src/application/snapshot-cache.ts:18`) and is replaced at 0.8 of that (`USER_REFRESH_LEAD_RATIO`, `:28`), so rows aged on it would leave a hand edit invisible for tens of seconds; the row cache reads file contents, so its bound belongs to the client's poll interval, not the snapshot's.
+**Aging panel rows on source discovery freshness instead of a row-local bound.** Source discovery can reuse declarations for 30 seconds or longer for managed content. A panel reads document fields that can change without adding or removing a declaration, so its freshness follows the client polls and file checks. The source index lifetime cannot replace the row-local bound.
 
 **Carrying `rawText` and `content` on the list and letting the client keep them.** Rejected: the list is what the panel re-reads on every poll, so shipping the documents made the polled response several times larger than the rows it describes; opening one entry costs one request, and that entry read is also the only read that returns the document as one consistent revision.
 
@@ -52,10 +52,10 @@ That is the contract: the cached value can be stale only where a language change
 
 ## Testing
 
-- `tests/panel-locale-read.test.ts:37-39` counts the port reads for a four-row panel and fails if any row resolves the preference.
-- `tests/surface-locale-read.test.ts:1-9` names every surface that must resolve once per operation: the panel list, the MCP status inventory including each observed tool, the LSP inventory, the `/` menu faces, and the single-suite detail.
-- `tests/panel-resources.test.ts:301-302` and `:376-377` pin the stripped list rows against `:306` and `:386-387`, where the single-entry read carries `rawText` and `content`.
-- `tests/panel-resources.test.ts:415` drives the catalog clock past `ROW_CACHE_MAX_AGE_MS` to pin the age bound.
+- `packages/market-bundle/test/integration/panel-locale-read.test.ts` counts the port reads for a four-row panel and fails if any row resolves the preference.
+- `packages/market-bundle/test/integration/surface-locale-read.test.ts` names the surfaces that resolve once per operation: the panel list, the MCP status inventory including observed tools, the LSP inventory, menu faces and suite detail.
+- `packages/market-bundle/test/integration/panel-resources.test.ts` pins stripped list rows and the complete document returned by a single-entry read.
+- `packages/market-runtime/test/panel-row-sweep.test.ts` and the panel resource tests drive the clock past `ROW_CACHE_MAX_AGE_MS` and verify file checks and changed documents.
 
 ## Related
 

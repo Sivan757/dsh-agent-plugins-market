@@ -15,6 +15,7 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { resolveMarketSettings, type DownloadRegionSetting, type MarketSettings } from '../../../market-contracts/src/contracts/settings.js'
 import { FEEDBACK_TOOL_NAME, mountFeedbackTool } from './feedback-tool.js'
+import type { DiagnosticSnapshot } from './diagnostics.js'
 import type { HostLocaleKey, HostTranslate } from '../../../market-runtime/src/index.js'
 import type { McpBackend } from '../../../market-contracts/src/contracts/mcp.js'
 
@@ -39,6 +40,8 @@ export interface SettingsNamespaceHost {
   setAutoUpdateSources(enabled: boolean): void
   /** Stop queued work on disable; restore failed work eligibility on enable, without clearing cached results. */
   syncTranslationEnabled(): void
+  /** Read the deployment snapshot an experience report carries. */
+  diagnostics?(): Promise<DiagnosticSnapshot | undefined>
 }
 
 export class MarketSettingsNamespace {
@@ -173,7 +176,13 @@ export class MarketSettingsNamespace {
           this.feedbackDisposer = undefined
         }
       } else if (this.feedbackDisposer === undefined) {
-        this.feedbackDisposer = mountFeedbackTool(this.ctx, this.dataRoot, (key, params) => this.locale.t(key as HostLocaleKey, params)) ?? undefined
+        this.feedbackDisposer =
+          mountFeedbackTool(
+            this.ctx,
+            this.dataRoot,
+            (key, params) => this.locale.t(key as HostLocaleKey, params),
+            () => (this.host.diagnostics === undefined ? Promise.resolve(undefined) : this.host.diagnostics())
+          ) ?? undefined
       }
       const state: NonNullable<typeof this.feedbackMountState> = !wanted ? 'off' : this.feedbackDisposer === undefined ? 'unavailable' : 'mounted'
       if (state === this.feedbackMountState) return

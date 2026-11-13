@@ -1,6 +1,7 @@
 # Agent Note: Team coordination separate from role discovery
 
 Status: implemented
+Archived: 2026-11-13
 
 ## Problem
 
@@ -8,7 +9,7 @@ Role-aware Team creation preserved persona and model routing, but its compact ca
 
 ## Decision
 
-`team-coordination.ts` contributes one dynamic `market:team-coordination` system section after the host Team policy. Each assembly resolves its exact live Agent through the registry and Team membership. Lead text covers authorized proactive delegation, self-contained research briefs, scope and dependency ownership, user corrections, member reuse, nonduplicated work and verified final delivery. Member text covers identity, target-based Lead/peer communication, bounded execution, decision escalation and evidence-based reporting. No scope, a stale/forged identity or a non-Team subagent renders no contribution.
+When `agentTeams.tryMembership` is callable, `team-coordination.ts` contributes one dynamic `market:team-coordination` system section after the host Team policy. A service that only exposes task graphs is skipped before section registration, with a diagnostic, so ordinary prompt assembly cannot call a missing membership method. Each assembly resolves its exact live Agent through the registry and Team membership. Lead text covers authorized proactive delegation, self-contained research briefs, scope and dependency ownership, user corrections, member reuse, nonduplicated work and verified final delivery. Member text covers identity, target-based Lead/peer communication, bounded execution, decision escalation and evidence-based reporting. No scope, a stale/forged identity or a non-Team subagent renders no contribution.
 
 The contribution needs only agents, agentTeams and systemPrompt; it is independent of role discovery, the agents resource filter and the enhanced creation dependencies. Native members and sessions with no role catalog receive the same coordination contract. The entry inject controls service arrival/removal; the prompt registry owns disposal. There is no per-Agent listener/map, timer, polling loop or new roster.
 
