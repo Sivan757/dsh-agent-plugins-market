@@ -20,7 +20,7 @@ The activation seam now passes the child request flattened into the host's `Suba
 
 ## Supersession
 
-Archived: [the role-aware Team entry](../archived/architecture/2026-10-02-role-aware-team-entry.md) and [the separate Team coordination section](../archived/architecture/2026-10-05-team-coordination-separate-from-discovery.md). Their replacement is this decision plus the host's own Team policy.
+Archived: [the role-aware Team entry](../../archived/architecture/2026-10-02-role-aware-team-entry.md) and [the separate Team coordination section](../../archived/architecture/2026-10-05-team-coordination-separate-from-discovery.md). Their replacement is this decision plus the host's own Team policy.
 
 [Role delegation through host continuation](2026-09-10-agent-role-delegation-via-host-continuation.md) remains active and still owns the composition channel, the durable binding and the refusal behavior.
 

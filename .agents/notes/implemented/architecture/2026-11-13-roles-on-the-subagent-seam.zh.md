@@ -20,7 +20,7 @@ Status: implemented
 
 ## Supersession
 
-归档：[角色感知的 Team 入口](../archived/architecture/2026-10-02-role-aware-team-entry.zh.md)与[独立的 Team 协调段](../archived/architecture/2026-10-05-team-coordination-separate-from-discovery.zh.md)。它们的替代品是本决定加上宿主自己的 Team 策略。
+归档：[角色感知的 Team 入口](../../archived/architecture/2026-10-02-role-aware-team-entry.zh.md)与[独立的 Team 协调段](../../archived/architecture/2026-10-05-team-coordination-separate-from-discovery.zh.md)。它们的替代品是本决定加上宿主自己的 Team 策略。
 
 [经宿主延续通道的角色委派](2026-09-10-agent-role-delegation-via-host-continuation.md)仍然有效，继续负责组装通道、持久绑定与拒绝行为。
 
