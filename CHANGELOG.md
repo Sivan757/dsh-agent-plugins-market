@@ -9,6 +9,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.15.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.15.0...dsh-agent-plugins-market-v0.15.1) (2026-11-16)
+
+
+### Bug Fixes
+
+* **deps:** take the patched hono ([16d2de5](https://github.com/Sivan757/dsh-agent-plugins-market/commit/16d2de5cfa93be448e881e4ad808ddfadd65bd08))
+
 ## [0.15.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.14.5...dsh-agent-plugins-market-v0.15.0) (2026-11-13)
 
 
