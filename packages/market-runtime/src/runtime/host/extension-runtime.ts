@@ -53,6 +53,12 @@ export interface ExtensionRuntimePorts {
 function failure(code: string): Error {
   return Object.assign(new Error(code), { code })
 }
+/** Whether two selections name the same ids, whatever their order. */
+function sameIds(left: readonly string[], right: readonly string[]): boolean {
+  if (left.length !== right.length) return false
+  const seen = new Set(left)
+  return right.every(id => seen.has(id))
+}
 export function extensionWorkspace(agent: Agent): string {
   const cwd = agent.session.header.cwd
   if (typeof cwd !== 'string' || !isAbsolute(cwd)) throw failure('extension-workspace-unavailable')
@@ -185,11 +191,16 @@ export class ExtensionRuntime implements ExtensionRouteService {
   /**
    * The selection a default capture follows the catalog to.
    *
-   * A selection that names no preset is a snapshot of ids, and a snapshot cannot contain a
-   * resource that did not exist when it was taken. The rows the catalog offers now join it,
-   * so a suite or a skill installed mid-session is granted, injected and shown without a
-   * manual preset switch. The committed rows stay: a row the inventory has not read yet is
-   * not a row the catalog withdrew.
+   * A selection that names no preset is the global switch set, read as ids, and a snapshot
+   * cannot contain a resource that did not exist when it was taken. The rows the catalog
+   * offers now join it, so a suite or a skill installed mid-session is granted, injected
+   * and shown without a manual preset switch.
+   *
+   * The same reading removes what the switches turned off: a capture that predates a
+   * global disable stops naming the row instead of carrying it forever, so the session
+   * stops running it and the panel stops showing it as selected. A row the inventory has
+   * not read is not a row the catalog withdrew, so an id the catalog does not list stays:
+   * a partial read must never shrink a selection on its own.
    *
    * A preset selection is the preset's own list and never moves, and a capture taken from
    * the pre-preset resource filters is frozen: those filters were the person's own switches.
@@ -199,8 +210,14 @@ export class ExtensionRuntime implements ExtensionRouteService {
     const resources = this.resources.get(agent) ?? []
     const usable = (row: { available?: boolean; control?: string; globalEnabled?: boolean }): boolean =>
       row.available !== false && row.control !== 'global-only' && row.globalEnabled !== false
-    const added = resources.filter(row => usable(row) && !selection.enabledIds.includes(row.id)).map(row => row.id)
-    return { ...selection, enabledIds: [...selection.enabledIds, ...added] }
+    const read = new Map(resources.map(row => [row.id, row]))
+    const kept = selection.enabledIds.filter(id => {
+      const row = read.get(id)
+      return row === undefined || usable(row)
+    })
+    const keptIds = new Set(kept)
+    const added = resources.filter(row => usable(row) && !keptIds.has(row.id)).map(row => row.id)
+    return { ...selection, enabledIds: [...kept, ...added] }
   }
 
   /** Registration alone may inspect a pending target; execution must call allows. */
@@ -212,13 +229,18 @@ export class ExtensionRuntime implements ExtensionRouteService {
   private selected(agent: Agent, selection: ExtensionSelection, resourceId: string, suiteId?: string): boolean {
     const resources = this.resources.get(agent) ?? []
     const row = resources.find(resource => resource.id === resourceId)
+    // A capture is the global switch set, so it grants nothing the catalog has
+    // switched off since it was taken. The next catalog read prunes the id; this
+    // is what makes the switch true in between, including on the resume that
+    // applies a committed capture before any read has run.
+    const options = { capture: selection.presetId === null && selection.frozen !== true }
     // A configuration parent publishes no row anywhere: the hooks bridge and the
     // mount filter still address it by its suite id, so the grant is derived from
     // the children it owns, exactly as extensionResourceEnabled derives it for a
     // parent row that does exist.
     if (row === undefined) {
       if (!CONFIGURATION_PARENT_IDS.has(resourceId)) return false
-      return resources.some(child => child.suiteResourceId === resourceId && extensionResourceEnabled(child, selection, resources))
+      return resources.some(child => child.suiteResourceId === resourceId && extensionResourceEnabled(child, selection, resources, options))
     }
     // The caller names the suite with a bare 'source/suite' while the selection
     // holds 'market:source/suite' resource ids, and extensionResourceEnabled
@@ -226,7 +248,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
     // and available. Comparing the caller's suiteId here could only ever deny a
     // granted call, so the argument is deliberately not consulted.
     void suiteId
-    return extensionResourceEnabled(row, selection, resources)
+    return extensionResourceEnabled(row, selection, resources, options)
   }
   /**
    * A catalog change can revoke a global resource at any moment, so every live
@@ -322,12 +344,12 @@ export class ExtensionRuntime implements ExtensionRouteService {
           this.scheduleRetry(agent)
           return
         }
-        // A default capture follows the catalog: the rows the catalog gained join it. The
-        // commit that follows grants them, injects them and shows them in one step, and it
-        // runs outside this maintenance block: a commit inside it would wait for the very
-        // maintenance it is running in.
+        // A default capture follows the catalog: the rows it gained join the selection and
+        // the rows it switched off leave it. The commit that follows grants, injects and
+        // shows the result in one step, and it runs outside this maintenance block: a
+        // commit inside it would wait for the very maintenance it is running in.
         const followed = this.followingSelection(agent, snapshot.selection)
-        if (followed.enabledIds.length !== snapshot.selection.enabledIds.length) {
+        if (!sameIds(followed.enabledIds, snapshot.selection.enabledIds)) {
           follow = followed
           return
         }

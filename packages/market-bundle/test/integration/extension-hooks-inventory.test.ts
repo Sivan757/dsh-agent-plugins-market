@@ -244,6 +244,17 @@ describe('installed suite hooks follow their suite', () => {
     expect(hookRowOfSuite(rows, 'user-hooks')[0]).not.toHaveProperty('followsSuite')
   })
 
+  it('reports the suite switch that a follows-suite row answers to', async () => {
+    // The row's own switch is the suite's, so the flag has to be the suite's too. A
+    // constant true read as "globally on" by every capture, which is how a switched-off
+    // suite's declaration ended up in default selections and in the presets saved from
+    // them. A row that answers to itself keeps its own verdict.
+    const off = { ...installed, enabled: false }
+    for (const row of hookRowOfSuite(await readExtensionInventory(ports, { hookSuites: [off] }), 'v1'))
+      expect(row).toMatchObject({ available: true, followsSuite: true, globalEnabled: false })
+    for (const row of hookRowOfSuite(await readExtensionInventory(ports, { hookSuites: [userHooks] }), 'user-hooks')) expect(row.globalEnabled).toBe(true)
+  })
+
   it('stamps the same verdict when the installed suite arrives through projectSuites', async () => {
     // The rule is the suite's, not the caller's: the settings overview's global
     // read carries the same flag, so the card explains why no switch appears.

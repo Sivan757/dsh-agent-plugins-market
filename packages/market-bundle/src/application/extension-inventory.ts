@@ -243,8 +243,13 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
             source: group.matcher === undefined || group.matcher === '*' ? provenance : provenance + ' · ' + group.matcher,
             description: event,
             suiteResourceId: 'market:' + suite.sourceId + '/' + suite.id,
+            // A row that follows its suite answers to the suite's global switch, so it
+            // reports that switch instead of a constant: a capture must not carry the
+            // hook of a suite the catalog has switched off, and the row must not read
+            // as globally on while its owner is off. A row that answers to itself —
+            // a project or @user-hooks declaration — has no suite switch to follow.
             ...(selectable
-              ? { available: true, globalEnabled: true }
+              ? { available: true, globalEnabled: followsSuite ? suite.enabled : true }
               : { available: false, control: 'global-only', unavailableReason: support === 'supported-partial' ? 'hook-event-partial' : 'hook-event-unsupported' }),
             ...(followsSuite ? { followsSuite: true } : {}),
             // The detail a row opens is the hook itself, not the suite behind it:
