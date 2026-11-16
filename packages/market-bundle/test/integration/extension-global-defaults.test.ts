@@ -6,7 +6,9 @@
  * `globalEnabled: false`, while one that failed validation is `available: false`.
  * Only the second is unusable. The first must stay out of every implicit
  * selection — the daemon start, an unselected session, `select(null)` — and stay
- * reachable exclusively through a saved preset that names it.
+ * reachable exclusively through a saved preset that names it. A capture is that
+ * switch set read as ids, so a switch turned off after the capture withdraws the
+ * row from the session that holds it, not only from the sessions started later.
  *
  * Both halves run against the real derivation: the runtime's inventory port is
  * `readExtensionInventory` reading real panel rows, so nothing here restates the
@@ -23,6 +25,7 @@ import { SessionId } from '@deepseek-ai/dsh-session'
 import { jsonlPersistencePlugin as Persistence } from './helpers/jsonl-persistence.js'
 import SessionQueryEngine from '@deepseek-ai/dsh-session-query'
 import { readExtensionInventory } from '../../../../packages/market-bundle/src/application/extension-inventory.js'
+import { extensionResourceEnabled } from '../../../../packages/market-runtime/src/application/extension-authorization.js'
 import { ExtensionRuntime } from '../../../../packages/market-runtime/src/runtime/host/extension-runtime.js'
 import type { UserPanelEntryWire } from '../../../../packages/market-contracts/src/contracts/market.js'
 import { removeTempRoot } from './helpers/temp-root.js'
@@ -215,5 +218,65 @@ describe('globally disabled capabilities are never a session default', () => {
     expect(selection?.presetId).toBe(preset!.id)
     expect(selection?.enabledIds).toEqual([OFF])
     expect(runtime.allows(agent, OFF)).toBe(true)
+  })
+})
+
+describe('a capture stops granting a switch turned off after it', () => {
+  it('withdraws the row from the session that already captured it', async () => {
+    // The reported defect: the selection was captured while the row was on, and nothing
+    // ever removed it, so a session resumed weeks later still ran what its reader had
+    // switched off — while every surface said it was off.
+    const { runtime, create, applied } = await setup()
+    const agent = await create('captured-then-off')
+    await vi.waitFor(() => expect(runtime.ready(agent)).toBe(true), { timeout: 10_000 })
+    expect((await runtime.window(agent.id)).state.selection.enabledIds).toEqual([ENABLED])
+    const captured = skillRows.find(row => row.name === 'alpha')!
+    captured.disabled = true
+    try {
+      runtime.invalidate()
+      await runtime.refreshAll()
+      // The committed selection loses the id, so the panel and the grant agree again.
+      await vi.waitFor(async () => expect((await runtime.window(agent.id)).state.selection.enabledIds).toEqual([]), { timeout: 10_000 })
+      expect(runtime.allows(agent, ENABLED)).toBe(false)
+      expect(applied.at(-1)).not.toContain(ENABLED)
+    } finally {
+      captured.disabled = false
+    }
+  })
+
+  it('keeps granting a row a preset names explicitly', async () => {
+    // The withdrawal belongs to captures. A preset is the reader's own list, and a
+    // global switch being off is what a preset exists to override.
+    const { runtime, create } = await setup()
+    const agent = await create('preset-outlives-switch')
+    await vi.waitFor(() => expect(runtime.ready(agent)).toBe(true), { timeout: 10_000 })
+    await runtime.create(agent.id, (await runtime.window(agent.id)).library.revision, { name: 'pinned', enabledIds: [ENABLED] })
+    const preset = (await runtime.window(agent.id)).library.presets.find(row => row.name === 'pinned')!
+    await runtime.select(agent.id, (await runtime.window(agent.id)).state.revision, preset.id)
+    const captured = skillRows.find(row => row.name === 'alpha')!
+    captured.disabled = true
+    try {
+      runtime.invalidate()
+      await runtime.refreshAll()
+      await vi.waitFor(async () => expect((await runtime.window(agent.id)).resources.find(row => row.id === ENABLED)).toMatchObject({ available: true, globalEnabled: false }), {
+        timeout: 10_000
+      })
+      expect(runtime.allows(agent, ENABLED)).toBe(true)
+    } finally {
+      captured.disabled = false
+    }
+  })
+
+  it('reads a capture as the switches and a preset as its own list', async () => {
+    // What the grant decides, at the one function both paths call: the capture says no to
+    // a row the switches turned off, the preset says yes to the id it names.
+    const { runtime, create } = await setup()
+    const agent = await create('authorization')
+    await vi.waitFor(() => expect(runtime.ready(agent)).toBe(true), { timeout: 10_000 })
+    const { resources, state } = await runtime.window(agent.id)
+    const off = resources.find(row => row.id === OFF)!
+    expect(extensionResourceEnabled(off, { ...state.selection, enabledIds: [OFF] }, resources, { capture: true })).toBe(false)
+    expect(extensionResourceEnabled(off, { ...state.selection, presetId: 'pinned', enabledIds: [OFF] }, resources)).toBe(true)
+    expect(extensionResourceEnabled(off, { ...state.selection, presetId: 'pinned', enabledIds: [OFF] }, resources, { capture: true })).toBe(false)
   })
 })

@@ -23,7 +23,7 @@ A `local: true` source reads its directory in place. Removing its registration n
 
 ## Discovery and refresh
 
-Session startup and the resource panels read sources that contain installed suites. Globally disabled installs remain available for explicit session selection. Opening Market discovers all configured sources as needed. Concurrent readers share the work for each source.
+Session startup and the resource panels read sources that contain installed suites. Globally disabled installs stay available so a preset can name them, while a session on the default selection stops granting what the switches turned off. Opening Market discovers all configured sources as needed. Concurrent readers share the work for each source.
 
 | Source | When discovery runs | How to observe content changes |
 | --- | --- | --- |
