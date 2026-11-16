@@ -9,6 +9,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.15.2](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.15.1...dsh-agent-plugins-market-v0.15.2) (2026-11-16)
+
+
+### Bug Fixes
+
+* **presets:** a global switch off withdraws the row from a capture ([2289456](https://github.com/Sivan757/dsh-agent-plugins-market/commit/2289456308a4c64e1c0bc90a75f313876cb14542))
+
 ## [0.15.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.15.0...dsh-agent-plugins-market-v0.15.1) (2026-11-16)
 
 
