@@ -9,6 +9,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.15.3](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.15.2...dsh-agent-plugins-market-v0.15.3) (2026-11-17)
+
+
+### Bug Fixes
+
+* **catalog:** keep a nested package inside the suite that owns it ([e2dfc7d](https://github.com/Sivan757/dsh-agent-plugins-market/commit/e2dfc7dc5c545bc0459d8f7bbbf2271b7cb88c03))
+
 ## [0.15.2](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.15.1...dsh-agent-plugins-market-v0.15.2) (2026-11-16)
 
 
