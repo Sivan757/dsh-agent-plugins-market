@@ -30,8 +30,13 @@ const surfaceCounts = {
 }
 const surfaceFlags = { skills: z.boolean(), mcp: z.boolean(), hooks: z.boolean(), commands: z.boolean(), agents: z.boolean(), lsp: z.boolean() }
 
-/** Bump the document version when discovery semantics or the normalized shape changes. */
-export const SOURCE_INDEX_VERSION = 1
+/**
+ * Bump the document version when discovery semantics or the normalized shape
+ * changes. Version 2 stopped treating a package nested inside a resolved suite
+ * as another installable suite, so a version 1 index can describe one and must
+ * be rediscovered instead of reused.
+ */
+export const SOURCE_INDEX_VERSION = 2
 
 const discoveredSuite: z.ZodType<DiscoveredSuite> = z.strictObject({
   sourceId: z.string(),

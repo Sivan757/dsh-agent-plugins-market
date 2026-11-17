@@ -19,7 +19,7 @@
  *    `<root>/<name>/SKILL.md` collections.
  */
 import { realpath, readFile } from 'node:fs/promises'
-import { join, resolve } from 'node:path'
+import { join, relative, resolve } from 'node:path'
 import { isWithin, sanitizeId } from './paths.js'
 import { isDirectory, isFile, listChildDirs } from './fs-probes.js'
 import { EXTENSION_NAMESPACE, NAMESPACE_DIR, NAMESPACE_HOOKS_FILE, NAMESPACE_LSP_FILE } from '../../../market-contracts/src/model/layouts.js'
@@ -228,12 +228,21 @@ export class MarketplaceStrategy implements ScanFilter {
         continue
       }
       // A productive dialect wins; supplement with containers it did not list.
+      // A resolved suite owns its subtree: a package nested inside it is that
+      // plugin's content (another dialect's bundle, examples), never a second
+      // installable unit.
       context.marketplacePath = marketplace.path
       for (const container of CONTAINER_DIRS) {
         const containerDir = join(context.checkout, container)
         if (!(await isDirectory(containerDir))) continue
         for (const child of await listChildDirs(containerDir)) {
           if (roots.some(root => root.dir === child) || !(await hasSuiteManifest(child))) continue
+          const owner = roots.find((root): root is SuiteRoot & { dir: string } => root.dir !== undefined && isWithin(root.dir, child))
+          if (owner !== undefined) {
+            const ownerPath = relative(context.checkout, owner.dir) || '.'
+            context.notes.push(`suite ${ownerPath}: "${relative(context.checkout, child)}" is the content of this suite, not a separate suite; skipped`)
+            continue
+          }
           const extra = await readSuite(child, context.sourceId, context.dimension, undefined, context.notes)
           if (extra !== undefined) resolved.push(extra)
         }
