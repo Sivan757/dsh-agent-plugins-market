@@ -11,8 +11,9 @@
  *
  * This case closes that gap the only way a repository can without the host's token
  * file: the list below is the set of tokens verified present in the host's
- * `design-platform.css` for both themes. A new token fails until someone checks it
- * against the host and adds it here.
+ * `design-platform.css` for both themes, plus the two focus-ring seats its
+ * `focus.css` defines — the ones every host control's `focus-visible` recipe names.
+ * A new token fails until someone checks it against the host and adds it here.
  */
 import { readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
@@ -47,6 +48,8 @@ const KNOWN_TOKENS = new Set([
   '--dsw-alias-state-warn-tertiary',
   '--dsw-alias-tooltip-bg',
   '--dsw-elevation-prominent',
+  '--dsw-focus-ring-color',
+  '--dsw-focus-ring-width',
   '--dsw-mask-blur',
   '--dsw-radius-sm',
   '--dsw-specific-input-major'

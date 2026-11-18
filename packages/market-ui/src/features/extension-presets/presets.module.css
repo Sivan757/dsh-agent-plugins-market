@@ -20,18 +20,6 @@
 .managerBody {
   overflow: hidden;
 }
-.entryButton.entryButton {
-  width: 28px;
-  min-width: 28px;
-  height: 28px;
-  padding: 0;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-}
-.entryButton > svg {
-  flex: none;
-}
 .planBar {
   display: flex;
   align-items: center;

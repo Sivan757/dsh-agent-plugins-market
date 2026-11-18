@@ -8,6 +8,7 @@ import {
   Toast,
   IconSettingsOutlineMedium,
   IconPlusOutlineMedium,
+  IconChevronDownOutlineRegular,
   IconCloseOutlineMedium,
   IconEllipsisOutlineMedium,
   IconSparkleMedium,
@@ -29,6 +30,7 @@ import { useExtensionWindow, type ExtensionWindowObserver } from './use-window.j
 import { canonicalPresetSelection, presetCoverage, presetSuggestionCandidates, resourceSelected, uniquePresetName } from './resource.js'
 import { AiSelectionModal } from '../../ui/AiSelectionModal.js'
 import css from './presets.module.css'
+import entryCss from './entry.module.css'
 import { AgentExtensionIcon } from '../../ui/AgentExtensionIcon.js'
 import sourceCss from '../../ui/source-strip.module.css'
 import panelCss from '../../ui/panel.module.css'
@@ -294,6 +296,13 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
     : data
       ? (selected?.presetName ?? t('epGlobal')) + (selected?.modified ? ' · ' + t('epModified') : '')
       : t(error ? (notReady ? 'epSessionInactive' : 'epLoadFailed') : 'epLoading')
+  // What the entry says beside its icon: the preset this session is in, the
+  // global word when it follows no preset, and the state word while the read
+  // has not answered. The modified suffix and the loading copy stay in the
+  // tooltip and the accessible name, because the composer row is shared with
+  // Permissions and Plan and a translated suffix would push it wider without
+  // answering the reader's question.
+  const label = selected?.presetName ?? (data === undefined ? name : t('epGlobal'))
   const savedDirty = dirty && !libraryDraft
   const duplicate = data?.library.presets.some(p => p.name === newName.trim() && (naming !== 'rename' || p.id !== editing)) === true
   const editableClipboard = (target: EventTarget | null) => target instanceof HTMLElement && !!target.closest('input, textarea, select, [contenteditable="true"]')
@@ -310,18 +319,23 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
         anchor={
           <Tooltip label={t('epTitle') + ' · ' + name} side="top">
             <span>
-              <Button
-                variant="ghost"
-                size="sm"
-                className={css.entryButton}
+              <button
+                type="button"
+                className={entryCss.entryTrigger}
                 aria-label={name}
                 aria-haspopup="menu"
                 aria-expanded={menu}
                 disabled={manager}
                 onClick={() => setMenu(value => !value)}
               >
-                <AgentExtensionIcon />
-              </Button>
+                <span className={entryCss.entryIcon} aria-hidden>
+                  <AgentExtensionIcon />
+                </span>
+                <span className={entryCss.entryLabel}>{label}</span>
+                <span className={menu ? `${entryCss.entryChevron} ${entryCss.entryChevronOpen}` : entryCss.entryChevron} aria-hidden>
+                  <IconChevronDownOutlineRegular />
+                </span>
+              </button>
             </span>
           </Tooltip>
         }

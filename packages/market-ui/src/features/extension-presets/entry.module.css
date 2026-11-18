@@ -1,0 +1,77 @@
+/* The composer entry wears the chip chrome the host's own composer controls
+   use — InputBar's model select and PermissionSelect's trigger: 28px tall,
+   radius-sm, 13/20 medium in label-secondary, transparent fill, hover wash.
+   It is a native button for that reason: the Button atom's 12px primary
+   metrics would need every one of these properties overridden, and the row it
+   sits in already reads as one family of chips. */
+.entryTrigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  max-width: 220px;
+  height: 28px;
+  padding: 0 4px 0 8px;
+  border: none;
+  border-radius: var(--dsw-radius-sm);
+  outline: none;
+  background: transparent;
+  color: var(--dsw-alias-label-secondary);
+  font-size: 13px;
+  line-height: 20px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+@media (hover: hover) {
+  .entryTrigger:hover:not(:disabled) {
+    background: var(--dsw-alias-interactive-bg-hover);
+  }
+}
+
+.entryTrigger:focus-visible {
+  /* The host's own focus recipe: its focus.css names both seats, and sets the
+     colour to transparent for pointer input, so a tab ring is what this paints. */
+  outline: var(--dsw-focus-ring-width) solid var(--dsw-focus-ring-color, var(--dsw-alias-state-business-primary));
+}
+
+.entryTrigger:disabled {
+  color: var(--dsw-alias-label-dimmed);
+  cursor: default;
+}
+
+.entryIcon {
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+
+/* One step smaller on the exposed trigger, exactly as the permission chip
+   renders its 16px glyphs. */
+.entryIcon svg {
+  width: 14px;
+  height: 14px;
+}
+
+/* The name is the control's own label: it truncates rather than widening the
+   row past Permissions and Plan. */
+.entryLabel {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.entryChevron {
+  display: inline-flex;
+  flex: 0 0 auto;
+  transition: transform 120ms ease;
+}
+
+.entryChevron svg {
+  width: 12px;
+  height: 12px;
+}
+
+.entryChevronOpen {
+  transform: rotate(180deg);
+}

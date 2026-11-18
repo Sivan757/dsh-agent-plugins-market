@@ -336,7 +336,7 @@ describe('extension preset rendering', () => {
   it('uses a host SVG icon and keeps manager enabled while busy without temporary adjustment', async () => {
     await mount(true, true)
     const button = host!.querySelector('button')!
-    expect(button.textContent).toBe('')
+    expect(button.textContent).toBe('Research')
     expect(button.getAttribute('aria-label')).toBe('Research')
     await act(async () => button.click())
     expect(host!.querySelector('svg')).not.toBeNull()

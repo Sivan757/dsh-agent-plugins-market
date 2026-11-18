@@ -141,7 +141,8 @@ it('offers the text switch in the manager toolbar and flips the cards with it', 
 it.each([false, true])('uses the shared agent extension icon for started=%s', async started => {
   await mount(started)
   const button = document.querySelector('button')!
-  expect(button.textContent).toBe('')
+  // The entry names the preset it selects; the icon still leads it.
+  expect(button.textContent).toBe('Default')
   expect(button.querySelector('svg')!.getAttribute('width')).toBe('16')
   expect(button.querySelector('svg')!.getAttribute('viewBox')).toBe('0 0 28 28')
   await click('Default')
@@ -413,11 +414,21 @@ it('keeps frame geometry but delegates card layout and typography to shared styl
   expect(css).toContain('max-width: 100%')
   expect(css).toContain('max-height: 100%')
   expect(css).toContain('max-width: 600px')
-  expect(css).toContain('width: 28px')
   expect(css).not.toContain('grid-template-columns')
   expect(css).not.toContain('font-size:')
   expect(css).not.toContain('position: absolute')
   expect(css).not.toContain('--dsw-menu-surface-fill:')
+})
+
+it('draws the composer entry with the host composer chip geometry', () => {
+  // The entry sits in the composer's left tool row beside the host's own chips,
+  // so its geometry and typography are the chip family's, not the dialog frame's.
+  const css = readFileSync('packages/market-ui/src/features/extension-presets/entry.module.css', 'utf8')
+  expect(css).toContain('height: 28px')
+  expect(css).toContain('max-width: 220px')
+  expect(css).toContain('font-size: 13px')
+  expect(css).toContain('font-weight: 500')
+  expect(css).toContain('--dsw-radius-sm')
 })
 
 /** One user-hooks configuration row as the server inventory ships it. */
