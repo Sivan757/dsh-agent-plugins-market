@@ -4,9 +4,9 @@
 
 `dsh-agent-plugins-market`
 
-**A one-stop skills, subagent, MCP and LSP manager inside [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness).**
+**Skills and extensions manager for [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness). Install Claude Code, Codex, Cursor and Kimi plugin repositories as they are, without waiting for a DSH port.**
 
-Run Claude Code, Codex, Cursor, Kimi and agent-plugins suites inside DSH. The plugin reads each layout in place, so you convert no manifest and copy no file. Install it from the DSH Web GUI, then manage skills, commands, agent personas, MCP services and LSP servers in one workspace, and use extension presets to choose which extensions each session carries.
+Paste a repository URL and install its suites in place. The plugin reads each layout as it is, so you convert no manifest and copy no file. In the same workspace you manage your own skills, commands, agent personas, MCP services, LSP servers, the system prompt and output styles, and extension presets choose which extensions each session carries.
 
 If this plugin is useful to you, a ⭐ on [GitHub](https://github.com/Sivan757/dsh-agent-plugins-market) is appreciated.
 
@@ -14,7 +14,7 @@ English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github
 
 [![npm version](https://img.shields.io/npm/v/dsh-agent-plugins-market)](https://www.npmjs.com/package/dsh-agent-plugins-market) [![License](https://img.shields.io/github/license/Sivan757/dsh-agent-plugins-market)](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/LICENSE)
 
-[Demo](#demo) · [Quick start](#quick-start) · [Highlights](#highlights) · [Everyday use](#everyday-use) · [Compatibility](#compatibility) · [FAQ](#faq)
+[Demo](#demo) · [Quick start](#quick-start) · [Popular repositories](#popular-repositories) · [Highlights](#highlights) · [Everyday use](#everyday-use) · [Compatibility](#compatibility) · [FAQ](#faq)
 
 ## Demo
 
@@ -39,6 +39,20 @@ The demo uses the first-party source and [claude-plugins-official](https://githu
 5. Open a suite, review its contents, then install it and keep it enabled. Skills appear in the **Skills** tab and in the `/` menu. Answer any credential notice on the **Connectors** tab before you use that suite's tools.
 
 Terminal alternative: `dsh plugin --profile <name> add dsh-agent-plugins-market`. Requirements, profile configuration and other install options live in the [install guide](https://sivan757.github.io/dsh-agent-plugins-market/docs/install/#installation-options).
+
+## Popular repositories
+
+A well-known skill repository needs no DSH port. Add the original repository as a source, then install it as it is:
+
+| Repository | The market finds | Source URL |
+| --- | --- | --- |
+| [obra/superpowers](https://github.com/obra/superpowers) | 15 skills and 1 hook | `https://github.com/obra/superpowers` |
+| [mattpocock/skills](https://github.com/mattpocock/skills) | 39 skills | `https://github.com/mattpocock/skills` |
+| [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) | 22 skills, 1 command, 3 agent personas and 4 hooks | `https://github.com/JuliusBrussee/caveman` |
+| [anthropics/skills](https://github.com/anthropics/skills) | 19 skills | `https://github.com/anthropics/skills` |
+| [anthropics/claude-plugins-official](https://github.com/anthropics/claude-plugins-official) | 318 suites, 57 of them in the repository itself | `https://github.com/anthropics/claude-plugins-official` |
+
+The counts are from 2026-11-18 and change as each repository does. The market lists what a suite holds before you install it. A skill file the market cannot read is listed as disabled instead of being dropped.
 
 ## Highlights
 
@@ -129,10 +143,6 @@ More questions: [FAQ](https://sivan757.github.io/dsh-agent-plugins-market/faq/).
 - [Contributing](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/.github/CONTRIBUTING.md) · [Security](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/.github/SECURITY.md) · [Changelog](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CHANGELOG.md) · [License](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/LICENSE).
 - [Domain glossary](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CONTEXT.md) · [Agent roles](https://sivan757.github.io/dsh-agent-plugins-market/docs/agent-roles/) · [Release process](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/developer/release/release-process.md).
 
-## Community
+## Feedback
 
-Scan the QR code to join the **dsh-agent-plugins-market** WeChat group, where we answer questions and take feature requests.
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/wechat-group.webp" alt="WeChat group QR code for dsh-agent-plugins-market" width="240" />
-</div>
+Report a bug or request a feature in [GitHub Issues](https://github.com/Sivan757/dsh-agent-plugins-market/issues).

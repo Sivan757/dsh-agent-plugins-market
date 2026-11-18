@@ -1,7 +1,7 @@
 {
   "name": "dsh-agent-plugins-market",
   "icon": "./assets/dsh-agent-plugins.png",
-  "description": "One-stop skills, subagent, MCP and LSP manager inside DeepSeek Harness (DSH), compatible with Claude Code, Codex, Cursor, Kimi and other agent plugin layouts.",
+  "description": "Skills and extensions manager for DeepSeek Harness (DSH). Install Claude Code, Codex, Cursor and Kimi plugin repositories as they are, without waiting for a DSH port.",
   "version": "0.15.3",
   "type": "module",
   "main": "lib/index.js",
@@ -106,7 +106,10 @@
     "mcp-servers",
     "hooks",
     "suite",
-    "ai-agents"
+    "ai-agents",
+    "agent-skills",
+    "skill-manager",
+    "claude-skills"
   ],
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.4",

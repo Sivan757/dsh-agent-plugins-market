@@ -10,7 +10,8 @@ export default defineConfig({
   // internal link is emitted with this prefix.
   base: '/dsh-agent-plugins-market/',
   title: 'dsh-agent-plugins-market',
-  description: 'One-stop skills, subagent, MCP and LSP manager inside DeepSeek Harness (DSH), compatible with Claude Code, Codex, Cursor, Kimi and other agent plugin layouts.',
+  description:
+    'Skills and extensions manager for DeepSeek Harness (DSH). Install Claude Code, Codex, Cursor and Kimi plugin repositories as they are, without waiting for a DSH port.',
   srcDir: '.',
   outDir: 'dist',
   srcExclude: ['**/package.json', '**/*.mjs', '**/*.mts', '**/tsconfig.json', '**/.vitepress/**', '**/node_modules/**'],

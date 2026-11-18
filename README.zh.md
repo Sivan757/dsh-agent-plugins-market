@@ -4,9 +4,9 @@
 
 `dsh-agent-plugins-market`
 
-**DeepSeek Harness（DSH）里一站式的技能、子代理、MCP 与 LSP 管理器。**
+**DeepSeek Harness（DSH）的技能与扩展管理器。Claude Code、Codex、Cursor、Kimi 的插件仓库原样安装，不用等人移植。**
 
-在 DSH 中直接运行 Claude Code、Codex、Cursor、Kimi 与 agent-plugins 套件。插件就地读取各种布局，你不必转换清单，也不必复制文件。在 DSH 图形界面里安装本插件，之后在一个工作区里管理技能、命令、代理角色、MCP 服务与 LSP 服务，再用扩展预设决定每个会话带哪些扩展。
+粘贴一个仓库地址，就地安装其中的套件。插件按原样读取各种布局，你不必转换清单，也不必复制文件。在同一个工作区里管理你自己的技能、命令、代理角色、MCP 服务、LSP 服务、系统提示词与输出风格，再用扩展预设决定每个会话带哪些扩展。
 
 如果这个插件对你有用，欢迎在 [GitHub](https://github.com/Sivan757/dsh-agent-plugins-market) 点一个 ⭐。
 
@@ -14,7 +14,7 @@
 
 [![npm version](https://img.shields.io/npm/v/dsh-agent-plugins-market)](https://www.npmjs.com/package/dsh-agent-plugins-market) [![License](https://img.shields.io/github/license/Sivan757/dsh-agent-plugins-market)](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/LICENSE)
 
-[演示](#演示) · [快速开始](#快速开始) · [功能亮点](#功能亮点) · [日常使用](#日常使用) · [兼容性](#兼容性) · [常见问题](#常见问题)
+[演示](#演示) · [快速开始](#快速开始) · [热门仓库](#热门仓库) · [功能亮点](#功能亮点) · [日常使用](#日常使用) · [兼容性](#兼容性) · [常见问题](#常见问题)
 
 ## 演示
 
@@ -39,6 +39,20 @@
 5. 打开套件查看内容，确认后安装并保持启用。技能会出现在**技能**页签和聊天中的 `/` 菜单里；如果套件提供 MCP，先在**连接器**页签处理凭据提示，再使用它的工具。
 
 命令行替代方式：`dsh plugin --profile <name> add dsh-agent-plugins-market`。环境要求、profile 配置与其他安装方式见[安装指南](https://sivan757.github.io/dsh-agent-plugins-market/docs/zh/install/#其他安装方式)。
+
+## 热门仓库
+
+知名的技能仓库不需要 DSH 移植版。把原仓库添加为来源，然后原样安装：
+
+| 仓库 | 市场识别到的内容 | 来源地址 |
+| --- | --- | --- |
+| [obra/superpowers](https://github.com/obra/superpowers) | 15 个技能、1 个 hook | `https://github.com/obra/superpowers` |
+| [mattpocock/skills](https://github.com/mattpocock/skills) | 39 个技能 | `https://github.com/mattpocock/skills` |
+| [JuliusBrussee/caveman](https://github.com/JuliusBrussee/caveman) | 22 个技能、1 个命令、3 个代理角色、4 个 hook | `https://github.com/JuliusBrussee/caveman` |
+| [anthropics/skills](https://github.com/anthropics/skills) | 19 个技能 | `https://github.com/anthropics/skills` |
+| [anthropics/claude-plugins-official](https://github.com/anthropics/claude-plugins-official) | 318 个套件，其中 57 个在仓库内 | `https://github.com/anthropics/claude-plugins-official` |
+
+数量统计于 2026-11-18，会随各仓库更新而变化。安装前市场会列出套件包含的内容。市场读不了的技能文件会显示为停用，不会被直接丢掉。
 
 ## 功能亮点
 
@@ -129,10 +143,6 @@
 - [贡献指南](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/.github/CONTRIBUTING.md) · [安全策略](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/.github/SECURITY.md) · [更新日志](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CHANGELOG.md) · [MIT 许可](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/LICENSE)。
 - [领域词汇表](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/CONTEXT.md) · [代理角色](https://sivan757.github.io/dsh-agent-plugins-market/docs/zh/agent-roles/) · [发布流程](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/docs/developer/release/release-process.md)。
 
-## 交流群
+## 反馈
 
-扫描二维码加入 **dsh-agent-plugins-market** 微信群，我们在这里答疑并收集功能建议。
-
-<div align="center">
-  <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/wechat-group.webp" alt="dsh-agent-plugins-market 微信群二维码" width="240" />
-</div>
+遇到问题或有功能建议，请到 [GitHub Issues](https://github.com/Sivan757/dsh-agent-plugins-market/issues) 提出。

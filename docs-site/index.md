@@ -4,7 +4,7 @@ layout: home
 hero:
   name: dsh-agent-plugins-market
   text: Your agent toolkit, inside DeepSeek Harness
-  tagline: A one-stop skills, subagent, MCP and LSP manager inside DeepSeek Harness (DSH), compatible with Claude Code, Codex, Cursor, Kimi and other agent plugin layouts.
+  tagline: Skills and extensions manager for DeepSeek Harness (DSH). Install Claude Code, Codex, Cursor and Kimi plugin repositories as they are, without waiting for a DSH port.
   actions:
     - theme: brand
       text: Get started
