@@ -6,7 +6,7 @@
 
 **A one-stop skills, subagent, MCP and LSP manager inside [DeepSeek Harness (DSH)](https://github.com/deepseek-ai/deepseek-harness).**
 
-Run Claude Code, Codex, Cursor, Kimi and agent-plugins suites inside DSH. The plugin reads each layout in place, so you convert no manifest and copy no file. Install it from the DSH Web GUI, then manage skills, commands, agent personas, MCP services and LSP servers in one workspace.
+Run Claude Code, Codex, Cursor, Kimi and agent-plugins suites inside DSH. The plugin reads each layout in place, so you convert no manifest and copy no file. Install it from the DSH Web GUI, then manage skills, commands, agent personas, MCP services and LSP servers in one workspace, and use extension presets to choose which extensions each session carries.
 
 If this plugin is useful to you, a ⭐ on [GitHub](https://github.com/Sivan757/dsh-agent-plugins-market) is appreciated.
 
@@ -14,40 +14,21 @@ English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github
 
 [![npm version](https://img.shields.io/npm/v/dsh-agent-plugins-market)](https://www.npmjs.com/package/dsh-agent-plugins-market) [![License](https://img.shields.io/github/license/Sivan757/dsh-agent-plugins-market)](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/LICENSE)
 
-[Quick start](#quick-start) · [Highlights](#highlights) · [Everyday use](#everyday-use) · [Compatibility](#compatibility) · [FAQ](#faq)
+[Demo](#demo) · [Quick start](#quick-start) · [Highlights](#highlights) · [Everyday use](#everyday-use) · [Compatibility](#compatibility) · [FAQ](#faq)
 
-## Pages
+## Demo
 
-<table>
-  <tr>
-    <td align="center" width="33%">
-      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/market.png" alt="Market" width="100%" /><br />
-      <b>Market</b><br />Add sources, preview suites, install and enable.
-    </td>
-    <td align="center" width="33%">
-      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/skills.png" alt="Skills" width="100%" /><br />
-      <b>Skills</b><br />Browse skills and author your own.
-    </td>
-    <td align="center" width="33%">
-      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/commands.png" alt="Commands" width="100%" /><br />
-      <b>Commands</b><br />Manage prompt templates invoked as /name.
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="33%">
-      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/personas.png" alt="Agent personas" width="100%" /><br />
-      <b>Agent personas</b><br />Roles with an exact provider, model and effort.
-    </td>
-    <td align="center" width="33%">
-      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/mcp.png" alt="MCP services" width="100%" /><br />
-      <b>MCP services</b><br />Credentials, authorization and connection status.
-    </td>
-    <td align="center" width="33%">
-      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/lsp.png" alt="LSP servers" width="100%" /><br />
-      <b>LSP servers</b><br />Language server configuration and runtime status.
-    </td>
-  </tr>
-</table>
+<a href="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/demo.en.mp4">
+  <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/demo.en.gif" alt="Demo: add a source, install suites, save a preset, then switch presets in a session" width="100%" />
+</a>
+
+1. **Add a source.** Paste a repository URL and the market lists its suites.
+2. **Install suites.** The plugin reads each suite in place. It converts no manifest and copies no file.
+3. **Save a preset.** Open the preset manager beside the composer, save a copy, and keep only the suites this task needs.
+4. **Switch presets.** The session carries only the selected extensions, and the `/` menu gets shorter.
+5. **Get to work.** One set of extensions serves every session, each with its own selection.
+
+The demo uses the first-party source and [claude-plugins-official](https://github.com/anthropics/claude-plugins-official). Select the animation to open the full-resolution video.
 
 ## Quick start
 
@@ -55,7 +36,7 @@ English | [简体中文](README.zh.md) | [Documentation](https://sivan757.github
 2. Press **Add plugin**, type `dsh-agent-plugins-market`, then install it. The same dialog accepts a repository URL or a local directory.
 3. Restart DSH, then open **Settings → Agent Plugins**.
 4. The market already lists one first-party source. Press **Refresh** to fetch its suites. To bring in more, add a source such as `https://github.com/anthropics/claude-plugins-official`.
-5. Open a suite, review its contents, then install it and keep it enabled. Skills appear in the **Skills** tab and in the `/` menu. Answer any credential notice on **MCP services** before you use that suite's tools.
+5. Open a suite, review its contents, then install it and keep it enabled. Skills appear in the **Skills** tab and in the `/` menu. Answer any credential notice on the **Connectors** tab before you use that suite's tools.
 
 Terminal alternative: `dsh plugin --profile <name> add dsh-agent-plugins-market`. Requirements, profile configuration and other install options live in the [install guide](https://sivan757.github.io/dsh-agent-plugins-market/docs/install/#installation-options).
 
@@ -68,6 +49,7 @@ Terminal alternative: `dsh plugin --profile <name> add dsh-agent-plugins-market`
 - **Sources and downloads.** Add a Git repository, a local directory or an archive, adopt a checkout you cloned yourself, and refresh on demand. Pick a global or China mainland mirror, and refresh every source on a 6-hour timer if you want.
 - **Runtime injection.** Enabled suites add skills to the catalog and slash menu, commands as `/name`, agent personas to the subagent catalog, MCP tools as `mcp__*`, hooks to lifecycle events, and language servers to the `lsp` tool. Installing the plugin is the whole LSP setup.
 - **One workspace.** Nine tabs cover the market, the instructions injected into a session, the output style that shapes each answer, the resources you author, and the services that run. Every tab has search, filters and a grid or list view.
+- **Extension presets, chosen per session.** Save a set of suites, skills, experts, shortcuts and services as a preset, and switch it beside the composer. The session carries only what the preset selects, and the global switches stay as they are. See [Session extension presets](https://sivan757.github.io/dsh-agent-plugins-market/docs/settings/#session-extension-presets).
 
 ### Advanced
 
@@ -80,6 +62,17 @@ Terminal alternative: `dsh plugin --profile <name> add dsh-agent-plugins-market`
 - **Bilingual by default.** The interface and the injected prompts follow the host language. Descriptions and documents show the original, a translation or both, and stay cached until you clear them.
 
 ## Everyday use
+
+<a href="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/workspace.en.mp4">
+  <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/workspace.en.gif" alt="Demo: write a skill, edit the system prompt, switch off the connector tools you do not need, then select an output style" width="100%" />
+</a>
+
+Installing suites is the start. In the same workspace you write and edit your own:
+
+1. **Write a skill.** One Markdown file with a `name` and a `description` takes effect as soon as you create it.
+2. **Edit the system prompt.** See the AGENTS.md files injected into the system prompt, and create or edit them in place.
+3. **Switch off the tools you do not need.** Select MCP tools one by one in Connectors. A cleared tool is no longer offered to the model.
+4. **Select an output style.** One block of text decides how the model answers, with no plugin to write.
 
 The workspace has nine tabs:
 
@@ -111,11 +104,11 @@ Reading a layout does not guarantee every behavior of its original platform. Inv
 
 **Why is an installed skill or tool missing?**
 
-Check that the suite and the relevant capability are enabled. The MCP and LSP panels report failures and missing credentials. Project resources also need the project-scan switch.
+Check that the suite and the relevant capability are enabled. The **Connectors** and **Language Engine** tabs report failures and missing credentials. Project resources also need the project-scan switch.
 
 **Where do I configure MCP tokens?**
 
-Open the service in **MCP services**. Missing environment references show `needs-credentials`. Host-managed credentials are write-only.
+Open the service on the **Connectors** tab. Missing environment references show `needs-credentials`. Host-managed credentials are write-only.
 
 **Do sources refresh automatically?**
 

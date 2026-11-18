@@ -12,7 +12,11 @@ The install section also led with a terminal command while the DSH Web GUI alrea
 
 Each entrance serves one reader and one Diátaxis quadrant. The README is the front door and tutorial; the documentation site is the full documentation; `packages/market-ui/src/locales.ts` is the single source of UI copy; `CONTEXT.md` stays the maintainer glossary. One topic appears in one place.
 
-Both READMEs shrink to 140 lines with the same section order: value, screenshots, quick start, Highlights, everyday use, compatibility, FAQ, documentation, community. `README.md:62` splits Highlights into Core and Advanced, so an advanced capability such as MCP OAuth or the per-workspace surface switches reads as its own line instead of sitting inside a compound sentence.
+Both READMEs hold 138 lines with the same section order: value, demo, quick start, Highlights, everyday use, compatibility, FAQ, documentation, community. `README.md:43` splits Highlights into Core and Advanced, so an advanced capability such as MCP OAuth or the per-workspace surface switches reads as its own line instead of sitting inside a compound sentence.
+
+The demo section sits directly under the value statement and tells one story in five captioned steps: add a source, install suites, save an extension preset, switch presets in a session, then work. It is a real recording of the Web GUI in a throwaway profile, so no maintainer workspace content appears. Each language has its own take, `docs/screenshots/demo.en.gif` and `docs/screenshots/demo.zh.gif`, and the image links to an MP4 of the same take beside it. The five numbered lines under the animation repeat the captions, so the story survives where the animation does not load.
+
+Everyday use opens with a second recording made the same way, `docs/screenshots/workspace.en.gif` and `docs/screenshots/workspace.zh.gif`. It covers what a reader does without installing anything: write a skill, edit the system prompt, switch off the connector tools a session does not need, and select an output style. Four numbered lines repeat its captions. The six page screenshots left the READMEs: they showed an interface that has since changed, and they showed a maintainer's own workspace.
 
 The quick start installs from the Web GUI in five steps. The terminal command becomes one alternative line. Every image uses its absolute `raw.githubusercontent.com` URL, because npm renders the same `README.md` with a different base path.
 
@@ -26,7 +30,19 @@ Compatibility leaves the README. The `docs-site/src/pages/compatible-plugins.ast
 
 **Keep the compatibility tables in the README and shorten elsewhere.** Rejected: GitHub and npm render the same `README.md`, so the README is the only page that serves both the newcomer and the person evaluating layout support. Reference detail belongs on the site, which has its own navigation.
 
+**Lead with the six page screenshots and add no demo.** Rejected: six static pages show what the workspace contains, but not the order of use. A reader who arrives asking how to control what a session carries finds the answer only in one Highlights line. The screenshots also age with every interface change, so the READMEs no longer embed them.
+
+**Replace each page screenshot with its own animation.** Rejected: six animations repeat the tab table below them and multiply the recording work for every interface change. Two recordings follow the two questions a reader brings: what to install, and what to write.
+
+**Embed the MP4 directly with a video element.** Rejected: the README must render the same way on GitHub and on npm, and images already render on both from absolute URLs, so an animated image takes the same path. Video embedding was not verified on npm. The MP4 stays as the link target because it is sharper and can be paused.
+
+**Generate a motion graphic instead of recording the product.** Rejected: a recording proves the flow works as shown. A rendered animation would need to be redrawn for every interface change and would prove nothing.
+
 ## Consequences
+
+The eight recording files add about 28 MB of binary media to the repository history. A change to the market page, the preset manager or the composer's preset button makes the demo recording stale. A change to the Skills, System prompt, Connectors or Output styles tab makes the workspace recording stale. A stale take is recorded again in both languages.
+
+The six page screenshots stay in `docs/screenshots/` until a release publishes the new README. The README of the npm version published before this change still loads them from `main`, so an earlier deletion breaks the images on that npm page.
 
 The site now owns the compatibility reference and its inbound links. At the time of this change `.github/workflows/docs-pages.yml` watched only `docs-site/**`, so an edit under `docs/` did not rebuild the deployed site and the site linked such pages by absolute GitHub URL instead of rendering them. [The docs site renders the user guide](2026-10-11-docs-site-renders-the-user-guide.md) later added `docs/user/**` to that trigger and made the site render the guide pages directly, so this note's GitHub-link consequence no longer describes the site.
 

@@ -14,7 +14,7 @@ Markdown under `docs/` is organized by the reader it serves. A page states its o
 | `developer/release/` | Release runbook and per-version materials | [release-process.md](developer/release/release-process.md) |
 | `developer/upstream-proposal/` | Work aimed at an upstream repository | [mcp-oauth-relocation-plan.md](developer/upstream-proposal/mcp-oauth-relocation-plan.md) |
 | `scratch/` | Expiring working material; not authoritative | [promotion/](scratch/promotion/promotion-kit.md) |
-| `screenshots/` | Images the root READMEs embed | `screenshots/market.png` |
+| `screenshots/` | Images and demo recordings the root READMEs embed | `screenshots/market.png`, `screenshots/demo.en.gif` |
 
 Place a new page in the directory of its reader. Choose `reference/` over `scratch/` when another page or a test cites it, and promote a scratch page into `user/`, `reference/`, or `developer/` when it becomes durable.
 

@@ -6,7 +6,7 @@
 
 **DeepSeek Harness（DSH）里一站式的技能、子代理、MCP 与 LSP 管理器。**
 
-在 DSH 中直接运行 Claude Code、Codex、Cursor、Kimi 与 agent-plugins 套件。插件就地读取各种布局，你不必转换清单，也不必复制文件。在 DSH 图形界面里安装本插件，之后在一个工作区里管理技能、命令、代理角色、MCP 服务与 LSP 服务。
+在 DSH 中直接运行 Claude Code、Codex、Cursor、Kimi 与 agent-plugins 套件。插件就地读取各种布局，你不必转换清单，也不必复制文件。在 DSH 图形界面里安装本插件，之后在一个工作区里管理技能、命令、代理角色、MCP 服务与 LSP 服务，再用扩展预设决定每个会话带哪些扩展。
 
 如果这个插件对你有用，欢迎在 [GitHub](https://github.com/Sivan757/dsh-agent-plugins-market) 点一个 ⭐。
 
@@ -14,40 +14,21 @@
 
 [![npm version](https://img.shields.io/npm/v/dsh-agent-plugins-market)](https://www.npmjs.com/package/dsh-agent-plugins-market) [![License](https://img.shields.io/github/license/Sivan757/dsh-agent-plugins-market)](https://github.com/Sivan757/dsh-agent-plugins-market/blob/main/LICENSE)
 
-[快速开始](#快速开始) · [功能亮点](#功能亮点) · [日常使用](#日常使用) · [兼容性](#兼容性) · [常见问题](#常见问题)
+[演示](#演示) · [快速开始](#快速开始) · [功能亮点](#功能亮点) · [日常使用](#日常使用) · [兼容性](#兼容性) · [常见问题](#常见问题)
 
-## 页面
+## 演示
 
-<table>
-  <tr>
-    <td align="center" width="33%">
-      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/market.png" alt="插件市场" width="100%" /><br />
-      <b>插件市场</b><br />添加来源、预览套件、安装并启用。
-    </td>
-    <td align="center" width="33%">
-      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/skills.png" alt="技能" width="100%" /><br />
-      <b>技能</b><br />浏览技能，也可以自己编写。
-    </td>
-    <td align="center" width="33%">
-      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/commands.png" alt="命令" width="100%" /><br />
-      <b>命令</b><br />管理通过 /名称 调用的提示词模板。
-    </td>
-  </tr>
-  <tr>
-    <td align="center" width="33%">
-      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/personas.png" alt="代理角色" width="100%" /><br />
-      <b>代理角色</b><br />为角色指定精确的提供方、模型与推理强度。
-    </td>
-    <td align="center" width="33%">
-      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/mcp.png" alt="MCP 服务" width="100%" /><br />
-      <b>MCP 服务</b><br />凭据、授权与连接状态。
-    </td>
-    <td align="center" width="33%">
-      <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/lsp.png" alt="LSP 服务" width="100%" /><br />
-      <b>LSP 服务</b><br />语言服务器配置与运行状态。
-    </td>
-  </tr>
-</table>
+<a href="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/demo.zh.mp4">
+  <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/demo.zh.gif" alt="演示：添加来源、安装套件、保存预设，然后在会话里切换预设" width="100%" />
+</a>
+
+1. **添加来源。** 粘贴一个仓库地址，市场列出其中的套件。
+2. **安装套件。** 插件就地读取套件，不转换清单，也不复制文件。
+3. **保存预设。** 在输入框旁打开预设管理器，另存一份，只留这次要用的套件。
+4. **切换预设。** 会话只带选中的扩展，`/` 菜单随之变短。
+5. **直接开工。** 同一套扩展，每个会话各取所需。
+
+演示使用第一方来源与 [claude-plugins-official](https://github.com/anthropics/claude-plugins-official)。点击动图可打开高清视频。
 
 ## 快速开始
 
@@ -55,7 +36,7 @@
 2. 点**添加插件**，填入 `dsh-agent-plugins-market`，然后安装。同一个对话框也接受仓库地址或本地目录。
 3. 重启 DSH，然后打开**设置 → Agent 扩展**。
 4. 市场里已经列出一个第一方来源。点**刷新**即可拉取其中的套件。想补充更多内容时再添加来源，例如 `https://github.com/anthropics/claude-plugins-official`。
-5. 打开套件查看内容，确认后安装并保持启用。技能会出现在**技能**页签和聊天中的 `/` 菜单里；如果套件提供 MCP，先在 **MCP 服务**处理凭据提示，再使用它的工具。
+5. 打开套件查看内容，确认后安装并保持启用。技能会出现在**技能**页签和聊天中的 `/` 菜单里；如果套件提供 MCP，先在**连接器**页签处理凭据提示，再使用它的工具。
 
 命令行替代方式：`dsh plugin --profile <name> add dsh-agent-plugins-market`。环境要求、profile 配置与其他安装方式见[安装指南](https://sivan757.github.io/dsh-agent-plugins-market/docs/zh/install/#其他安装方式)。
 
@@ -68,6 +49,7 @@
 - **来源与下载。** 添加 Git 仓库、本地目录或压缩包，也可以接管你自己克隆的检出目录并随时刷新。镜像线路可选全球或中国大陆；需要时还可以每 6 小时自动刷新全部来源。
 - **运行时注入。** 启用套件后，技能进入技能目录与斜杠菜单，命令成为 `/名称`，代理角色进入子代理目录，MCP 工具以 `mcp__*` 前缀出现，hooks 挂到宿主生命周期事件，语言服务器接入 `lsp` 工具；LSP 装上插件即完成配置。
 - **一个工作区。** 九个页签覆盖市场、注入会话的指令、塑造每次回答的输出风格、你自己创作的内容与正在运行的服务，都支持搜索、筛选和卡片或列表视图。
+- **按会话取用的扩展预设。** 把一组套件、技能、专家、快捷指令与服务存成预设，在输入框旁切换。会话只带预设选中的扩展，全局开关保持不变。详见[会话扩展预设](https://sivan757.github.io/dsh-agent-plugins-market/docs/zh/settings/#会话扩展预设)。
 
 ### 进阶能力
 
@@ -80,6 +62,17 @@
 - **默认双语。** 界面与注入的提示词跟随宿主语言。描述与文档可显示原文、译文或双语，结果缓存在本地直到你清空缓存。
 
 ## 日常使用
+
+<a href="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/workspace.zh.mp4">
+  <img src="https://raw.githubusercontent.com/Sivan757/dsh-agent-plugins-market/main/docs/screenshots/workspace.zh.gif" alt="演示：写一个技能、编辑系统提示词、关掉连接器里用不到的工具，再选一个输出风格" width="100%" />
+</a>
+
+安装套件只是起点。在同一个工作区里，你可以自己写、自己改：
+
+1. **写一个技能。** 一份带 `name` 与 `description` 的 Markdown，创建后立即生效。
+2. **编辑系统提示词。** 查看注入系统提示词的 AGENTS.md 文件，直接新建或修改。
+3. **关掉用不到的工具。** 在连接器里逐个勾选 MCP 工具，取消勾选的工具不再提供给模型。
+4. **选一个输出风格。** 用一段文字决定模型怎么回答，不必为此写一个插件。
 
 工作区包含九个页签：
 
@@ -111,11 +104,11 @@
 
 **已安装的技能或工具为什么不见了？**
 
-先确认套件与对应能力都已启用。MCP 与 LSP 面板会报告失败和缺失的凭据。项目资源还需要打开项目扫描开关。
+先确认套件与对应能力都已启用。**连接器**与**语言引擎**页签会报告失败和缺失的凭据。项目资源还需要打开项目扫描开关。
 
 **MCP 的令牌在哪里配置？**
 
-在 **MCP 服务**中打开该服务。缺失的环境引用会显示 `needs-credentials`。宿主托管的凭据是只写的。
+在**连接器**页签中打开该服务。缺失的环境引用会显示 `needs-credentials`。宿主托管的凭据是只写的。
 
 **来源会自动刷新吗？**
 
