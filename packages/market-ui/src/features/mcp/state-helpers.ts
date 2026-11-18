@@ -8,7 +8,10 @@ import type { ResourceState } from '../../ui/ResourceCard.js'
  * another in its detail dialog.
  */
 export function mcpCardState(state: McpStatusEntry['state']): ResourceState {
+  // A starting bridge reads as the shared face vocabulary's `starting` state:
+  // it is not an outage, and the label says so.
   if (state === 'connected') return 'active'
+  if (state === 'connecting') return 'warning'
   if (state === 'disabled') return 'disabled'
   if (state === 'failed' || state === 'orphaned') return 'error'
   return 'warning'
@@ -17,7 +20,7 @@ export function mcpCardState(state: McpStatusEntry['state']): ResourceState {
 export function mcpTagTone(state: McpStatusEntry['state']): 'success' | 'warning' | 'danger' | 'neutral' {
   if (state === 'connected') return 'success'
   if (state === 'failed' || state === 'orphaned') return 'danger'
-  if (state === 'disabled' || state === 'foreign') return 'neutral'
+  if (state === 'disabled' || state === 'foreign' || state === 'connecting') return 'neutral'
   return 'warning'
 }
 
@@ -29,6 +32,7 @@ export function mcpDisplayName(entry: McpStatusEntry): string {
 /** The one-line verdict the detail's status band shows. */
 export function mcpStateLabel(t: Translate, state: McpStatusEntry['state']): string {
   if (state === 'connected') return t('mcpConnected')
+  if (state === 'connecting') return t('mcpConnecting')
   if (state === 'degraded') return t('mcpDegraded')
   if (state === 'failed') return t('mcpFailed')
   if (state === 'needs-credentials') return t('mcpNeedsCredentials')
@@ -54,7 +58,9 @@ export function mcpStateLabel(t: Translate, state: McpStatusEntry['state']): str
  */
 export function mcpConnectionNote(t: Translate, entry: McpStatusEntry, now = Date.now()): string | undefined {
   const connection = entry.connection
-  if (connection === undefined || connection.phase === 'connected') return undefined
+  // A first connect is not an outage, so it has no retry sentence to print: the
+  // row's own state already says the bridge is starting.
+  if (connection === undefined || connection.phase === 'connected' || connection.phase === 'connecting') return undefined
   const lead = connection.phase === 'failed' ? t('mcpReconnectStopped') : t('mcpReconnecting', { attempt: String(connection.attempt), max: String(connection.maxAttempts) })
   // The wait belongs in the sentence: "第 2/5 次" says how often, not how long.
   const wait = connection.retryAt === undefined || connection.retryAt <= now ? '' : ' · ' + t('mcpRetryIn', { seconds: String(Math.ceil((connection.retryAt - now) / 1000)) })

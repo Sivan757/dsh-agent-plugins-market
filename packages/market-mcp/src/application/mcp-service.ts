@@ -33,6 +33,7 @@ import { redactMcpConfig, redactMcpOverrides } from '../../../market-contracts/s
 import { buildMcpStatus, declaresAuthHeader } from './mcp/mcp-status.js'
 import { resolveRegion } from '../../../market-catalog/src/index.js'
 import { restoreRedactedConfig, validateServerMcp } from './mcp/validation.js'
+import { withSplitCommand } from './mcp/mcp-command-line.js'
 import type { CatalogContext } from '../../../market-catalog/src/index.js'
 import type { CatalogPorts, Localization, LocalizeFields, McpBackendInfo } from '../../../market-contracts/src/ports/ports.js'
 import type { SourceStore } from '../../../market-catalog/src/index.js'
@@ -216,7 +217,10 @@ export class McpService {
   async saveServerConfig(id: string, config: unknown, policy?: unknown): Promise<void> {
     return this.context.enqueue(async () => {
       const current = await this.resolveServerConfig(id)
-      const value = restoreRedactedConfig(config, current.value)
+      // A command line edited into the command field is split back into the
+      // program and its arguments before anything is stored, the same repair a
+      // created service gets.
+      const value = withSplitCommand(restoreRedactedConfig(config, current.value)) as Record<string, unknown>
       const patch = validatedPolicyPatch(policy, await this.backend())
       const server = await validateServerMcp(current.root, current.key, value, { userOwned: isUserOwnedMcp(current.suiteKey) })
       const overrides = await loadSuiteOverrides(this.context.dataRoot, current.suiteKey)

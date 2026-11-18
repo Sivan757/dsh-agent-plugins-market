@@ -3,6 +3,7 @@ import { basename } from 'node:path'
 import type { CatalogPort as Catalog } from '../../../market-runtime/src/index.js'
 import type { PanelResourceStore } from '../../../market-runtime/src/index.js'
 import { HOOK_EVENT_HOST_SUPPORT, hookResourceId, type ExtensionResource } from '../../../market-contracts/src/contracts/extension-presets.js'
+import { mcpRuntimeState } from '../../../market-contracts/src/contracts/mcp-status.js'
 import type { UserPanelEntryWire, UserPanelKind } from '../../../market-contracts/src/contracts/market.js'
 import type { OutputStylesPayload } from '../../../market-contracts/src/contracts/output-styles.js'
 import type { InstructionsPayload } from '../../../market-contracts/src/contracts/instructions.js'
@@ -352,7 +353,7 @@ export async function readExtensionInventory(ports: ExtensionInventoryPorts, opt
       transport: entry.transport,
       toolCount: entry.tools.length,
       runtime: {
-        state: entry.state,
+        state: mcpRuntimeState(entry.state),
         ...(entry.code === undefined ? {} : { code: entry.code }),
         ...(entry.reason === undefined ? {} : { reason: entry.reason }),
         ...(entry.causes === undefined ? {} : { causes: entry.causes }),

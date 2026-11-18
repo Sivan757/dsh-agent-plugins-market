@@ -20,6 +20,8 @@ Listing, reading, editing, and deleting a directory-shaped skill operate on its 
 
 An entry's name is the `name` its document declares, which is also the name the harness reader derives from that file. The panel lists, reads, edits, and deletes by that name: a lookup resolves the served paths first and then the declared names of the documents on disk, so a file whose name differs from the name it declares stays addressable. A document the reader would reject is listed under its own document name, because the name it declares is one no registry accepts.
 
+A skill created in the panel takes its name field as the document's `name`: the draft carries only the description, and the create path adds the key through `withSkillName`. [Authoring inputs are repaired on save, and a starting bridge says so](../feature/2026-11-18-authoring-inputs-and-a-starting-bridge.md) records that repair. Edits never rewrite a document the user authored.
+
 The skills panel publishes only documents that reader accepts from that directory. `skillEntryRejection` mirrors it — strict YAML frontmatter, a non-empty `name` already in kebab-case (no display-name normalization), a non-empty `description`, and a valid invocation policy — and a rejected document stays listed, disabled, with the reason in its `validationError` metadata, the same shape an unparseable frontmatter already produced. Hiding it would leave the user no way to find or fix it.
 
 `UserPanelSkillProvider` sets each candidate's `resourceBase` to the directory holding its document, so a relative `references/…` reference resolves against the skill directory exactly as it does through the harness reader.

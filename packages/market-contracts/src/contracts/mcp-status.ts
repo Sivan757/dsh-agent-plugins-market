@@ -1,5 +1,7 @@
 /** Browser-safe MCP status records shared by host aggregation and client rendering. */
 
+import type { ExtensionRuntimeState } from './extension-presets.js'
+
 /** A tool observed in the host MCP tool registry. */
 export interface McpStatusTool {
   /** The tool's call name, as the server advertises it; never translated. */
@@ -14,8 +16,26 @@ export interface McpStatusTool {
 /** Whether an MCP row comes from a suite or direct host observation. */
 export type McpStatusKind = 'plugin' | 'direct'
 
-/** Operational state rendered for an MCP row. `foreign` = mounted by another MCP client (informational). */
-export type McpStatusState = 'connected' | 'degraded' | 'failed' | 'needs-credentials' | 'orphaned' | 'disabled' | 'foreign'
+/**
+ * Operational state rendered for an MCP row. `foreign` = mounted by another
+ * MCP client (informational). `connecting` = the bridge is starting or being
+ * replaced: the row has no tools yet because none were fetched, which is a
+ * moment in the mount's life, not a failure to repair.
+ */
+export type McpStatusState = 'connected' | 'connecting' | 'degraded' | 'failed' | 'needs-credentials' | 'orphaned' | 'disabled' | 'foreign'
+
+/**
+ * One MCP row's condition in the shared runtime vocabulary the preset manager
+ * and the extension inventory render.
+ *
+ * The two vocabularies differ in one word: an MCP row is `connecting` while its
+ * bridge starts, and the shared record calls that moment `starting`.
+ * @param state - the MCP row's own state.
+ * @returns the same condition in the shared words.
+ */
+export function mcpRuntimeState(state: McpStatusState): ExtensionRuntimeState {
+  return state === 'connecting' ? 'starting' : state
+}
 
 /** Where one MCP server's live connection stands, as its supervisor observes it. */
 export type McpConnectionPhase = 'connecting' | 'connected' | 'reconnecting' | 'failed'

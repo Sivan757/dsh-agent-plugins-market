@@ -338,7 +338,7 @@ export function McpDetailModal({
               { className: panelCss.detailProse },
               // A failed mount has no registry to read, so the empty list is a
               // symptom of the state rather than a statement about the server.
-              entry.state === 'failed' || entry.state === 'orphaned'
+              entry.state === 'failed' || entry.state === 'orphaned' || entry.state === 'connecting'
                 ? t('mcpToolsUnreachable')
                 : entry.advertisedTools === false && entry.state === 'degraded'
                   ? t('mcpZeroTools')

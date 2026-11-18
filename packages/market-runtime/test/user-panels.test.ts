@@ -36,6 +36,31 @@ describe('user panel stores', () => {
     }
   })
 
+  it('writes the panel name into a skill draft that declares none', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'panels-'))
+    try {
+      const stores = createUserPanelStores(root)
+      // The editor's own draft: a description and a body, no `name`.
+      const draft = '---\ndescription: writes release notes\n---\n\nSummarize the commits since the last tag.\n'
+      const created = await stores.skills.create('release-notes', draft)
+      expect(created.disabled).toBe(false)
+      expect(created.metadata['validationError']).toBeUndefined()
+      expect(await readFile(join(root, 'skills', 'release-notes.md'), 'utf8')).toContain('name: release-notes')
+
+      // Commands and personas keep the document they were given: their reader
+      // does not ask for a name, and the panel's own name is the identity.
+      const command = await stores.commands.create('ship', '---\ndescription: d\n---\n\nship it')
+      expect(command.disabled).toBe(false)
+      expect(command.rawText).toBe('---\ndescription: d\n---\n\nship it')
+
+      // An edit is not a create: a document the user stripped keeps its text.
+      await stores.skills.update('release-notes', '---\ndescription: d\n---\n\nbody')
+      expect(await readFile(join(root, 'skills', 'release-notes.md'), 'utf8')).not.toContain('name:')
+    } finally {
+      await rm(root, { recursive: true, force: true })
+    }
+  })
+
   it('rejects names outside the entry grammar', async () => {
     const root = await mkdtemp(join(tmpdir(), 'panels-'))
     try {

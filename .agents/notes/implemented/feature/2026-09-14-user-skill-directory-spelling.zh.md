@@ -20,6 +20,8 @@ Status: implemented
 
 条目的名字就是其文档声明的 `name`，也就是宿主读取器从同一文件推导出的名字。面板按这个名字列出、读取、编辑、删除：查找先解析磁盘上的既有写法，再逐份比对各文档声明的名字，因此文件名与声明名不一致的文档依然可寻址。宿主读取器会拒绝的文档则以它自己的文档名列出，因为它声明的名字没有任何注册表会接受。
 
+在面板里新建技能时，名称字段就是文档的 `name`：草稿里只有描述，新建路径通过 `withSkillName` 补上那个键。[保存时修复输入，启动中的桥接如实说明](../feature/2026-11-18-authoring-inputs-and-a-starting-bridge.zh.md) 记录了这处修复。编辑不会改写用户自己写的文档。
+
 技能面板只发布宿主读取器会从该目录接受的文件。`skillEntryRejection` 镜像该读取器——严格 YAML frontmatter、`name` 非空且本身已是 kebab 形态（不做展示名归一化）、`description` 非空、invocation 开关合法——被拒绝的文档仍留在列表里、显示为已停用，原因写进 `validationError` 元数据，与"frontmatter 无法解析"既有情形同一形态。把它藏起来，用户就没有任何入口去找到并修好它。
 
 `UserPanelSkillProvider` 把每个候选的 `resourceBase` 设为承载其文档的目录，因此目录形态技能里的相对 `references/…` 引用，与通过宿主读取器时的解析结果一致。

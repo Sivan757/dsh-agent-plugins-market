@@ -138,10 +138,17 @@ export function buildMcpStatus(
       // still wins — that row never came up at all.
       const connection = diagnostic === undefined && !orphaned && !disabled ? connectionByServer.get(serverName) : undefined
       const connectionLost = connection !== undefined && connection.phase !== 'connected'
+      // A live mount is connected even when it exposes no tool: denying every
+      // tool of a server is a supported choice, and reporting that row as
+      // degraded left the panel asking the user to repair a service that runs
+      // exactly as configured. Zero tools with no connection is the state that
+      // means the mount is not there.
       const state: McpStatusState = connectionLost
-        ? connection.phase === 'reconnecting' || connection.phase === 'connecting'
-          ? 'degraded'
-          : 'failed'
+        ? connection.phase === 'connecting'
+          ? 'connecting'
+          : connection.phase === 'reconnecting'
+            ? 'degraded'
+            : 'failed'
         : orphaned
           ? 'orphaned'
           : diagnostic?.code === 'missing-credential'
@@ -152,7 +159,7 @@ export function buildMcpStatus(
                 ? 'failed'
                 : disabled
                   ? 'disabled'
-                  : tools.length > 0
+                  : connection !== undefined || tools.length > 0
                     ? 'connected'
                     : 'degraded'
       // A diagnostic's reason keeps the code the mount pipeline gave it. The
@@ -172,10 +179,15 @@ export function buildMcpStatus(
       // The supervisor's last error is the one thing the row can say about a
       // drop; when it has none, the panel writes the phase from `connection`.
       const reason = connectionLost ? connection.error : (orphanNote ?? presetDemandNote ?? diagnostic?.reason ?? overrideNote)
+      // A first connect is not a retry: it carries no retry code and nothing to
+      // retry, so the panel shows the row as starting instead of offering it a
+      // repair.
       const code: McpStatusCode | undefined = connectionLost
-        ? connection.phase === 'failed'
-          ? 'reconnect-stopped'
-          : 'reconnecting'
+        ? connection.phase === 'connecting'
+          ? undefined
+          : connection.phase === 'failed'
+            ? 'reconnect-stopped'
+            : 'reconnecting'
         : orphanNote !== undefined
           ? 'orphaned-tools'
           : presetDemandNote !== undefined
@@ -197,7 +209,9 @@ export function buildMcpStatus(
         tools: disabled && !orphaned && !presetDemand ? [] : observedTools(tools, serverName, localization === undefined ? undefined : localize),
         ...(localization === undefined ? {} : localize(serverName, { name: serverName })),
         advertisedTools: tools.length > 0,
-        retryable: diagnostic?.code === 'mount-failed' || diagnostic?.code === 'unmount-failed' || connectionLost,
+        // A bridge that is still starting has nothing to retry: it is not an
+        // outage, and the row clears by itself once the handshake lands.
+        retryable: diagnostic?.code === 'mount-failed' || diagnostic?.code === 'unmount-failed' || (connectionLost && connection.phase !== 'connecting'),
         ...(connectionLost ? { connection } : {}),
         ...(effective.type === 'stdio' || effective.auth !== undefined ? {} : { oauthDefault: true }),
         ...(policy.enabledTools === undefined ? {} : { suiteEnabledTools: policy.enabledTools }),
@@ -245,11 +259,14 @@ export function buildMcpStatus(
       id: `direct:${serverName}`,
       name: serverName,
       kind: 'direct',
-      state: connectionLost ? (connection.phase === 'reconnecting' || connection.phase === 'connecting' ? 'degraded' : 'failed') : 'connected',
+      state: connectionLost ? (connection.phase === 'connecting' ? 'connecting' : connection.phase === 'reconnecting' ? 'degraded' : 'failed') : 'connected',
       transport: 'observed',
       tools: observedTools(tools, serverName, localization === undefined ? undefined : localize),
       ...(localization === undefined ? {} : localize(serverName, { name: serverName })),
-      ...(connectionLost ? { retryable: true, code: connection.phase === 'failed' ? ('reconnect-stopped' as const) : ('reconnecting' as const), connection } : {}),
+      ...(connectionLost && connection.phase !== 'connecting'
+        ? { retryable: true, code: connection.phase === 'failed' ? ('reconnect-stopped' as const) : ('reconnecting' as const), connection }
+        : {}),
+      ...(connectionLost && connection.phase === 'connecting' ? { connection } : {}),
       ...(connectionLost && connection.error !== undefined ? { reason: connection.error } : {})
     })
   }

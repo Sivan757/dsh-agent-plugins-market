@@ -32,7 +32,7 @@
 
 import { dirname } from 'node:path'
 import type { SkillCandidate, SkillDefinition, SkillLookupOptions, SkillProvider, SkillSource } from '@deepseek-ai/dsh-skill'
-import { skillEntryRejection } from '../../../../market-catalog/src/index.js'
+import { skillEntryRejection, withSkillName } from '../../../../market-catalog/src/index.js'
 import {
   deleteEntryDocument,
   entryExists,
@@ -116,6 +116,14 @@ export interface UserPanelStoreOptions {
    * personas are switched through the panel's own `disabled` key.
    */
   honorInvocationControls?: boolean
+  /**
+   * Repair a new document from the name it was created under, before it is
+   * written. Skills use it to supply the frontmatter `name` the shipped reader
+   * requires; the panel's entry name is the only place that identity exists at
+   * creation time. Edits never pass through here, because a save must not
+   * rewrite a document the user authored.
+   */
+  prepareCreate?: (name: string, text: string) => string
 }
 
 /** Throwing CRUD over one panel directory, shared by the three panels. */
@@ -126,6 +134,7 @@ export class UserPanelStore {
   private readonly nested: boolean
   private readonly validate: ((file: UserEntryFile) => string | undefined) | undefined
   private readonly honorInvocationControls: boolean
+  private readonly prepareCreate: ((name: string, text: string) => string) | undefined
 
   constructor(
     private readonly agentsRoot: string,
@@ -138,6 +147,7 @@ export class UserPanelStore {
     this.namePattern = this.nested ? USER_ENTRY_PATH : USER_ENTRY_NAME
     this.validate = options.validate
     this.honorInvocationControls = options.honorInvocationControls === true
+    this.prepareCreate = options.prepareCreate
   }
 
   /** The panel's directory under the Agent layout root. */
@@ -224,7 +234,7 @@ export class UserPanelStore {
   async create(name: string, text: string): Promise<UserPanelEntry> {
     if (!this.validName(name)) throw new Error(`invalid name "${name}" — use lowercase letters, digits, and dashes, starting with a letter or digit`)
     if (await entryExists(this.dir, name, this.shapes, this.nested)) throw new Error(`an entry named "${name}" already exists`)
-    await writeEntryFile(this.dir, name, text)
+    await writeEntryFile(this.dir, name, this.prepareCreate === undefined ? text : this.prepareCreate(name, text))
     const created = await this.get(name)
     if (created === undefined) throw new Error(`entry "${name}" vanished after write`)
     return created
@@ -258,7 +268,9 @@ export function createUserPanelStores(agentsRoot: string): {
       extraNameCheck: isUserSkillEntryName,
       shapes: SKILL_ENTRY_SHAPES,
       validate: file => skillEntryRejection(file.text),
-      honorInvocationControls: true
+      honorInvocationControls: true,
+      // The store speaks (name, text); the skill helper reads (text, name).
+      prepareCreate: (name, text) => withSkillName(text, name)
     }),
     commands: new UserPanelStore(agentsRoot, 'commands', { nested: true }),
     agents: new UserPanelStore(agentsRoot, 'agents', { extraNameCheck: isUserSkillEntryName, nested: true })

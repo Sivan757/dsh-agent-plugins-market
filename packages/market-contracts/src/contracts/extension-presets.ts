@@ -234,8 +234,10 @@ export const TOGGLEABLE_FACES: readonly ExtensionPresetFace[] = ['market', 'skil
  * facts: which state the row is in, why, and how long the last attempt took. The words are
  * the client's; this record carries only the state and the raw reason.
  */
+export type ExtensionRuntimeState = 'connected' | 'starting' | 'failed' | 'degraded' | 'disabled' | 'foreign' | 'orphaned' | 'needs-credentials' | 'unknown'
+
 export interface ExtensionRuntime {
-  state: 'connected' | 'starting' | 'failed' | 'degraded' | 'disabled' | 'foreign' | 'orphaned' | 'needs-credentials' | 'unknown'
+  state: ExtensionRuntimeState
   /** The code the runtime recorded for the state, when it recorded one. */
   code?: string
   /** The reason the service reported, when it is not connected. */

@@ -80,6 +80,35 @@ describe('MCP status aggregation', () => {
     expect(app.tools.map(tool => tool.name)).toEqual(['read_file'])
   })
 
+  it('reads a starting bridge as connecting, with nothing to retry', () => {
+    // A tool switch remounts the bridge, and a first enable mounts it: during
+    // that window no tool has been fetched yet. Reporting it as degraded asked
+    // the reader to repair a service that was doing exactly what it should.
+    const payload = buildMcpStatus([suite()], [], [], new Map(), undefined, [], [{ serverName: 'codex__app', phase: 'connecting' as const, since: 1, attempt: 0, maxAttempts: 10 }])
+    const app = payload.entries.find(entry => entry.serverKey === 'app')!
+    expect(app.state).toBe('connecting')
+    expect(app.code).toBeUndefined()
+    expect(app.retryable).toBe(false)
+    expect(app.connection).toMatchObject({ phase: 'connecting' })
+  })
+
+  it('keeps a live mount connected when every one of its tools is denied', () => {
+    // Denying all tools is a supported choice: the server runs, and the row
+    // must not claim a failure the user did not cause.
+    const payload = buildMcpStatus(
+      [suite()],
+      [],
+      [],
+      new Map([['codex-plugin/codex', { app: { disabledTools: ['read_file', 'write_file'] } }]]),
+      undefined,
+      [],
+      [{ serverName: 'codex__app', phase: 'connected' as const, since: 1, attempt: 0, maxAttempts: 10 }]
+    )
+    const app = payload.entries.find(entry => entry.serverKey === 'app')!
+    expect(app.state).toBe('connected')
+    expect(app.tools).toEqual([])
+  })
+
   it('reports a supervisor that stopped, and lets a mount diagnostic outrank both', () => {
     const stopped = buildMcpStatus(
       [suite()],

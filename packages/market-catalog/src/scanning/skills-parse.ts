@@ -193,6 +193,54 @@ export function skillEntryRejection(text: string): string | undefined {
   return undefined
 }
 
+/**
+ * Supply the `name` a skill document has to declare from the name the panel
+ * created it under.
+ *
+ * The panel's entry name and the skill's own `name` are the same identity, but
+ * only the entry name is known when a draft is created: a document that omits
+ * the key is dropped by the shipped reader, so the panel would list the new
+ * entry disabled with a locked switch. Filling the key here keeps the two
+ * identities in step without making the user type the name twice.
+ *
+ * A declared name wins: a document that already names itself is the skill's own
+ * statement about its identity, and a save never rewrites it. Unparseable
+ * frontmatter is left exactly as written, because guessing where a key belongs
+ * in YAML this parser cannot read would corrupt the document instead of
+ * repairing it.
+ *
+ * @param text - the document as the editor holds it.
+ * @param name - the entry name the panel created the document under.
+ * @returns the document with a `name` line, or the same text when nothing is missing.
+ */
+export function withSkillName(text: string, name: string): string {
+  if (!isSkillName(name)) return text
+  const frontmatter = /^---(\r?\n)([\s\S]*?)(\r?\n)?---(?:\r?\n|$)/.exec(text)
+  if (frontmatter === null) {
+    // A body-only document gains the block it was missing, so the reader
+    // reports the one remaining gap (the description) instead of two.
+    return `---\nname: ${name}\n---\n\n${text}`
+  }
+  const newline = frontmatter[1] ?? '\n'
+  const body = frontmatter[2] ?? ''
+  let record: unknown
+  try {
+    record = parseYaml(body)
+  } catch {
+    return text
+  }
+  // An empty block parses to null, and that is the one non-object value that
+  // still wants the key: every other shape is one this helper must not touch.
+  if (record !== null && typeof record !== 'object') return text
+  if (Array.isArray(record)) return text
+  const declared = record === null ? undefined : (record as Record<string, unknown>)['name']
+  if (typeof declared === 'string' && declared !== '') return text
+  // Insert right after the opening delimiter and copy every other byte as it
+  // stands: the document keeps its own key order, line endings and body.
+  const openingEnd = 3 + newline.length
+  return text.slice(0, openingEnd) + `name: ${name}${newline}` + text.slice(openingEnd)
+}
+
 /** Lenient frontmatter recovery for prose fields with embedded `: `. */
 function lenientFrontmatter(body: string): Record<string, unknown> {
   const record: Record<string, unknown> = {}

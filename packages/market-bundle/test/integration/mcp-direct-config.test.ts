@@ -53,6 +53,17 @@ describe('user MCP persistence', () => {
     await expect(addUserMcpServer(path, 'bad', { type: 'streamable-http' })).rejects.toThrow('invalid MCP')
     expect(await readFile(join(path, 'mcp.json'), 'utf8')).toBe(before)
   })
+  it('splits a pasted command line into the program and its arguments', async () => {
+    const path = await root()
+    // The line a server's README shows, pasted into the command field as-is.
+    await addUserMcpServer(path, 'files', { type: 'stdio', command: 'npx -y @modelcontextprotocol/server-filesystem .' })
+    const suite = await loadUserMcpSuite(path)
+    expect(suite.mcp.servers['files']).toMatchObject({ command: 'npx', args: ['-y', '@modelcontextprotocol/server-filesystem', '.'] })
+    // The written file carries the split definition, so every reader of it agrees.
+    const written = JSON.parse(await readFile(join(path, 'mcp.json'), 'utf8')) as { mcpServers: Record<string, unknown> }
+    expect(written.mcpServers['files']).toMatchObject({ command: 'npx' })
+  })
+
   it('still rejects a malformed entry through the write path', async () => {
     const path = await root()
     await expect(addUserMcpServer(path, 'broken', { type: 'streamable-http' })).rejects.toThrow('server "broken": remote servers require a url')

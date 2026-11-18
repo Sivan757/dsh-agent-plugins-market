@@ -2,6 +2,7 @@ import { join } from 'node:path'
 import { readJsonFile, writeJsonDocument } from '../../../../market-catalog/src/index.js'
 import { MCP_SCHEMA_ID, validateMcpJson } from '../../../../market-catalog/src/index.js'
 import { effectiveSurfaces, type McpSuiteConfig, type Suite } from '../../../../market-contracts/src/model/types.js'
+import { withSplitCommand } from './mcp-command-line.js'
 
 export const USER_MCP_SOURCE = '@user-mcp'
 export const USER_MCP_SUITE = 'user-mcp'
@@ -94,7 +95,9 @@ export async function prepareUserMcpServer(agentsRoot: string, name: string, ser
   const suite = await loadUserMcpSuite(agentsRoot)
   if (suite.errors.length > 0) throw new Error(suite.errors.join('; '))
   if (Object.hasOwn(suite.mcp.servers, name)) throw new Error(`MCP server "${name}" already exists`)
-  const document = { $schema: MCP_SCHEMA_ID, mcpServers: { ...suite.mcp.servers, [name]: server } }
+  // A pasted command line is split before validation, so the stored file holds
+  // the program and its arguments in the two fields the mount reads.
+  const document = { $schema: MCP_SCHEMA_ID, mcpServers: { ...suite.mcp.servers, [name]: withSplitCommand(server) } }
   await validateUserMcp(agentsRoot, document)
   return () => writeJsonDocument(userMcpPath(agentsRoot), document)
 }

@@ -7,6 +7,7 @@ import type { CredentialApi } from '../../credentials.js'
 import { fetchMcpStatus, reauthorizeMcpServer, removeMcpServer, retryMcpMounts, setMcpServerEnabled, type McpStatusEntry, type McpStatusPayload } from '../../api.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { buildFaceEntry, type FaceRowFacts } from '../../ui/face-entry.js'
+import { mcpRuntimeState } from '../../../../market-contracts/src/contracts/mcp-status.js'
 import panelCss from '../../ui/panel.module.css'
 import { pollUntilTranslated } from '../../ui/translation-settle.js'
 import { nextConnectionRead } from './mcp-status-view-model.js'
@@ -232,7 +233,7 @@ export function McpStatusPanel({ t, credentials }: McpStatusPanelProps): ReactNo
       showSwitch: switchable,
       on: entry.state !== 'disabled',
       live: {
-        state: entry.state,
+        state: mcpRuntimeState(entry.state),
         ...(entry.code === undefined ? {} : { code: entry.code }),
         ...(entry.reason === undefined ? {} : { reason: entry.reason }),
         ...(entry.causes === undefined ? {} : { causes: entry.causes }),
