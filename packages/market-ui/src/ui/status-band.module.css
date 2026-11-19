@@ -82,7 +82,7 @@
 .diagnosticLine {
   margin: 0;
   color: var(--dsw-alias-label-tertiary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--ds-font-family-code);
   font-size: 11px;
   line-height: 16px;
   overflow-wrap: anywhere;
@@ -92,10 +92,6 @@
 .mono {
   margin: 0;
   color: var(--dsw-alias-label-secondary);
-  font:
-    11.5px/18px ui-monospace,
-    Menlo,
-    Consolas,
-    monospace;
+  font: 11.5px/18px var(--ds-font-family-code);
   overflow-wrap: anywhere;
 }

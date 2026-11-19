@@ -55,7 +55,7 @@
 
 .field textarea {
   min-height: 240px;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--ds-font-family-code);
   font-size: 12px;
   line-height: 19px;
   resize: vertical;
@@ -151,7 +151,7 @@
 .credChipName {
   overflow: hidden;
   color: var(--dsw-alias-label-primary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--ds-font-family-code);
   font-size: 12px;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -261,7 +261,7 @@
   border-radius: 8px;
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--ds-font-family-code);
   font-size: 12px;
 }
 

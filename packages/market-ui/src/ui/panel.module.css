@@ -230,11 +230,7 @@
   margin: 0;
   overflow-wrap: anywhere;
   color: var(--dsw-alias-label-secondary);
-  font:
-    11.5px/18px ui-monospace,
-    Menlo,
-    Consolas,
-    monospace;
+  font: 11.5px/18px var(--ds-font-family-code);
 }
 
 .block {
@@ -280,11 +276,7 @@
   border-radius: 10px;
   background: var(--dsw-alias-markdown-code-block);
   color: var(--dsw-alias-label-secondary);
-  font:
-    11.5px/18px ui-monospace,
-    Menlo,
-    Consolas,
-    monospace;
+  font: 11.5px/18px var(--ds-font-family-code);
   overflow-x: auto;
 }
 
@@ -296,5 +288,5 @@
 }
 
 .kvValueMono {
-  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-family: var(--ds-font-family-code);
 }

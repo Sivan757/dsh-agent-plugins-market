@@ -79,7 +79,7 @@ button.row {
 .name {
   overflow: hidden;
   color: var(--dsw-alias-label-primary);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--ds-font-family-code);
   font-size: 11.5px;
   font-weight: 600;
   text-overflow: ellipsis;
