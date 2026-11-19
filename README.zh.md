@@ -4,7 +4,7 @@
 
 `dsh-agent-plugins-market`
 
-**DeepSeek Harness（DSH）的技能与扩展管理器。Claude Code、Codex、Cursor、Kimi 的插件仓库原样安装，不用等人移植。**
+**DeepSeek Harness（DSH）的技能与扩展管理器。Claude Code、Codex、Cursor、Kimi 的插件仓库原样安装，移植不用等。**
 
 粘贴一个仓库地址，就地安装其中的套件。插件按原样读取各种布局，你不必转换清单，也不必复制文件。在同一个工作区里管理你自己的技能、命令、代理角色、MCP 服务、LSP 服务、系统提示词与输出风格，再用扩展预设决定每个会话带哪些扩展。
 
