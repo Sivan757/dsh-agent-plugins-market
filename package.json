@@ -112,7 +112,7 @@
     "claude-skills"
   ],
   "peerDependencies": {
-    "@deepseek-ai/cordis": "~4.0.4",
+    "@deepseek-ai/cordis": "~4.1.0",
     "@deepseek-ai/dsh-agent": ">=0.2.2-rc.3 <0.3.0-0",
     "@deepseek-ai/dsh-agent-instructions": ">=0.2.2-rc.3 <0.3.0-0",
     "@deepseek-ai/dsh-agent-loop": ">=0.2.2-rc.3 <0.3.0-0",
@@ -180,7 +180,7 @@
     "@codemirror/language": "^6.12.4",
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.12",
-    "@deepseek-ai/cordis": "~4.0.4",
+    "@deepseek-ai/cordis": "~4.1.0",
     "@deepseek-ai/cosmokit": "^1.9.0",
     "@deepseek-ai/dsh-agent": "0.2.2-rc.3",
     "@deepseek-ai/dsh-agent-instructions": "0.2.2-rc.3",
