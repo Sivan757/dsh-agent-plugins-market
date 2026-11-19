@@ -49,6 +49,31 @@ export class UnavailableRouteError extends Error {
 }
 
 /**
+ * A window answer that carries the session state and its inventory.
+ *
+ * A 200 whose body does not parse — a proxy's HTML page, a truncated response —
+ * reads as `{}`, and typed as a payload it makes the entry dereference a missing
+ * state during render. Refusing here turns that into the ordinary failure path
+ * the surface already draws.
+ * @param value - the decoded body or answer.
+ * @returns the payload the manager renders.
+ */
+function windowPayload(value: unknown): ExtensionWindowPayload {
+  const payload = value as Partial<ExtensionWindowPayload> | null | undefined
+  if (
+    typeof payload?.sessionId !== 'string' ||
+    typeof payload.library !== 'object' ||
+    payload.library === null ||
+    typeof payload.state !== 'object' ||
+    payload.state === null ||
+    !Array.isArray(payload.resources)
+  ) {
+    throw new Error('the extension window answer carried no session state')
+  }
+  return payload as ExtensionWindowPayload
+}
+
+/**
  * Read one session's extension window.
  * @param sessionId - the session the window describes.
  * @returns the payload the manager renders.
@@ -63,7 +88,7 @@ export async function readWindow(sessionId: string): Promise<ExtensionWindowPayl
   // anything else may be a boot, a busy scan or a transient fault.
   if (response.status === 404 || response.status === 405) throw new UnavailableRouteError(response.status, data.error ?? String(response.status))
   if (!response.ok) throw new Error(data.error ?? String(response.status))
-  return data
+  return windowPayload(data)
 }
 export async function writeWindow(action: Mutation, sessionId: string, expectedRevision: number, body: Record<string, unknown>): Promise<ExtensionWindowPayload> {
   const response = await fetch(EXTENSION_ROUTES[action], {
@@ -75,7 +100,7 @@ export async function writeWindow(action: Mutation, sessionId: string, expectedR
   })
   const answer = (await response.json()) as { ok: boolean; window: ExtensionWindowPayload; error?: string; code?: string }
   if (!response.ok || !answer.ok) throw new Error([answer.code, answer.error ?? response.status].filter(Boolean).join(': '))
-  return answer.window
+  return windowPayload(answer.window)
 }
 export function resourceSelected(resource: ExtensionResource, ids: readonly string[]): boolean {
   if (resource.control === 'global-only') return resource.available
