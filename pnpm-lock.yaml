@@ -15,12 +15,6 @@ importers:
 
   .:
     dependencies:
-      '@deepseek-ai/dsh-atomic-write':
-        specifier: '>=0.2.2-rc.5 <0.3.0-0'
-        version: 0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)
-      '@deepseek-ai/dsh-home-paths':
-        specifier: '>=0.2.2-rc.5 <0.3.0-0'
-        version: 0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-hook-protocol':
         specifier: '>=0.2.2-rc.5 <0.3.0-0'
         version: 0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-session@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-error@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-scope@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)))(@deepseek-ai/dsh-shell@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-sandbox@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-error@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-llm@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-error@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)))(@deepseek-ai/dsh-session@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-error@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-scope@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5))))(@deepseek-ai/dsh-subprocess@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-error@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-http-proxy@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5))))
@@ -109,6 +103,9 @@ importers:
       '@deepseek-ai/dsh-agent-loop-testkit':
         specifier: 0.2.2-rc.5
         version: 0.2.2-rc.5(4a82c77eb028c3fa050c0ff006f5a7c3)
+      '@deepseek-ai/dsh-atomic-write':
+        specifier: 0.2.2-rc.5
+        version: 0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-attachment':
         specifier: 0.2.2-rc.5
         version: 0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-brand@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-error@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5))
@@ -139,6 +136,9 @@ importers:
       '@deepseek-ai/dsh-fs-local':
         specifier: 0.2.2-rc.5
         version: 0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-fs@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-brand@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-llm@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-error@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)))(@deepseek-ai/dsh-sandbox@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-error@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-llm@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-error@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)))(@deepseek-ai/dsh-session@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)(@deepseek-ai/dsh-error@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5))(@deepseek-ai/dsh-scope@0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)))))
+      '@deepseek-ai/dsh-home-paths':
+        specifier: 0.2.2-rc.5
+        version: 0.2.2-rc.5(@deepseek-ai/cordis@4.0.5)
       '@deepseek-ai/dsh-hooks-claude-code':
         specifier: 0.2.2-rc.5
         version: 0.2.2-rc.5(e399922358f061d115f4b93e120b427b)
