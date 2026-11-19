@@ -9,6 +9,19 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.16.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.15.3...dsh-agent-plugins-market-v0.16.0) (2026-11-19)
+
+
+### Features
+
+* **extension-presets:** name the preset in the composer entry ([52bcc3c](https://github.com/Sivan757/dsh-agent-plugins-market/commit/52bcc3cc5b30613575ace472455b775075c731f0))
+
+
+### Bug Fixes
+
+* **market:** repair the authoring inputs and name a starting bridge ([b370f2c](https://github.com/Sivan757/dsh-agent-plugins-market/commit/b370f2ca15bd231a54da915bf7164145e106ec1e))
+* **ui:** take the host's icon weight and code font ([050cfb3](https://github.com/Sivan757/dsh-agent-plugins-market/commit/050cfb3791c40b5694f604d32452dd3bb9715265))
+
 ## [0.15.3](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.15.2...dsh-agent-plugins-market-v0.15.3) (2026-11-17)
 
 
