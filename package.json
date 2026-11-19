@@ -43,6 +43,7 @@
     "check:architecture": "depcruise --validate .dependency-cruiser.cjs index.ts packages",
     "check:doc-links": "node scripts/check-doc-links.mjs",
     "check:host-alignment": "node scripts/check-host-alignment.mjs",
+    "check:host-skills": "node scripts/host-skills.mjs check",
     "fix:host-alignment": "node scripts/check-host-alignment.mjs --fix",
     "check:quick": "pnpm run typecheck && pnpm run lint",
     "check:reuse": "node scripts/check-reuse.mjs",
@@ -53,9 +54,9 @@
     "check:package": "node scripts/check-package-contents.mjs",
     "check:css": "node scripts/check-css-classes.mjs",
     "check:single-renderer": "node scripts/check-single-renderer.mjs",
-    "check:refactor": "pnpm run check:quick && pnpm run format:check && pnpm run test:contract && pnpm run check:architecture && pnpm run check:reuse && pnpm run check:exports && pnpm run check:duplication && pnpm run check:modules && pnpm run check:package && pnpm run check:css && pnpm run check:single-renderer && pnpm run check:doc-links",
+    "check:refactor": "pnpm run check:quick && pnpm run format:check && pnpm run test:contract && pnpm run check:architecture && pnpm run check:reuse && pnpm run check:exports && pnpm run check:duplication && pnpm run check:modules && pnpm run check:package && pnpm run check:css && pnpm run check:single-renderer && pnpm run check:doc-links && pnpm run check:host-skills",
     "prepack": "pnpm run check:host-alignment && pnpm run build",
-    "prepare": "node scripts/setup-git-hooks.mjs && pnpm run build"
+    "prepare": "node scripts/setup-git-hooks.mjs && node scripts/host-skills.mjs link --quiet && pnpm run build"
   },
   "dsh": {
     "bundle": {

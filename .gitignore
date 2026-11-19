@@ -19,3 +19,6 @@ scripts/npm-token-setup.sh
 
 # local pnpm store created by tooling runs
 .pnpm-store/
+
+# the host's skills directory, linked by scripts/host-skills.mjs
+/.agents/skills
