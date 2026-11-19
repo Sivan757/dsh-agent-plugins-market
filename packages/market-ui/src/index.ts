@@ -28,7 +28,7 @@ import { bindAgentPresetsEnabled, useAgentPresetsEnabled } from './ui/agent-pres
 import { createElement as slotH } from 'react'
 import { ExtensionDetailView } from './workspace/ExtensionResourceDetail.js'
 import { ExtensionPresetEntry } from './features/extension-presets/ExtensionPresetEntry.js'
-import type { ExtensionTranslate } from './features/extension-presets/types.js'
+import type { ExtensionTranslate, UseSessionProjection } from './features/extension-presets/types.js'
 import { extensionPresetsEn, extensionPresetsZh } from './locales-extension-presets.js'
 import { credentialApi, type CredentialRemote } from './credentials.js'
 import { LEGACY_PAGE_MODE_SURFACE_EVENT, mountLegacyPageMode } from './workspace/page-mode.js'
@@ -90,14 +90,26 @@ let reportedMissingSession = false
  * belongs to and renders nothing. It says so once instead: silently missing UI is
  * indistinguishable from a broken plugin, and this one is a gap in the seat.
  */
-function PresetEntrySlot(props: { sessionId?: string; t: ExtensionTranslate; observer: ExtensionWindowObserver }): ReactNode {
+function PresetEntrySlot(props: {
+  sessionId?: string
+  t: ExtensionTranslate
+  observer: ExtensionWindowObserver
+  /** The session kit's projection reader; absent outside a session-scoped seat. */
+  useProjection?: UseSessionProjection
+}): ReactNode {
   const enabled = useAgentPresetsEnabled()
   if (enabled && !props.sessionId && !reportedMissingSession) {
     reportedMissingSession = true
     console.warn('[dsh-agent-plugins-market] preset entry hidden: ' + COMPOSER_TOGGLE_SLOT + ' is rendered without a session id, so the seat cannot scope a read')
   }
   if (!enabled || !props.sessionId) return null
-  return h(ExtensionPresetEntry, { sessionId: props.sessionId, t: props.t, observer: props.observer, renderDetail: detail => h(ExtensionDetailView, detail) })
+  return h(ExtensionPresetEntry, {
+    sessionId: props.sessionId,
+    t: props.t,
+    observer: props.observer,
+    ...(props.useProjection === undefined ? {} : { useProjection: props.useProjection }),
+    renderDetail: detail => h(ExtensionDetailView, detail)
+  })
 }
 
 /** Detect host primitives that predate the exports this UI relies on. */
@@ -181,7 +193,13 @@ export function apply(ctx: SuiteClientContext): void {
   ctx.slots.inject(COMPOSER_TOGGLE_SLOT, () => {
     const dispose = ctx.slots.register(
       { name: COMPOSER_TOGGLE_SLOT, id: 'dsh-agent-plugins-market-resources', order: 60, label: () => (ctx.locale.bind(NS) as ExtensionTranslate)('epTitle') },
-      (props: { sessionId?: string }) => slotH(PresetEntrySlot, { sessionId: props.sessionId, t: ctx.locale.bind(NS) as ExtensionTranslate, observer })
+      (props: { sessionId?: string; useProjection?: UseSessionProjection }) =>
+        slotH(PresetEntrySlot, {
+          sessionId: props.sessionId,
+          t: ctx.locale.bind(NS) as ExtensionTranslate,
+          observer,
+          ...(props.useProjection === undefined ? {} : { useProjection: props.useProjection })
+        })
     )
     return () => dispose?.()
   })

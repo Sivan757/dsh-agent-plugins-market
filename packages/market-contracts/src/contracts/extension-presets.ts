@@ -322,6 +322,15 @@ export interface ExtensionWindowPayload {
   resources: ExtensionResource[]
 }
 
+/**
+ * The session projection key that carries the committed selection to the client.
+ *
+ * The composer chip renders from this value, the way the host's own composer chips
+ * render from their projections, so the label never waits for a route: it is seeded
+ * by the session snapshot and advanced by projection frames.
+ */
+export const EXTENSION_SELECTION_PROJECTION_KEY = 'marketExtensionSelection'
+
 export const EXTENSION_ROUTES = {
   window: '/api/agent-plugins/extension-presets',
   hooksOverview: '/api/agent-plugins/extension-presets/hooks',

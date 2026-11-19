@@ -15,6 +15,7 @@ import {
   IconRefreshOutlineMedium
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
+  EXTENSION_SELECTION_PROJECTION_KEY,
   stripConfigurationParentIds,
   parseExtensionName,
   parseExtensionPresetTransfer,
@@ -23,7 +24,7 @@ import {
   type ExtensionPresetLibrary,
   type ExtensionResource
 } from '../../../../market-contracts/src/contracts/extension-presets.js'
-import type { ExtensionTranslate } from './types.js'
+import type { ExtensionSelectionFace, ExtensionTranslate, UseSessionProjection } from './types.js'
 import { ResourceList } from './ResourceList.js'
 import type { RenderExtensionDetail } from './details.js'
 import { useExtensionWindow, type ExtensionWindowObserver } from './use-window.js'
@@ -45,13 +46,15 @@ export interface ExtensionPresetEntryProps {
   t: ExtensionTranslate
   renderDetail: RenderExtensionDetail
   observer?: ExtensionWindowObserver
+  /** Host-computed projection values; absent outside a session-scoped seat. */
+  useProjection?: UseSessionProjection
 }
 
 export function ExtensionPresetEntry(props: ExtensionPresetEntryProps): ReactNode {
   return h(SessionEntry, { ...props, key: props.sessionId })
 }
-function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetEntryProps): ReactNode {
-  const { data, error, notReady, mutate, retry } = useExtensionWindow(sessionId, observer)
+function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: ExtensionPresetEntryProps): ReactNode {
+  const { data, error, mutate, retry } = useExtensionWindow(sessionId, observer)
   const selected = data?.intendedSelection ?? data?.state.selection
   const [menu, setMenu] = useState(false),
     [manager, setManager] = useState(false)
@@ -291,18 +294,20 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
     })
   }
   const unready = data?.status?.ready === false
-  const name = unready
-    ? t('epNotReady')
-    : data
-      ? (selected?.presetName ?? t('epGlobal')) + (selected?.modified ? ' · ' + t('epModified') : '')
-      : t(error ? (notReady ? 'epSessionInactive' : 'epLoadFailed') : 'epLoading')
-  // What the entry says beside its icon: the preset this session is in, the
-  // global word when it follows no preset, and the state word while the read
-  // has not answered. The modified suffix and the loading copy stay in the
-  // tooltip and the accessible name, because the composer row is shared with
-  // Permissions and Plan and a translated suffix would push it wider without
-  // answering the reader's question.
-  const label = selected?.presetName ?? (data === undefined ? name : t('epGlobal'))
+  // The host folds the committed selection into a session projection, so the chip
+  // has an answer before any request runs: this is the same carrier the host's own
+  // composer chips read, and it exists for a session that has no Agent yet. A
+  // pending request is the newer intent, so an answered panel wins over the fold.
+  const projected = useProjection?.(EXTENSION_SELECTION_PROJECTION_KEY) as ExtensionSelectionFace | undefined
+  const face = selected === undefined ? projected : { presetId: selected.presetId, presetName: selected.presetName, modified: selected.modified }
+  // What the entry says beside its icon: the preset this session is in, or the
+  // global word when it follows no preset. The modified suffix stays in the tooltip
+  // and the accessible name, because the composer row is shared with Permissions
+  // and Plan and a translated suffix would push it wider without answering the
+  // reader's question. Nothing is drawn before the first answer: a state word here
+  // would be a wait the other composer chips never ask for.
+  const label = face === undefined ? (error === '' ? undefined : t('epLoadFailed')) : (face.presetName ?? t('epGlobal'))
+  const name = label === undefined ? t('epTitle') : label + (face?.modified === true ? ' · ' + t('epModified') : '')
   const savedDirty = dirty && !libraryDraft
   const duplicate = data?.library.presets.some(p => p.name === newName.trim() && (naming !== 'rename' || p.id !== editing)) === true
   const editableClipboard = (target: EventTarget | null) => target instanceof HTMLElement && !!target.closest('input, textarea, select, [contenteditable="true"]')
@@ -315,9 +320,9 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
         side="top"
         dense
         selection="check"
-        selectedId={unready || selected?.modified ? undefined : (selected?.presetId ?? 'global')}
+        selectedId={unready || face?.modified === true ? undefined : (face?.presetId ?? 'global')}
         anchor={
-          <Tooltip label={t('epTitle') + ' · ' + name} side="top">
+          <Tooltip label={label === undefined ? t('epTitle') : t('epTitle') + ' · ' + name} side="top">
             <span>
               <button
                 type="button"
@@ -331,7 +336,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
                 <span className={entryCss.entryIcon} aria-hidden>
                   <AgentExtensionIcon />
                 </span>
-                <span className={entryCss.entryLabel}>{label}</span>
+                {label !== undefined && <span className={entryCss.entryLabel}>{label}</span>}
                 <span className={menu ? `${entryCss.entryChevron} ${entryCss.entryChevronOpen}` : entryCss.entryChevron} aria-hidden>
                   <IconChevronDownOutlineRegular />
                 </span>
@@ -345,10 +350,17 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
           { id: 'global', label: t('epGlobal'), icon: <IconRefreshOutlineMedium />, disabled: !data || unready || writes > 0 },
           ...(data?.library.presets.map(p => ({ id: p.id, label: p.name, icon: <AgentExtensionIcon size={16} />, disabled: unready || writes > 0 })) ?? []),
 
+          // A session whose selection could not be published is a failed read, not a
+          // wait: the panel names the failure the same way every other read failure
+          // is named, and offers the recovery that clears it.
           ...(unready
             ? [
-                { type: 'label' as const, id: 'not-ready', text: t('epNotReady') + ' ' + (data.status?.error ?? '') },
-                ...(data.status?.recoverable ? [{ id: 'recover', label: t('epRecover'), disabled: data.busy || writes > 0 }] : [])
+                {
+                  type: 'label' as const,
+                  id: 'not-ready',
+                  text: t('epLoadFailed') + (data?.status?.error === undefined ? '' : ' ' + data.status.error)
+                },
+                ...(data?.status?.recoverable === true ? [{ id: 'recover', label: t('epRecover'), disabled: data.busy || writes > 0 }] : [])
               ]
             : []),
           // The session is ready but its catalog read is in flight, so its tools
@@ -357,7 +369,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
           ...(data?.status?.inventoryPending === true && !unready ? [{ type: 'label' as const, id: 'inventory-pending', text: t('epInventoryPending') }] : []),
           ...(error
             ? [
-                { type: 'label' as const, id: 'error', text: t(notReady ? 'epSessionInactive' : 'epLoadFailed') + ' ' + error },
+                { type: 'label' as const, id: 'error', text: t('epLoadFailed') + ' ' + error },
                 { id: 'retry', label: t('epRetry') }
               ]
             : [])

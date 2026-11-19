@@ -21,6 +21,8 @@ import type { ExtensionRouteService } from '../../extension-service.js'
 import { ExtensionSessionState, type ExtensionApplyReceipt } from './extension-session-state.js'
 import type { ExtensionToolDenialReason } from './extension-tool-gates.js'
 import { ExtensionProgressReader } from './extension-progress.js'
+import { extensionSelectionProjection, type ExtensionSelectionView } from './extension-selection-projection.js'
+import { SessionProjectionReader } from './projection-reader.js'
 import { DEFAULT_INVENTORY_RETRY, inventoryRetryDelay, type InventoryRetryPolicy } from './inventory-retry.js'
 
 export interface ExtensionRuntimePorts {
@@ -65,11 +67,32 @@ export function extensionWorkspace(agent: Agent): string {
   return cwd
 }
 
+/**
+ * The host seam that turns one persisted session into a live agent.
+ *
+ * Every agent-bound read and write the host serves goes through it, so a
+ * session-scoped control answers from the same place instead of asking the
+ * person to start a turn before the control works.
+ */
+interface SessionAgentActivator {
+  resolveAgent(sessionId: SessionId): Promise<{ agent?: Agent; error?: { code?: string; message?: string } }>
+}
+/**
+ * How long one failed activation is remembered.
+ *
+ * The panel polls, so a session that cannot be activated right now (another
+ * process holds its writer, for example) must cost one seam call per window
+ * rather than one per read.
+ */
+const ACTIVATION_RETRY_MS = 10_000
+
 export class ExtensionRuntime implements ExtensionRouteService {
   readonly state: ExtensionSessionState
   private readonly store: ExtensionPresetStore
   /** Folded session progress; the log scan is only the no-registry fallback. */
   private readonly progress: ExtensionProgressReader
+  /** The committed selection the composer chip renders, folded by the host for the client. */
+  private readonly selection: SessionProjectionReader<'marketExtensionSelection', ExtensionSelectionView>
   private readonly resources = new Map<Agent, ExtensionResource[]>()
   /** Agents whose cached inventory predates the current catalog; authorization fails closed until re-read. */
   private readonly stale = new Set<Agent>()
@@ -80,6 +103,10 @@ export class ExtensionRuntime implements ExtensionRouteService {
   private readonly registeredIds = new Map<Agent, Set<string>>()
   private readonly appliedEpochs = new Map<Agent, number>()
   private readonly refreshing = new Map<Agent, Promise<void>>()
+  /** Activations in flight, so two reads of one session share a single resume. */
+  private readonly activating = new Map<string, Promise<Agent>>()
+  /** The last activation failure per session; a failed resume is retried once per window, not once per poll. */
+  private readonly activationFailures = new Map<string, { at: number; error: Error }>()
   private readonly lifetime = new AbortController()
   private disposed = false
   /** Per-agent read sequence: a slow earlier response must not overwrite a newer inventory. */
@@ -99,6 +126,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
     this.retry = ports.inventoryRetry ?? DEFAULT_INVENTORY_RETRY
     this.store = new ExtensionPresetStore(ports.dataRoot)
     this.progress = new ExtensionProgressReader(ctx)
+    this.selection = new SessionProjectionReader(ctx, extensionSelectionProjection, 'dsh-agent-plugins-market: extension selection projection')
     this.state = new ExtensionSessionState(ctx, {
       ...(ports.eligible === undefined ? {} : { eligible: (agent: Agent) => ports.eligible?.(agent) === true }),
       initialSelection: (agent, source) => this.initialSelection(agent, source),
@@ -463,11 +491,64 @@ export class ExtensionRuntime implements ExtensionRouteService {
     if (this.ports.hookRun === undefined) throw failure('extension-hook-run-unavailable')
     return this.ports.hookRun(input)
   }
-  private agent(sessionId: string): Agent {
-    const agent = this.ctx.agents.get(SessionId(sessionId))
-    if (!agent) throw failure('extension-session-not-found')
-    extensionWorkspace(agent)
-    return agent
+  /**
+   * The live Agent for one session, activating a persisted one on the way.
+   *
+   * A composer control has to answer whenever its conversation is open. The host
+   * resumes a persisted session for every agent-bound read and write it serves,
+   * so this asks the same seam instead of holding a wait state until the person
+   * sends a message. A host that composes no seam keeps the not-found answer.
+   *
+   * @param sessionId - the session whose Agent the request addresses.
+   * @returns the live or newly activated Agent.
+   * @throws extension-session-not-found when the host cannot activate the session.
+   */
+  private async agent(sessionId: string): Promise<Agent> {
+    const live = this.ctx.agents.get(SessionId(sessionId))
+    if (live !== undefined) {
+      extensionWorkspace(live)
+      return live
+    }
+    const activated = await this.activate(sessionId)
+    extensionWorkspace(activated)
+    return activated
+  }
+  /**
+   * Resolve a persisted session into a live Agent through the host's own seam.
+   *
+   * Concurrent reads of one session share one attempt, and a failed attempt is
+   * remembered for {@link ACTIVATION_RETRY_MS}: the client polls, so retrying on
+   * every read would spend one resume, and one session writer, per interval.
+   *
+   * @param sessionId - the session to activate.
+   * @returns the live Agent the host published.
+   * @throws The seam's own failure code, or extension-session-not-found without a seam.
+   */
+  private async activate(sessionId: string): Promise<Agent> {
+    if (this.disposed) throw failure('extension-session-not-found')
+    const remembered = this.activationFailures.get(sessionId)
+    if (remembered !== undefined && Date.now() - remembered.at < ACTIVATION_RETRY_MS) throw remembered.error
+    const inflight = this.activating.get(sessionId)
+    if (inflight !== undefined) return inflight
+    const seam = this.ctx.get('sessionController') as SessionAgentActivator | undefined
+    if (seam === undefined) throw failure('extension-session-not-found')
+    const attempt = seam
+      .resolveAgent(SessionId(sessionId))
+      .then(result => {
+        if (result.agent === undefined) {
+          const code = result.error?.code ?? 'extension-session-not-found'
+          const error = Object.assign(new Error(result.error?.message ?? code), { code })
+          this.activationFailures.set(sessionId, { at: Date.now(), error })
+          throw error
+        }
+        this.activationFailures.delete(sessionId)
+        return result.agent
+      })
+      .finally(() => {
+        if (this.activating.get(sessionId) === attempt) this.activating.delete(sessionId)
+      })
+    this.activating.set(sessionId, attempt)
+    return attempt
   }
   /**
    * The selection a child session starts from.
@@ -537,7 +618,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
     return legacy === undefined ? captured : { ...captured, frozen: true }
   }
   async window(sessionId: string): Promise<ExtensionWindowPayload> {
-    const agent = this.agent(sessionId)
+    const agent = await this.agent(sessionId)
     const library = await this.store.read(extensionWorkspace(agent))
     // A failed inventory read is a reportable state, not a dead panel: the
     // panel is the surface that has to say why the session's tools are gone, so
@@ -552,6 +633,10 @@ export class ExtensionRuntime implements ExtensionRouteService {
       this.ctx.logger.warn('extension inventory read: ' + String(error))
       this.scheduleRetry(agent)
     }
+    // The answer never reports a fold that is still running: the panel is the
+    // surface that has to speak, so it waits for the session's initialization it
+    // did not start and reports the failure when that failed.
+    await this.state.whenInitialized(agent)
     await this.state.whenSelectionSettled(agent)
     const status = this.state.status(agent)
     // Not ready is a reportable state, not a failed read: the payload carries
@@ -598,7 +683,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
    * @param revision - the compare-and-swap revision the caller last observed.
    */
   async recover(sessionId: string, revision: number): Promise<void> {
-    const agent = this.agent(sessionId)
+    const agent = await this.agent(sessionId)
     if (this.dirty.has(agent) && this.state.status(agent).ready) {
       if (this.state.read(agent)?.revision !== revision) throw failure('extension-session-conflict')
       await this.refreshAgent(agent)
@@ -631,10 +716,10 @@ export class ExtensionRuntime implements ExtensionRouteService {
     await this.ports.ready?.(agent)
   }
   async create(sessionId: string, revision: number, input: ExtensionPresetInput): Promise<void> {
-    await this.store.create(extensionWorkspace(this.agent(sessionId)), revision, input)
+    await this.store.create(extensionWorkspace(await this.agent(sessionId)), revision, input)
   }
   async update(sessionId: string, revision: number, id: string, input: ExtensionPresetInput): Promise<void> {
-    const agent = this.agent(sessionId)
+    const agent = await this.agent(sessionId)
     const workspace = extensionWorkspace(agent)
     await this.store.update(workspace, revision, id, input)
     // An edit to the preset this session is running, or has already asked for, is a
@@ -658,13 +743,13 @@ export class ExtensionRuntime implements ExtensionRouteService {
     )
   }
   async delete(sessionId: string, revision: number, id: string): Promise<void> {
-    await this.store.delete(extensionWorkspace(this.agent(sessionId)), revision, id)
+    await this.store.delete(extensionWorkspace(await this.agent(sessionId)), revision, id)
   }
   async setDefault(sessionId: string, revision: number, id: string | null): Promise<void> {
-    await this.store.setDefault(extensionWorkspace(this.agent(sessionId)), revision, id)
+    await this.store.setDefault(extensionWorkspace(await this.agent(sessionId)), revision, id)
   }
   async select(sessionId: string, revision: number, id: string | null): Promise<void> {
-    const agent = this.agent(sessionId)
+    const agent = await this.agent(sessionId)
     const library = await this.store.read(extensionWorkspace(agent))
     const preset = library.presets.find(row => row.id === id)
     if (id !== null && !preset) throw new ExtensionPresetError('preset-not-found', 'extension preset no longer exists')
@@ -714,6 +799,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
     await Promise.allSettled([...this.refreshing.values()])
     for (const off of this.off.splice(0)) off()
     await this.progress.dispose()
+    await this.selection.dispose()
     await this.state.dispose()
     this.resources.clear()
     this.targets.clear()
@@ -722,5 +808,7 @@ export class ExtensionRuntime implements ExtensionRouteService {
     this.registeredIds.clear()
     this.appliedEpochs.clear()
     this.dirty.clear()
+    this.activating.clear()
+    this.activationFailures.clear()
   }
 }
