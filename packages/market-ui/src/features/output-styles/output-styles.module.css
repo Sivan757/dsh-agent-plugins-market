@@ -23,7 +23,7 @@
   border: 1px solid var(--dsw-alias-border-l1, #e5e7eb);
   border-radius: 6px;
   background: var(--dsw-alias-bg-layer-1, #fafafa);
-  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family: var(--ds-font-family-code);
   font-size: 12px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;

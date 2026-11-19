@@ -110,11 +110,7 @@
   color: var(--dsw-alias-label-primary, #1f2328);
   text-overflow: ellipsis;
   white-space: nowrap;
-  font:
-    11px/16px ui-monospace,
-    Menlo,
-    Consolas,
-    monospace;
+  font: 11px/16px var(--ds-font-family-code);
 }
 .toolDescription {
   overflow: hidden;
@@ -157,19 +153,11 @@
 }
 .toolParamName {
   color: var(--dsw-alias-label-primary, #1f2328);
-  font:
-    11px/16px ui-monospace,
-    Menlo,
-    Consolas,
-    monospace;
+  font: 11px/16px var(--ds-font-family-code);
 }
 .toolParamType {
   color: var(--dsw-alias-label-tertiary, #8b93a1);
-  font:
-    10px/16px ui-monospace,
-    Menlo,
-    Consolas,
-    monospace;
+  font: 10px/16px var(--ds-font-family-code);
 }
 .toolParamRequired {
   color: var(--dsw-alias-state-warn-primary, #b45309);
@@ -252,7 +240,7 @@
 }
 .seamPath {
   margin: 0;
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-family: var(--ds-font-family-code);
   font-size: 11px;
   line-height: 16px;
   color: var(--dsw-alias-label-secondary, #4e5969);

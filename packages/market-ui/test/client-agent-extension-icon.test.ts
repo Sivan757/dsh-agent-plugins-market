@@ -2,6 +2,7 @@
 import { createElement as h } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { expect, it } from 'vitest'
+import { ICON_MEDIUM_STROKE } from '@deepseek-ai/dsh-client-ui-primitives'
 import { AgentExtensionIcon } from '../../../packages/market-ui/src/ui/AgentExtensionIcon.js'
 
 it('renders the ring with one filled and one hollow node in one inherited color', () => {
@@ -24,7 +25,8 @@ it('renders the ring with one filled and one hollow node in one inherited color'
   // Both dots share the ring's vertical center line.
   expect(filled?.getAttribute('cy')).toBe('14')
   expect(hollow?.getAttribute('cy')).toBe('14')
-  expect(hollow?.getAttribute('stroke-width')).toBe('1.5')
+  // The artwork's 28-unit grid must render at the host icons' medium weight.
+  expect(hollow?.getAttribute('stroke-width')).toBe(String((ICON_MEDIUM_STROKE * 28) / 16))
 })
 it('accepts native placement and accessible naming without duplicate ids', () => {
   const markup = renderToStaticMarkup(h(AgentExtensionIcon, { size: 20, className: 'slot-icon', role: 'img', 'aria-hidden': false, 'aria-label': 'Agent extensions' }))

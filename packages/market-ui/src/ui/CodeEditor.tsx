@@ -25,7 +25,7 @@ const platformTheme: Extension = EditorView.theme({
   '&': {
     backgroundColor: 'var(--dsw-alias-bg-layer-1)',
     color: 'var(--dsw-alias-label-primary)',
-    fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Consolas, monospace',
+    fontFamily: 'var(--ds-font-family-code)',
     fontSize: '12px'
   },
   '.cm-scroller': { fontFamily: 'inherit', lineHeight: '19px' },

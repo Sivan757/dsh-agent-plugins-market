@@ -170,7 +170,11 @@ export async function prepareImageProjection(host: ToolHost, exec: BridgeExecuti
         }) as ContentBlock
     )
   } catch (error: unknown) {
-    const reason = isImageAdmissionError(error) ? `image admission rejected the result: ${(error as Error).message}` : 'durable image storage rejected the result'
+    // The host guard narrows to AttachmentError, whose HarnessError base lives in a peer this
+    // package does not resolve at type time; the runtime check keeps the message without the cast.
+    const reason = isImageAdmissionError(error)
+      ? `image admission rejected the result: ${error instanceof Error ? error.message : String(error)}`
+      : 'durable image storage rejected the result'
     return projectContent(content, toolName, block => ({
       type: 'text',
       text: imageDiagnostic(block, reason)
