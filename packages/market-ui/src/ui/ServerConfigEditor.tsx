@@ -158,7 +158,7 @@ export function ServerConfigEditor(props: {
     return undefined
   }
   /** The API's reason for one field, when it rejected a save. */
-  const fieldError = (key: string): ReactNode => (props.fieldErrors?.[key] === undefined ? null : h('span', { className: formCss.footerError }, props.fieldErrors[key]))
+  const fieldError = (key: string): ReactNode => (props.fieldErrors?.[key] === undefined ? null : h('span', { className: formCss.fieldError }, props.fieldErrors[key]))
   const textField = (key: string, label: string, required = false, full = false): ReactNode => {
     const placeholder = placeholderFor(key)
     return h(
@@ -455,7 +455,7 @@ function TimeoutField(props: {
             props.t('mcpTimeoutClear')
           )
     ),
-    hint === undefined ? null : h('span', { className: invalid ? formCss.footerError : formCss.hint }, hint),
+    hint === undefined ? null : h('span', { className: invalid ? formCss.fieldError : formCss.hint }, hint),
     props.blocked === undefined ? null : h('span', { className: formCss.hint }, props.blocked)
   )
 }
@@ -594,8 +594,8 @@ function StringRows(props: {
           )
         )
       ),
-      invalid ? h('span', { role: 'alert', className: formCss.footerError }, props.t('detailUniqueKeys')) : null,
-      props.error === undefined ? null : h('span', { role: 'alert', className: formCss.footerError }, props.error)
+      invalid ? h('span', { role: 'alert', className: formCss.fieldError }, props.t('detailUniqueKeys')) : null,
+      props.error === undefined ? null : h('span', { role: 'alert', className: formCss.fieldError }, props.error)
     )
   )
 }
@@ -626,6 +626,6 @@ function JsonField(props: { label: string; value: unknown; onChange: (value: unk
         }
       }
     }),
-    error ? h('span', { role: 'alert', className: formCss.footerError }, error) : null
+    error ? h('span', { role: 'alert', className: formCss.fieldError }, error) : null
   )
 }

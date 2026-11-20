@@ -183,15 +183,19 @@ function balanced(source: string, open: number): string {
  */
 function footerExpressions(source: string): string[] {
   const expressions: string[] = []
-  for (const match of source.matchAll(/\bfooter\s*[:=]\s*[A-Za-z0-9_.$]*\s*(\{|\()/g)) {
-    const bracket = match[1]
+  // A dialog's action row reaches the shell as `actions`; the shell itself owns
+  // the `footer` it renders. A detail that still built its own row with a
+  // `footer` prop is covered too, so the guard never silently stops seeing a
+  // row that came back.
+  for (const match of source.matchAll(/\b(footer|actions)\s*[:=]\s*[A-Za-z0-9_.$]*\s*(\{|\()/g)) {
+    const bracket = match[2]
     if (bracket === undefined) continue
     const open = source.indexOf(bracket, match.index)
     if (open < 0) continue
     expressions.push(source.slice(match.index, open) + balanced(source, open))
   }
   // A helper that builds the row: the body is what holds the buttons.
-  for (const match of source.matchAll(/function\s+footer\s*\(/g)) {
+  for (const match of source.matchAll(/function\s+footerAction?\s*\(/g)) {
     const open = source.indexOf('(', match.index)
     const body = source.indexOf('{', open + balanced(source, open).length)
     if (open < 0 || body < 0) continue

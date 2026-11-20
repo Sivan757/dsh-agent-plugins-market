@@ -25,19 +25,6 @@ describe('configured source discovery', () => {
     expect(suites.map(suite => suite.sourceId)).toEqual(['configured'])
   })
 
-  it('reports source mutation progress without touching discovery state', async () => {
-    const root = await createUserRoot()
-    const manager = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })
-
-    expect(manager.sourceProgress()).toEqual({ active: false, sourceId: '', step: '' })
-    manager.beginSourceState('configured', 'cloning', false)
-    expect(manager.sourceProgress()).toEqual({ active: true, sourceId: 'configured', step: 'cloning' })
-    manager.updateSourceStep('reading')
-    expect(manager.sourceProgress()).toEqual({ active: true, sourceId: 'configured', step: 'reading' })
-    manager.endSourceState()
-    expect(manager.sourceProgress()).toEqual({ active: false, sourceId: '', step: '' })
-  })
-
   it('keeps overview totals aligned with configured source rows', async () => {
     const root = await createUserRoot()
     const manager = new Catalog({ userRoot: root, dataRoot: join(root, 'data'), agentsRoot: join(root, 'agents'), onChanged: () => {} })

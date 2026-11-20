@@ -282,10 +282,6 @@ export function mountSuiteRoutes(
     return { toggles: surfaceToggles.currentToggles() }
   })
 
-  get(MARKET_ROUTES.progress, async (_request, response) => {
-    sendJson(response, 200, manager.sourceProgress())
-  })
-
   get(MARKET_ROUTES.config, async (_request, response) => {
     sendJson(response, 200, { sources: manager.sources })
   })

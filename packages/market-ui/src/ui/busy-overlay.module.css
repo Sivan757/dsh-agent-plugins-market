@@ -20,7 +20,7 @@
   box-sizing: border-box;
   padding: 24px;
   border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-xl);
   background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-primary);
   display: flex;
@@ -58,7 +58,7 @@
 .warning {
   margin: 0;
   padding: 6px 8px;
-  border-radius: 6px;
+  border-radius: var(--dsw-radius-md);
   font-size: 12px;
   line-height: 17px;
   color: var(--dsw-alias-state-warn-primary, #b45309);

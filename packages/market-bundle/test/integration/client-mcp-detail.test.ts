@@ -163,11 +163,20 @@ it('reads in the interface language, with the recorded diagnostic only in the di
   expect(document.body.textContent).toContain('initial connection or tool synchronization failed')
   expect(document.body.textContent).toContain('spawn npx ENOENT')
 })
-it('shows no footer actions for external servers', async () => {
+it('keeps the band free of actions and puts them on the footer row', async () => {
+  await mount()
+  expect(band().querySelector('button')).toBeNull()
+  expect(button('mcpRetryConnection')).toBeDefined()
+})
+it('offers an external server no state-changing action, only reading and closing', async () => {
   await mount({ ...base, kind: 'direct', canReauthorize: false })
-  expect(button('mcpClose')).toBeUndefined()
+  // The footer is the dialog's one action row: a server this plugin does not
+  // declare cannot be retried, re-authorized, or deleted from here.
   expect(button('mcpRetryConnection')).toBeUndefined()
   expect(button('mcpReauthorize')).toBeUndefined()
+  expect(button('mcpDelete')).toBeUndefined()
+  expect(button('copyDiagnostics')).toBeDefined()
+  expect(button('mcpClose')).toBeDefined()
 })
 it('says that a remote server authorizes without declaring it', async () => {
   await mount({ ...base, oauthDefault: true })

@@ -22,7 +22,6 @@ export const MARKET_ROUTES = {
   lspRestart: `${MARKET_API_PREFIX}lsp-restart`,
   serverConfig: `${MARKET_API_PREFIX}server-config`,
   saveServerConfig: `${MARKET_API_PREFIX}server-config/save`,
-  progress: `${MARKET_API_PREFIX}progress`,
   config: `${MARKET_API_PREFIX}config`,
   modelCatalog: `${MARKET_API_PREFIX}model-catalog`,
   suite: `${MARKET_API_PREFIX}suite`,
@@ -294,13 +293,6 @@ export interface OverviewPayload {
    * translated card replaces the original text without a manual refresh.
    */
   translationPending?: number
-}
-
-/** Host-side progress of the source mutation currently in flight. */
-export interface SourceProgress {
-  active: boolean
-  sourceId: string
-  step: string
 }
 
 /** One skill's metadata inside a suite detail response. */

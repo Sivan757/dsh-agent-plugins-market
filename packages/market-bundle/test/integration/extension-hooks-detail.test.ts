@@ -80,7 +80,6 @@ function marketService(catalog: Catalog): MarketService {
     suiteDetail: async (sourceId: string, suiteId: string) => catalog.suiteDetail(sourceId, suiteId),
     suiteDocument: async () => ({ name: '', content: '' }),
     suiteDocumentTranslation: async () => ({ text: '', pending: 0 }),
-    sourceProgress: () => ({ active: false, sourceId: '', step: '' }),
     serverConfig: async (kind, id) => ({ kind, id, key: '', editable: false, config: {} }),
     clearTranslations: async () => {},
     lspServers: async () => ({}),

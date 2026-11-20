@@ -22,33 +22,35 @@ The cause is a pair of `size: 'sm'` props that were added to two footers and nev
 - **A dialog footer's action row is one size.** A footer is a row of peer controls, not a toolbar of mixed weights: the reader presses one of them, and they are read as a set.
 - **The house size is `md`.** It is the host's default, it is what every other footer in the plugin already used, and the footer row is the one place in the plugin where the controls are full-size labels rather than inline actions. The measured row of three `md` buttons is 36px tall in the instruction dialog, which is a `size: 'lg'` dialog 800px tall: the row fits with room to spare, and the 编辑 primary button still reads as the primary action at 36px.
 - **A footer states no size.** The house size is the host's default, so a footer's buttons pass no `size` prop at all. Saying `size: 'md'` would say the same thing the default already says, and would put the next reader's choice — smaller, or larger — one edit away from the rule.
-- **The body keeps its compact controls.** `size: 'sm'` is a fine control size for an inline action inside a body: the credential fields, the server config editor, the user entry's hero delete button, the card's primary action, the diagnosis block, the translation retry, the MCP detail's recovery cluster, the settings card, the hook create dialog's AI draft button, and the language server panel's seam banner and restart band all keep it. The rule is about the footer row, not about every button.
+- **The body keeps its compact controls.** `size: 'sm'` is a fine control size for an inline control inside a body: the credential fields, the server config editor's row actions, the card's own action, the diagnosis block, the translation retry, the settings card, and the language server panel's seam banner keep it. A detail's body carries no action at all, since [the one action row note](../bug-fix/2026-11-19-one-surface-per-fact.md) moved every detail action onto its footer. The rule is about the footer row, not about every button.
 
 ### The audit
 
 Every footer in the plugin, and the size it now uses:
 
-| footer                                                                            | buttons              | size |
-| --------------------------------------------------------------------------------- | -------------------- | ---- |
-| `ui/AiSelectionModal.tsx`                                                         | 取消, 生成           | md   |
-| `ui/HookDetailModal.tsx`                                                          | 关闭                 | md   |
-| `ui/panel.tsx` (entry editor)                                                     | 取消, 保存           | md   |
-| `ui/panel.tsx` (confirmation)                                                     | 取消, 确认           | md   |
-| `ui/ServerConfigModal.tsx`                                                        | 取消                 | md   |
-| `ui/ServerConfigDetail.tsx` (the save portaled into the frame)                    | 保存                 | md   |
-| `features/instructions/InstructionsPanel.tsx` (editor)                            | 删除, 取消, 保存     | md   |
-| `features/instructions/InstructionDetail.tsx`                                     | 删除, 编辑, 完成     | md   |
-| `features/output-styles/OutputStylesPanel.tsx` (editor)                           | 取消, 保存           | md   |
-| `features/output-styles/OutputStylesPanel.tsx` (detail)                           | 编辑, 删除, 选用     | md   |
-| `features/lsp/LspStatusPanel.tsx`                                                 | 复制诊断, 完成       | md   |
-| `features/hooks/HookCreateModal.tsx`                                              | 取消, 保存           | md   |
-| `features/market/SuiteDetail.tsx`                                                 | 安装 / 卸载          | md   |
-| `features/market/SourceEditorModal.tsx`                                           | 移除来源, 取消, 保存 | md   |
-| `features/market/MarketSection.tsx`                                               | 取消, 确认删除       | md   |
-| `features/market/InstallConfirmModal.tsx`                                         | 取消, 确认安装       | md   |
-| `features/extension-presets/ExtensionPresetEntry.tsx` (manager)                   | 设为默认, 保存       | md   |
-| `features/extension-presets/ExtensionPresetEntry.tsx` (naming, delete, clipboard) | one button each      | md   |
-| `workspace/ExtensionResourceDetail.tsx`                                           | a switch, no button  | —    |
+| footer                                                                            | buttons                                        | size |
+| --------------------------------------------------------------------------------- | ---------------------------------------------- | ---- |
+| `ui/AiSelectionModal.tsx`                                                         | 取消, 生成                                     | md   |
+| `ui/HookDetailModal.tsx`                                                          | 试运行, 关闭                                   | md   |
+| `ui/UserEntryDetail.tsx`                                                          | 删除, 完成                                     | md   |
+| `features/mcp/McpDetailModal.tsx`                                                 | 删除连接器, 复制诊断, 重试连接, 重新授权, 关闭 | md   |
+| `ui/panel.tsx` (entry editor)                                                     | 取消, 保存                                     | md   |
+| `ui/panel.tsx` (confirmation)                                                     | 取消, 确认                                     | md   |
+| `ui/ServerConfigModal.tsx`                                                        | 取消                                           | md   |
+| `ui/ServerConfigDetail.tsx` (the save portaled into the frame)                    | 保存                                           | md   |
+| `features/instructions/InstructionsPanel.tsx` (editor)                            | 删除, 取消, 保存                               | md   |
+| `features/instructions/InstructionDetail.tsx`                                     | 删除, 编辑, 完成                               | md   |
+| `features/output-styles/OutputStylesPanel.tsx` (editor)                           | 取消, 保存                                     | md   |
+| `features/output-styles/OutputStylesPanel.tsx` (detail)                           | 编辑, 删除, 选用                               | md   |
+| `features/lsp/LspStatusPanel.tsx`                                                 | 复制诊断, 重启服务, 完成                       | md   |
+| `features/hooks/HookCreateModal.tsx`                                              | 取消, 保存并追加                               | md   |
+| `features/market/SuiteDetail.tsx`                                                 | 安装 / 卸载                                    | md   |
+| `features/market/SourceEditorModal.tsx`                                           | 移除来源, 取消, 保存                           | md   |
+| `features/market/MarketSection.tsx`                                               | 取消, 确认删除                                 | md   |
+| `features/market/InstallConfirmModal.tsx`                                         | 取消, 确认安装                                 | md   |
+| `features/extension-presets/ExtensionPresetEntry.tsx` (manager)                   | 设为默认, 保存                                 | md   |
+| `features/extension-presets/ExtensionPresetEntry.tsx` (naming, delete, clipboard) | one button each                                | md   |
+| `workspace/ExtensionResourceDetail.tsx`                                           | a switch, no button                            | —    |
 
 ## Alternatives considered
 
@@ -62,7 +64,7 @@ Every footer in the plugin, and the size it now uses:
 - The instruction file's dialog footer is three 36px buttons on one line, and the language server detail's is two. The rows read as one row.
 - The preset manager's footer matches every other dialog's, so a reader who moves between dialogs does not meet a new geometry.
 - Two buttons grew by 8px and one footer row by 8px. The dialog's body is the host's scroll region, so it gives the space back rather than clipping.
-- The compact body controls are untouched, so nothing outside a footer row changed shape.
+- Body controls that stay compact keep their geometry; the body controls that left are the ones that were actions, and they took the footer's size with them.
 - A footer that wants to be compact now has to state it on every button in its row, and the source guard fails when it does.
 
 ## Verification
@@ -81,3 +83,7 @@ Every footer in the plugin, and the size it now uses:
 - `pnpm run typecheck`, `pnpm run lint`, `pnpm run format:check` and `pnpm run test` are green.
 
 The dialog chrome this note completes is recorded in [the one card anatomy note](2026-09-14-workspace-card-anatomy-and-host-affordances.md) and [the dialog chrome note](../bug-fix/2026-09-29-dialog-chrome-and-mode-switch.md); neither recorded a footer's button size, so nothing is superseded.
+
+[The one action row note](../bug-fix/2026-11-19-one-surface-per-fact.md) partially supersedes this note's inventory: it moved the user entry's hero delete, the MCP detail's recovery cluster, the language server's restart, and the hook detail's dry run onto their footer rows, and it removed the hook form's drafting action. The rule above stands unchanged, and its audit table now lists what ships.
+
+[The dialog shell note](../bug-fix/2026-11-20-one-dialog-shell-and-one-radius-scale.md) moved the row itself: `ui/DetailModal` renders one footer row from each dialog's `actions`, right-aligned and buttons-only, so a footer can no longer carry a size, a hint, or a second layout.

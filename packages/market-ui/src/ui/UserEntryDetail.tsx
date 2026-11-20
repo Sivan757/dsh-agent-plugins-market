@@ -29,9 +29,10 @@ export interface UserEntryDetailProps {
   showOriginal?: boolean
   onClose: () => void
   /**
-   * Removes this entry's file. Offered only for a user-authored entry, and the
-   * dialog keeps it as well as the card's own danger icon: both open the panel's
-   * confirmation, so the action has a path from either place.
+   * Removes this entry's file. Offered only for a user-authored entry, on the
+   * dialog's footer row beside the close action: a detail states facts in its
+   * body and carries its actions on the bottom edge, where the card's own
+   * danger icon also leads.
    */
   onDelete?: () => void
 }
@@ -114,7 +115,16 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
       open: true,
       onClose: props.onClose,
       title,
-      closeLabel: t('cancel')
+      closeLabel: t('cancel'),
+      // One row for every action: the detail body holds the facts and the
+      // document, so a reader never meets a button beside the text they came to
+      // read. The card keeps its own danger icon and opens the same confirmation.
+      actions: [
+        props.onDelete === undefined
+          ? null
+          : h(Button, { key: 'delete', variant: 'ghost', title: t('panelDeleteTitle', { name: entry.name }), onClick: props.onDelete }, t('panelDelete')),
+        h(Button, { key: 'done', variant: 'outline', onClick: props.onClose }, t('detailDone'))
+      ]
     },
     h(
       'div',
@@ -131,23 +141,7 @@ export function UserEntryDetailModal(props: UserEntryDetailProps): ReactNode {
           entry.suiteName === undefined ? null : h(Tag, { tone: 'quiet' }, entry.suiteName)
         ),
         h('p', { className: css.heroMono }, entry.path)
-      ),
-      // The destructive action sits with the facts it deletes. The card that
-      // opened this dialog carries the same action, so nothing is lost by
-      // having both.
-      props.onDelete === undefined
-        ? null
-        : h(
-            Button,
-            {
-              variant: 'ghost',
-              size: 'sm',
-              'aria-label': t('panelDelete'),
-              title: t('panelDeleteTitle', { name: entry.name }),
-              onClick: props.onDelete
-            },
-            t('panelDelete')
-          )
+      )
     ),
     h(
       'div',

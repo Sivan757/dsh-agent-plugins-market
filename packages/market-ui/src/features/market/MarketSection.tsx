@@ -7,11 +7,12 @@
  * with light-mode fallbacks so the page follows the active theme.
  */
 import { createElement as h, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Button, IconRefreshOutlineMedium, IconTrashOutlineMedium, Modal, RiskConfirmation, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconRefreshOutlineMedium, IconTrashOutlineMedium, RiskConfirmation, Toast } from '@deepseek-ai/dsh-client-ui-primitives'
 import { postAction, type OverviewData, type SuiteCardData } from '../../api.js'
-import { loadOverview, peekOverview, invalidateOverview, startDescriptionRefresh, startSourceProgressPolling, type SourceProgressState } from './market-resource.js'
+import { loadOverview, peekOverview, invalidateOverview, startDescriptionRefresh } from './market-resource.js'
 import { SourceTabsRow, type SourceTabItem } from '../../ui/SourceTabsRow.js'
 import { SourceEditorModal, type EditorState } from './SourceEditorModal.js'
+import { DetailModal } from '../../ui/DetailModal.js'
 import { InstallConfirmModal, type InstallConfirmState } from './InstallConfirmModal.js'
 import type { Translate } from '../../i18n.js'
 import { ErrorBoundary } from '../../ErrorBoundary.js'
@@ -30,13 +31,6 @@ import panelCss from '../../ui/panel.module.css'
 import { PanelHeader, PanelActions, ReadFailed } from '../../ui/panel.js'
 import { displayText } from '../../ui/translated-text.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
-
-/** Host step keys -> translation keys, resolved against the active t(). */
-const PROGRESS_STEP_LABELS: Record<string, string> = {
-  cloning: 'progressCloning',
-  downloading: 'progressDownloading',
-  reading: 'progressReading'
-}
 
 export interface MarketSectionProps {
   t: Translate
@@ -60,11 +54,6 @@ interface ConfirmState {
   deleteCheckout: boolean
 }
 
-function progressStepLabel(t: Translate, step: string): string {
-  const key = PROGRESS_STEP_LABELS[step]
-  return key === undefined ? step : t(key as Parameters<Translate>[0])
-}
-
 export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): ReactNode {
   // Seeded from the cache without starting a request: the mount effect below is
   // the single owner of that request, and render must not race it.
@@ -85,7 +74,6 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
   // The whole card record, so the detail dialog can offer the same install and
   // uninstall actions the card does.
   const [detail, setDetail] = useState<SuiteCardData | undefined>(undefined)
-  const [progress, setProgress] = useState<SourceProgressState>({ step: undefined, error: undefined })
   // One reading mode for the whole market page: the switch lives here, so the
   // cards, the detail dialog, and both header rows flip together.
   const [showOriginal, setShowOriginal] = useState(false)
@@ -462,9 +450,17 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
         ? h(AiSelectionModal, {
             t,
             mode: 'install',
-            candidates: overview.suites.filter(suite => !suite.enabled).map(suite => ({ id: `${suite.sourceId}/${suite.suiteId}`, label: suite.name })),
-            onApply: async suggestion => {
-              setPickedIds(suggestion.enabledIds)
+            // The reader judges a row from the same line the card shows: its name
+            // and its description.
+            candidates: overview.suites
+              .filter(suite => !suite.enabled)
+              .map(suite => ({
+                id: `${suite.sourceId}/${suite.suiteId}`,
+                label: suite.name,
+                ...(suite.description === undefined ? {} : { description: suite.description })
+              })),
+            onApply: async (_suggestion, ids) => {
+              setPickedIds([...ids])
               setCategory('all')
               setSuggesting(false)
             },
@@ -504,12 +500,27 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
       // plain confirm; uninstall has nothing to choose and takes the host's
       // risk acknowledgement instead.
       confirm !== undefined && confirm.kind === 'removeSource'
-        ? h(Modal, {
+        ? h(DetailModal, {
             open: true,
             onClose: () => setConfirm(undefined),
             title: t('removeSourceConfirmTitle', { sourceId: confirm.sourceId }),
             closeLabel: t('cancel'),
             description: t('removeSourceConfirmDesc'),
+            actions: [
+              h(Button, { key: 'cancel', variant: 'ghost', disabled: busy !== undefined, onClick: () => setConfirm(undefined) }, t('cancel')),
+              h(
+                Button,
+                {
+                  key: 'confirm',
+                  variant: 'primary',
+                  disabled: busy !== undefined,
+                  onClick: () => {
+                    void confirmAction()
+                  }
+                },
+                t('confirmDelete')
+              )
+            ],
             children: h(
               'label',
               { className: css.confirmCheck },
@@ -523,22 +534,6 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
                   })
               }),
               confirm.deleteCheckout ? t('removeSourceDeleteFiles') : t('removeSourceKeepFiles')
-            ),
-            footer: h(
-              'div',
-              { className: css.modalFooter },
-              h(Button, { variant: 'ghost', disabled: busy !== undefined, onClick: () => setConfirm(undefined) }, t('cancel')),
-              h(
-                Button,
-                {
-                  variant: 'primary',
-                  disabled: busy !== undefined,
-                  onClick: () => {
-                    void confirmAction()
-                  }
-                },
-                t('confirmDelete')
-              )
             )
           })
         : null,
@@ -586,7 +581,6 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
             t,
             editor,
             busy: busy !== undefined,
-            progress,
             onClose: () => setEditor(undefined),
             onSave: async ({ url, branch, kind, sha256 }) => {
               const key = editor.mode === 'edit' ? `s:edit:${editor.source.id}` : `s:add:${url}`
@@ -595,8 +589,6 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
               if (sha256 !== '' && kind === 'archive') body['sha256'] = sha256
               if (editor.mode === 'add') {
                 setBusy(key)
-                setProgress({ step: t('progressStarting'), error: undefined })
-                const poll = startSourceProgressPolling(setProgress, step => progressStepLabel(t, step))
                 try {
                   const payload = await postAction('sources/add', body)
                   const derived = (payload['source'] as { id?: string } | undefined)?.id
@@ -605,11 +597,10 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
                   if (derived !== undefined) setCategory(derived)
                   return true
                 } catch (error) {
-                  setToast({ key: Date.now(), message: `${t('actionFail')}: ${clientErrorMessage(t, error)}` })
-                  setProgress({ step: undefined, error: clientErrorMessage(t, error) })
+                  const text = clientErrorMessage(t, error)
+                  setToast({ key: Date.now(), message: `${t('actionFail')}: ${text}` })
                   return false
                 } finally {
-                  poll.stop()
                   setBusy(undefined)
                 }
               }

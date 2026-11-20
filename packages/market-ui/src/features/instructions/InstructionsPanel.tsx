@@ -19,7 +19,8 @@ import { clientErrorMessage } from '../../ui/error-message.js'
 import { CodeEditor } from '../../ui/CodeEditor.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { surfaceProviderCuts } from '../../ui/surface-facets.js'
-import { DetailModal } from '../../ui/DetailModal.js'
+import { FormDialog } from '../../ui/DetailModal.js'
+import formCss from '../../ui/form.module.css'
 import { ConfirmModal, PanelActions, PanelHeader, ReadFailed, type PanelConfirmState } from '../../ui/panel.js'
 import { InstructionDetail } from './InstructionDetail.js'
 import { statusLocaleKey } from './instructions-view-model.js'
@@ -316,25 +317,20 @@ function InstructionEditor(props: {
   const bytes = byteLength(draft.text)
   const overLimit = bytes > maxSourceBytes
   return h(
-    DetailModal,
+    FormDialog,
     {
-      open: true,
-      size: 'lg',
       onClose,
+      size: 'lg',
       title: draft.exists ? t('instructionsEditTitle', { path: draft.displayPath }) : t('instructionsCreateTitle', { path: draft.displayPath }),
       closeLabel: t('cancel'),
-      footer: h(
-        'div',
-        { className: css.footer },
-        h('span', { className: overLimit ? `${css.footerCount} ${css.footerCountOver}` : css.footerCount }, t('instructionsByteCount', { bytes, limit: maxSourceBytes })),
-        overLimit ? h('span', { className: css.footerHint }, t('instructionsOverLimit', { limit: maxSourceBytes })) : null,
-        error === undefined ? null : h('span', { className: css.footerError, role: 'alert' }, error),
-        h('div', { className: css.grow }),
-        onDelete === undefined ? null : h(Button, { variant: 'ghost', onClick: onDelete }, t('panelDelete')),
-        h(Button, { variant: 'outline', onClick: onClose }, t('cancel')),
+      ...(error === undefined ? {} : { alert: error }),
+      actions: [
+        onDelete === undefined ? null : h(Button, { key: 'delete', variant: 'ghost', onClick: onDelete }, t('panelDelete')),
+        h(Button, { key: 'cancel', variant: 'outline', onClick: onClose }, t('cancel')),
         h(
           Button,
           {
+            key: 'save',
             variant: 'primary',
             disabled: busy || overLimit,
             onClick: () => {
@@ -344,7 +340,7 @@ function InstructionEditor(props: {
           },
           t('save')
         )
-      )
+      ]
     },
     h(CodeEditor, {
       value: draft.text,
@@ -354,6 +350,15 @@ function InstructionEditor(props: {
       language: 'markdown',
       label: t('instructionsTextLabel'),
       minHeight: 300
-    })
+    }),
+    // The budget belongs under the document it measures, not in the footer
+    // row that carries only buttons.
+    h(
+      'p',
+      { className: overLimit ? `${formCss.hint} ${formCss.fieldError}` : formCss.hint },
+      overLimit
+        ? `${t('instructionsByteCount', { bytes, limit: maxSourceBytes })} ${t('instructionsOverLimit', { limit: maxSourceBytes })}`
+        : t('instructionsByteCount', { bytes, limit: maxSourceBytes })
+    )
   )
 }

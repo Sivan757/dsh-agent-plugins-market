@@ -125,7 +125,8 @@ async function openManager() {
 /** Open the suggestion modal and type the question. */
 async function ask(intent: string) {
   await click('Suggest a preset')
-  const input = document.querySelector<HTMLInputElement>('input[aria-label="Suggest a preset"]')
+  // The suggestion dialog has one text field: the intent.
+  const input = [...document.querySelectorAll<HTMLElement>('[role="dialog"]')].at(-1)?.querySelector<HTMLInputElement>('input') ?? null
   expect(input).not.toBeNull()
   await act(async () => {
     Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value')!.set!.call(input, intent)

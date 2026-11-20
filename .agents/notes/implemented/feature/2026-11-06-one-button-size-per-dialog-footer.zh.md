@@ -22,33 +22,35 @@ Status: implemented
 - **对话框页脚的操作行只有一个尺寸。** 页脚是一行平级的控件，不是混着不同重量的工具条：读者要按的是其中一个，而它们是被当作一组读的。
 - **全屋尺寸是 `md`。** 它是宿主的默认值，插件里其他每一个页脚本来就在用它，而页脚这一行正是插件里唯一放着整字标签、而不是行内小动作的地方。量下来，三个 `md` 按钮组成的那一行在指令对话框里高 36px，而那是一个高 800px 的 `size: 'lg'` 对话框：这一行放得下，还有富余；编辑那个 primary 按钮在 36px 下依然读得出是主动作。
 - **页脚不写尺寸。** 全屋尺寸就是宿主的默认值，所以页脚里的按钮根本不传 `size`。写 `size: 'md'` 等于把默认值已经说过的话再说一遍，还把下一个读者的选择（小一号、或者大一号）放在离规则一步远的地方。
-- **正文里的紧凑控件照旧。** `size: 'sm'` 对正文里的行内小动作是合适的：凭据字段、服务配置编辑器、用户条目的 hero 删除按钮、卡片的主操作、诊断块、翻译重试、MCP 详情的恢复动作簇、设置卡片、Hook 新建对话框里的 AI 起草按钮，以及语言引擎面板的接缝横幅与重启条，都保留它。这条规则说的是页脚那一行，不是每一个按钮。
+- **正文里的紧凑控件照旧。** `size: 'sm'` 对正文里的行内控件是合适的：凭据字段、服务配置编辑器的行内动作、卡片自己的操作、诊断块、翻译重试、设置卡片，以及语言引擎面板的接缝横幅，都保留它。详情正文已经不带任何动作，因为[每个对话框只留一行操作那条记录](../bug-fix/2026-11-19-one-surface-per-fact.zh.md)把详情的每一个动作都搬到了页脚上。这条规则说的是页脚那一行，不是每一个按钮。
 
 ### 审计
 
 插件里每一个页脚，以及它现在用的尺寸：
 
-| 页脚                                                                        | 按钮                 | 尺寸 |
-| --------------------------------------------------------------------------- | -------------------- | ---- |
-| `ui/AiSelectionModal.tsx`                                                   | 取消, 生成           | md   |
-| `ui/HookDetailModal.tsx`                                                    | 关闭                 | md   |
-| `ui/panel.tsx`（条目编辑器）                                                | 取消, 保存           | md   |
-| `ui/panel.tsx`（确认框）                                                    | 取消, 确认           | md   |
-| `ui/ServerConfigModal.tsx`                                                  | 取消                 | md   |
-| `ui/ServerConfigDetail.tsx`（传送到同一框架里的保存按钮）                   | 保存                 | md   |
-| `features/instructions/InstructionsPanel.tsx`（编辑器）                     | 删除, 取消, 保存     | md   |
-| `features/instructions/InstructionDetail.tsx`                               | 删除, 编辑, 完成     | md   |
-| `features/output-styles/OutputStylesPanel.tsx`（编辑器）                    | 取消, 保存           | md   |
-| `features/output-styles/OutputStylesPanel.tsx`（详情）                      | 编辑, 删除, 选用     | md   |
-| `features/lsp/LspStatusPanel.tsx`                                           | 复制诊断, 完成       | md   |
-| `features/hooks/HookCreateModal.tsx`                                        | 取消, 保存           | md   |
-| `features/market/SuiteDetail.tsx`                                           | 安装 / 卸载          | md   |
-| `features/market/SourceEditorModal.tsx`                                     | 移除来源, 取消, 保存 | md   |
-| `features/market/MarketSection.tsx`                                         | 取消, 确认删除       | md   |
-| `features/market/InstallConfirmModal.tsx`                                   | 取消, 确认安装       | md   |
-| `features/extension-presets/ExtensionPresetEntry.tsx`（管理器）             | 设为默认, 保存       | md   |
-| `features/extension-presets/ExtensionPresetEntry.tsx`（改名、删除、剪贴板） | 各一个按钮           | md   |
-| `workspace/ExtensionResourceDetail.tsx`                                     | 一个开关，没有按钮   | —    |
+| 页脚                                                                        | 按钮                                           | 尺寸 |
+| --------------------------------------------------------------------------- | ---------------------------------------------- | ---- |
+| `ui/AiSelectionModal.tsx`                                                   | 取消, 生成                                     | md   |
+| `ui/HookDetailModal.tsx`                                                    | 试运行, 关闭                                   | md   |
+| `ui/UserEntryDetail.tsx`                                                    | 删除, 完成                                     | md   |
+| `features/mcp/McpDetailModal.tsx`                                           | 删除连接器, 复制诊断, 重试连接, 重新授权, 关闭 | md   |
+| `ui/panel.tsx`（条目编辑器）                                                | 取消, 保存                                     | md   |
+| `ui/panel.tsx`（确认框）                                                    | 取消, 确认                                     | md   |
+| `ui/ServerConfigModal.tsx`                                                  | 取消                                           | md   |
+| `ui/ServerConfigDetail.tsx`（传送到同一框架里的保存按钮）                   | 保存                                           | md   |
+| `features/instructions/InstructionsPanel.tsx`（编辑器）                     | 删除, 取消, 保存                               | md   |
+| `features/instructions/InstructionDetail.tsx`                               | 删除, 编辑, 完成                               | md   |
+| `features/output-styles/OutputStylesPanel.tsx`（编辑器）                    | 取消, 保存                                     | md   |
+| `features/output-styles/OutputStylesPanel.tsx`（详情）                      | 编辑, 删除, 选用                               | md   |
+| `features/lsp/LspStatusPanel.tsx`                                           | 复制诊断, 重启服务, 完成                       | md   |
+| `features/hooks/HookCreateModal.tsx`                                        | 取消, 保存并追加                               | md   |
+| `features/market/SuiteDetail.tsx`                                           | 安装 / 卸载                                    | md   |
+| `features/market/SourceEditorModal.tsx`                                     | 移除来源, 取消, 保存                           | md   |
+| `features/market/MarketSection.tsx`                                         | 取消, 确认删除                                 | md   |
+| `features/market/InstallConfirmModal.tsx`                                   | 取消, 确认安装                                 | md   |
+| `features/extension-presets/ExtensionPresetEntry.tsx`（管理器）             | 设为默认, 保存                                 | md   |
+| `features/extension-presets/ExtensionPresetEntry.tsx`（改名、删除、剪贴板） | 各一个按钮                                     | md   |
+| `workspace/ExtensionResourceDetail.tsx`                                     | 一个开关，没有按钮                             | —    |
 
 ## Alternatives considered
 
@@ -62,7 +64,7 @@ Status: implemented
 - 指令文件对话框的页脚是一行三个 36px 的按钮，语言引擎详情的是两个。这一行读起来就是一行。
 - 预设管理器的页脚与别的对话框一致了，读者在对话框之间走动时不会再遇到一套新几何。
 - 两个按钮长了 8px，一行页脚长了 8px。对话框的正文是宿主的滚动区域，它把这 8px 还回来，不会裁掉内容。
-- 正文里的紧凑控件没动，所以页脚那一行以外的任何控件形状都没变。
+- 留在正文里的紧凑控件几何不变；离开正文的那些原本就是动作，它们把页脚的尺寸一起带走了。
 - 想要紧凑的页脚，现在必须在这一行的每个按钮上写出来，源码守卫会因此失败。
 
 ## Verification
@@ -81,3 +83,7 @@ Status: implemented
 - `pnpm run typecheck`、`pnpm run lint`、`pnpm run format:check` 与 `pnpm run test` 全绿。
 
 这条记录补上的对话框外壳，见[一套卡片解剖那条记录](2026-09-14-workspace-card-anatomy-and-host-affordances.md)与[对话框外壳那条记录](../bug-fix/2026-09-29-dialog-chrome-and-mode-switch.md)；两者都没有记录页脚的按钮尺寸，所以没有任何决定被取代。
+
+[每个对话框只留一行操作那条记录](../bug-fix/2026-11-19-one-surface-per-fact.zh.md)部分取代了这条记录的清单：它把用户条目的 hero 删除、MCP 详情的恢复动作簇、语言引擎的重启、钩子详情的试运行搬到了各自的页脚行上，并移除了钩子表单的起草动作。上面的规则不变，它的审计表现在列出的是出厂的实现。
+
+[对话框外壳那条记录](../bug-fix/2026-11-20-one-dialog-shell-and-one-radius-scale.zh.md)把这一行本身也搬走了：`ui/DetailModal` 用各对话框的 `actions` 渲染同一行页脚，右对齐、只放按钮，页脚因此再也带不了尺寸、提示语或第二套布局。

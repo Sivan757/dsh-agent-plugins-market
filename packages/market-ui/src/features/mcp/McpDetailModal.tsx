@@ -123,13 +123,16 @@ export function McpDetailModal({
     ],
     causes: entry.causes === undefined ? [] : [...entry.causes]
   })
-  const recovery: ReactNode[] = [
+  // Every action this detail offers stands on the footer row: the body states
+  // the service's facts and tools, and a reader never meets a button beside the
+  // text they came to read. The destructive one leads the row, away from the
+  // close action at its trailing edge.
+  const secondary: ReactNode[] = [
     h(
       Button,
       {
         key: 'diagnostics',
         variant: 'ghost',
-        size: 'sm',
         title: t('copyDiagnosticsExplain'),
         onClick: () => {
           void copyText(diagnostics).then(copied => setFeedback({ error: !copied, text: t(copied ? 'diagnosticsCopied' : 'diagnosticsCopyFailed') }))
@@ -139,13 +142,12 @@ export function McpDetailModal({
     )
   ]
   if (!readOnly && actions.retry) {
-    recovery.push(
+    secondary.push(
       h(
         Button,
         {
           key: 'retry',
           variant: 'outline',
-          size: 'sm',
           disabled: pending,
           title: t('mcpRetryPreservesCredentials'),
           'aria-label': t('mcpRetryConnection'),
@@ -158,34 +160,13 @@ export function McpDetailModal({
       )
     )
   }
-  if (!readOnly && onDelete !== undefined) {
-    recovery.push(
-      h(
-        Button,
-        {
-          key: 'delete',
-          variant: 'ghost',
-          size: 'sm',
-          title: t('mcpDeleteDesc'),
-          'aria-label': t('mcpDelete'),
-          onClick: () => {
-            // The panel owns the confirmation and the re-read; the dialog only
-            // asks, so both entry points share one destructive flow.
-            onDelete()
-          }
-        },
-        t('mcpDelete')
-      )
-    )
-  }
   if (!readOnly && actions.reauthorize) {
-    recovery.push(
+    secondary.push(
       h(
         Button,
         {
           key: 'reauthorize',
           variant: 'ghost',
-          size: 'sm',
           disabled: pending,
           title: t('mcpReauthExplain'),
           onClick: () => {
@@ -197,17 +178,37 @@ export function McpDetailModal({
       )
     )
   }
+  const deleteAction: ReactNode =
+    !readOnly && onDelete !== undefined
+      ? h(
+          Button,
+          {
+            key: 'delete',
+            variant: 'ghost',
+            title: t('mcpDeleteDesc'),
+            'aria-label': t('mcpDelete'),
+            onClick: () => {
+              // The panel owns the confirmation and the re-read; the dialog only
+              // asks, so both entry points share one destructive flow.
+              onDelete()
+            }
+          },
+          t('mcpDelete')
+        )
+      : null
+  /** One closing path for the header's close control and the footer's button. */
+  const close = (): void => {
+    if (!pending) onClose()
+  }
   // The live phase sentence, when a supervisor reports a lost connection: it
   // carries the attempt the user is waiting on and the last error.
   const connectionNote = mcpConnectionNote(t, entry, now)
   return h(DetailModal, {
     open: true,
-    onClose: () => {
-      if (!pending) onClose()
-    },
+    onClose: close,
     title: mcpDisplayName(entry),
     closeLabel: t('mcpClose'),
-    contentClassName: css.detailBody,
+    actions: [deleteAction, ...secondary, h(Button, { key: 'close', variant: 'outline', onClick: close }, t('mcpClose'))],
     children: h(
       'div',
       null,
@@ -226,7 +227,6 @@ export function McpDetailModal({
           // that, so the note rides on the status band.
           entry.oauthDefault === true ? h(Tag, { tone: 'quiet' }, t('mcpOauthDefault')) : null
         ),
-        ...(recovery.length === 0 ? {} : { action: recovery }),
         ...(feedback === undefined ? {} : { echo: feedback }),
         ...(guidance === undefined ? {} : { guidance }),
         // A dropped connection's own sentence outranks the recorded diagnostic:

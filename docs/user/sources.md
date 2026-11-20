@@ -21,6 +21,8 @@ Everything else you add yourself. Sources persist in `~/.dsh/agent-plugins/state
 
 A `local: true` source reads its directory in place. Removing its registration never deletes a directory outside the managed checkout root. An `archive` source downloads an HTTPS `.zip` / `.tar.gz` / `.tgz` / `.tar` payload (256 MiB cap, optional `sha256` integrity pin) and extracts it as the checkout.
 
+Each acquisition is registered once. Adding a repository the plugin already tracks is refused with **该来源已经在列表里了** instead of cloning a second copy, and the comparison reads the canonical Git URL, so `https://github.com/owner/repo`, `https://github.com/owner/repo.git` and a trailing slash all name the same source. A branch is part of that identity: the same repository on two branches is two sources, which is what the optional branch field is for. Editing a source's URL to one another source already uses is refused for the same reason.
+
 ## Discovery and refresh
 
 Session startup and the resource panels read sources that contain installed suites. Globally disabled installs stay available so a preset can name them, while a session on the default selection stops granting what the switches turned off. Opening Market discovers all configured sources as needed. Concurrent readers share the work for each source.

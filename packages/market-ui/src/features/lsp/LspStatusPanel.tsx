@@ -282,7 +282,7 @@ function SeamBanner({ seam, t, onMigrated }: { seam: LspLegacySeam; t: Translate
     error === undefined ? null : h('div', { className: css.error }, error),
     h(
       'div',
-      { className: css.modalFooter },
+      { className: css.seamActions },
       h(Button, { variant: 'primary', size: 'sm', disabled: busy, onClick: () => void migrate() }, busy ? t('lspSeamRemoving') : t('lspSeamRemove'))
     )
   )
@@ -373,16 +373,12 @@ export function LspDetailModal({
     onClose,
     title: entry.serverKey,
     closeLabel: t('cancel'),
-    contentClassName: css.detailBody,
-    footer: h(
-      'div',
-      { className: css.modalFooter },
+    actions: [
       h(
         Button,
         {
+          key: 'diagnostics',
           variant: 'ghost',
-          // One row, one size: the footer row carries the host's default geometry
-          // (md, 36px), so 复制诊断 and 完成 stand on the same line.
           title: t('copyDiagnosticsExplain'),
           onClick: () => {
             // The same block the connector dialog copies: whoever reads it should
@@ -405,8 +401,27 @@ export function LspDetailModal({
         },
         t('copyDiagnostics')
       ),
-      h(Button, { variant: 'ghost', onClick: onClose }, t('detailDone'))
-    ),
+      // The rebuild stands on the footer row with the other actions: the band
+      // states the service's condition, and every action lives where a reader
+      // ends a dialog.
+      restartable
+        ? h(
+            Button,
+            {
+              key: 'restart',
+              variant: 'outline',
+              disabled: pending,
+              title: t('lspRestartHint'),
+              onClick: () => {
+                void restart()
+              }
+            },
+            h(IconRefreshOutlineMedium),
+            t('lspRestart')
+          )
+        : null,
+      h(Button, { key: 'done', variant: 'ghost', onClick: onClose }, t('detailDone'))
+    ],
     children: h(
       'div',
       null,
@@ -421,25 +436,6 @@ export function LspDetailModal({
           h(Tag, null, entry.kind === 'plugin' ? t('lspPlugin') : t('lspDirect')),
           entry.kind === 'plugin' ? h(Tag, { tone: 'quiet' }, entry.suiteName) : null
         ),
-        ...(restartable
-          ? {
-              action: h(
-                Button,
-                {
-                  variant: 'outline',
-                  size: 'sm',
-                  disabled: pending,
-                  title: t('lspRestartHint'),
-                  'aria-label': t('lspRestart'),
-                  onClick: () => {
-                    void restart()
-                  }
-                },
-                h(IconRefreshOutlineMedium),
-                t('lspRestart')
-              )
-            }
-          : {}),
         ...(feedback === undefined ? {} : { echo: feedback }),
         ...(guidance === undefined ? {} : { guidance }),
         ...(entry.reason === undefined ? {} : { reason: entry.reason }),

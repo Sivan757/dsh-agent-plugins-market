@@ -33,6 +33,7 @@ const KNOWN_TOKENS = new Set([
   '--dsw-alias-interactive-bg-hover',
   '--dsw-alias-interactive-bg-hover-danger',
   '--dsw-alias-interactive-bg-hover-solid',
+  '--dsw-alias-label-caption',
   '--dsw-alias-label-dimmed',
   '--dsw-alias-label-primary',
   '--dsw-alias-label-primary-foreground',
@@ -51,7 +52,11 @@ const KNOWN_TOKENS = new Set([
   '--dsw-focus-ring-color',
   '--dsw-focus-ring-width',
   '--dsw-mask-blur',
+  '--dsw-radius-xs',
   '--dsw-radius-sm',
+  '--dsw-radius-md',
+  '--dsw-radius-lg',
+  '--dsw-radius-xl',
   '--dsw-specific-input-major'
 ])
 

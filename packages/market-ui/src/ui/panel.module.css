@@ -111,35 +111,7 @@
   }
 }
 
-/* ---- EntryEditorModal / ConfirmModal ---------------------------------- */
-
-.editorDialog {
-  max-width: 720px;
-  /* No description sits between the title and the form, so the host modal's
-     20px dialog gap and body margin would double the space under the title. */
-  gap: 12px;
-}
-
-/* The host Modal wraps our body in its own `.body` (20px top margin); the
-   content class above it is the one our stylesheet reaches. */
-.editorDialog [class*='content'] > [class*='body'] {
-  margin-top: 0;
-}
-
-.editorBody {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.editorFooter {
-  display: flex;
-  flex: 1;
-  flex-direction: row;
-  gap: 8px;
-  align-items: center;
-  justify-content: flex-end;
-}
+/* ---- ConfirmModal ------------------------------------------------------ */
 
 .confirmCheck {
   display: flex;
@@ -161,7 +133,7 @@
 .notice {
   margin: 8px 0;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--dsw-radius-lg);
   background: var(--dsw-alias-interactive-bg-hover, #f3f4f6);
   font-size: 12px;
   overflow-wrap: anywhere;
@@ -208,7 +180,7 @@
   align-items: center;
   gap: 10px;
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: var(--dsw-radius-lg);
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
@@ -273,7 +245,7 @@
   margin: 0;
   padding: 12px 14px;
   border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 10px;
+  border-radius: var(--dsw-radius-lg);
   background: var(--dsw-alias-markdown-code-block);
   color: var(--dsw-alias-label-secondary);
   font: 11.5px/18px var(--ds-font-family-code);

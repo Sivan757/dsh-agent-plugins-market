@@ -16,7 +16,6 @@ vi.mock('../../../packages/market-ui/src/api.js', () => ({
     if (next instanceof Error) throw next
     return next
   }),
-  fetchSourceProgress: vi.fn(async () => ({ active: false, step: undefined, error: undefined })),
   postAction: vi.fn()
 }))
 

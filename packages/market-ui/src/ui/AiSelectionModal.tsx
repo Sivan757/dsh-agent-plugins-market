@@ -1,21 +1,25 @@
 /**
  * Suggesting a selection, then deciding what to do with it.
  *
- * The modal asks one question and then shows the answer: a name, a reason, and the rows it
- * selected. Applying is a separate press, and what it does belongs to the caller — the preset
- * manager creates a preset, the market narrows its list so the reader installs through the
- * confirmation each card already has. A suggestion never changes anything by itself.
+ * The modal asks one question and then shows the answer: a name, a reason, and
+ * the rows it selected — each one with the line that describes it, and each one
+ * the reader can untick. Applying is a separate press over the rows still
+ * ticked, and what it does belongs to the caller: the preset manager creates a
+ * preset, the market narrows its list so the reader installs through the
+ * confirmation each card already has. A suggestion never changes anything by
+ * itself.
  *
- * It lives in the shared layer because two features ask the same question about different
- * worlds, and a feature may not import its sibling.
+ * It lives in the shared layer because two features ask the same question about
+ * different worlds, and a feature may not import its sibling.
  *
  * @module client/ui/AiSelectionModal
  */
 import { createElement as h, useState, type ReactNode } from 'react'
-import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import { requestAiPreset } from '../api.js'
+import { FormDialog } from './DetailModal.js'
 import type { AiPresetCandidate, AiPresetSuggestion } from '../../../market-contracts/src/contracts/ai-draft.js'
-import { clientErrorMessage } from './error-message.js'
+import { aiFailureText } from './error-message.js'
 import type { Translate } from '../i18n.js'
 import css from './form.module.css'
 
@@ -31,16 +35,18 @@ export interface AiSelectionModalProps {
    */
   mode?: 'preset' | 'install'
   /**
-   * The rows a suggestion may select, in the order the manager shows them.
+   * The rows a suggestion may select, in the order the caller shows them.
    *
    * Absent in `install` mode: the server reads its own catalogue, so the answer is validated
-   * against the catalogue rather than against what a browser happened to render.
+   * against the catalogue rather than against what a browser happened to render. The rows are
+   * still passed for the reader to judge, with the line that describes each one.
    */
   candidates?: readonly AiPresetCandidate[]
-  /** How to name a selected row on screen; the caller owns the labels it shows. */
-  resolveLabel?: (id: string) => string
-  /** Applies the suggestion; the manager creates the preset and closes. */
-  onApply: (suggestion: AiPresetSuggestion) => Promise<void>
+  /**
+   * Applies the suggestion over the rows the reader kept ticked; the manager
+   * creates the preset and closes, the market narrows its list.
+   */
+  onApply: (suggestion: AiPresetSuggestion, ids: readonly string[]) => Promise<void>
   onClose: () => void
 }
 
@@ -50,13 +56,16 @@ function suggestionLocale(t: Translate): 'zh' | 'en' {
 }
 
 export function AiSelectionModal(props: AiSelectionModalProps): ReactNode {
-  const { t, candidates, resolveLabel, onApply, onClose, mode = 'preset' } = props
+  const { t, candidates, onApply, onClose, mode = 'preset' } = props
   const [intent, setIntent] = useState('')
   const [busy, setBusy] = useState(false)
   const [applying, setApplying] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
   const [suggestion, setSuggestion] = useState<AiPresetSuggestion | undefined>(undefined)
-  const labelOf = (id: string): string => resolveLabel?.(id) ?? candidates?.find(candidate => candidate.id === id)?.label ?? id
+  // Every row the answer named starts ticked: the suggestion is the model's
+  // proposal, and dropping one is the reader's own decision.
+  const [chosen, setChosen] = useState<ReadonlySet<string>>(new Set())
+  const candidateOf = (id: string): AiPresetCandidate | undefined => candidates?.find(candidate => candidate.id === id)
   const suggest = (): void => {
     if (intent.trim() === '' || busy) return
     setBusy(true)
@@ -67,55 +76,52 @@ export function AiSelectionModal(props: AiSelectionModalProps): ReactNode {
       purpose: mode,
       ...(mode === 'install' || candidates === undefined ? {} : { candidates })
     })
-      .then(setSuggestion)
-      .catch((caught: unknown) => {
-        const code = typeof caught === 'object' && caught !== null ? (caught as { code?: unknown }).code : undefined
-        setError(code === 'ai-provider-limited' ? t('aiDraftLimited') : clientErrorMessage(t, caught))
+      .then(answer => {
+        setSuggestion(answer)
+        setChosen(new Set(answer.enabledIds))
       })
+      .catch((caught: unknown) => setError(aiFailureText(t, caught)))
       .finally(() => setBusy(false))
   }
+  const apply = (answer: AiPresetSuggestion): void => {
+    setApplying(true)
+    void onApply(answer, [...chosen]).finally(() => setApplying(false))
+  }
   return h(
-    Modal,
+    FormDialog,
     {
-      open: true,
       onClose,
       title: mode === 'install' ? t('aiSelectInstallTitle') : t('aiSelectTitle'),
       description: mode === 'install' ? t('aiSelectInstallHint') : t('aiSelectHint'),
       closeLabel: t('cancel'),
-      footer: h(
-        'div',
-        { className: css.footer },
-        error === undefined ? null : h('span', { className: css.footerError, role: 'alert' }, error),
-        h('div', { className: css.grow }),
-        h(Button, { variant: 'outline', onClick: onClose }, t('cancel')),
+      ...(error === undefined ? {} : { alert: error }),
+      // An AI action leads the row, ahead of the human ones: it is the reason
+      // the dialog exists, and every later dialog that offers one keeps it there.
+      actions: [
         suggestion === undefined
-          ? h(Button, { variant: 'primary', disabled: busy || intent.trim() === '', onClick: suggest }, busy ? t('aiDraftBusy') : t('aiSelectGenerate'))
+          ? h(Button, { key: 'suggest', variant: 'primary', disabled: busy || intent.trim() === '', onClick: suggest }, busy ? t('aiDraftBusy') : t('aiSelectGenerate'))
           : h(
               Button,
-              {
-                variant: 'primary',
-                disabled: applying,
-                onClick: () => {
-                  setApplying(true)
-                  void onApply(suggestion).finally(() => setApplying(false))
-                }
-              },
-              mode === 'install' ? t('aiSelectInstallApply') : t('aiSelectApply')
-            )
-      )
+              { key: 'apply', variant: 'primary', disabled: applying || chosen.size === 0, onClick: () => apply(suggestion) },
+              t(mode === 'install' ? 'aiSelectInstallApply' : 'aiSelectApply')
+            ),
+        h(Button, { key: 'cancel', variant: 'outline', onClick: onClose }, t('cancel'))
+      ]
     },
     h(
-      'div',
+      'label',
       { className: css.field },
+      h('span', null, t('aiSelectIntentLabel')),
       h('input', {
         value: intent,
         disabled: busy,
         placeholder: t('aiSelectPlaceholder'),
-        'aria-label': t(mode === 'install' ? 'aiSelectInstallTitle' : 'aiSelectTitle'),
+        'aria-label': t('aiSelectIntentLabel'),
         onChange: (event: { target: HTMLInputElement }) => {
           setIntent(event.target.value)
           // A new question invalidates the old answer: what is shown must be what would be created.
           setSuggestion(undefined)
+          setChosen(new Set())
         }
       })
     ),
@@ -127,14 +133,37 @@ export function AiSelectionModal(props: AiSelectionModalProps): ReactNode {
           h(
             'span',
             null,
-            t('aiSelectPreview', { name: suggestion.name, count: String(suggestion.enabledIds.length) }) +
+            t('aiSelectPreview', { name: suggestion.name, count: String(chosen.size) }) +
               (suggestion.usage === undefined ? '' : ' · ' + t('aiDraftCost', { input: String(suggestion.usage.inputTokens), output: String(suggestion.usage.outputTokens) }))
           ),
           suggestion.reason === '' ? null : h('p', { className: css.aiNote }, suggestion.reason),
           h(
-            'ul',
-            { className: css.aiList },
-            suggestion.enabledIds.map(id => h('li', { key: id }, labelOf(id)))
+            'div',
+            { className: css.aiChoices },
+            suggestion.enabledIds.map(id => {
+              const candidate = candidateOf(id)
+              return h(
+                'label',
+                { className: css.aiChoice, key: id },
+                h('input', {
+                  type: 'checkbox',
+                  checked: chosen.has(id),
+                  'aria-label': candidate?.label ?? id,
+                  onChange: (event: { target: HTMLInputElement }) => {
+                    const next = new Set(chosen)
+                    if (event.target.checked) next.add(id)
+                    else next.delete(id)
+                    setChosen(next)
+                  }
+                }),
+                h(
+                  'span',
+                  { className: css.aiChoiceText },
+                  h('span', { className: css.aiChoiceName }, candidate?.label ?? id),
+                  candidate?.description === undefined || candidate.description === '' ? null : h('span', { className: css.aiChoiceDetail }, candidate.description)
+                )
+              )
+            })
           )
         )
   )

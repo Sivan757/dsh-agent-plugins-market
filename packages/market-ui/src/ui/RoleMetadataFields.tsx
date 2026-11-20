@@ -11,7 +11,7 @@ export function RoleMetadataFields(props: { text: string; onChange: (text: strin
   try {
     fields = readRoleFields(props.text)
   } catch (error) {
-    return h('p', { className: formCss.footerError, role: 'alert' }, props.t('personaMetadataInvalid'), ' ', String(error instanceof Error ? error.message : error))
+    return h('p', { className: formCss.fieldError, role: 'alert' }, props.t('personaMetadataInvalid'), ' ', String(error instanceof Error ? error.message : error))
   }
   return h(RoleFields, { ...props, fields })
 }
@@ -155,7 +155,7 @@ function RoleFields(props: { text: string; onChange: (text: string) => void; t: 
     providerError || modelError || effortError === route
       ? h(
           'div',
-          { role: 'alert', className: `${formCss.footerError} ${formCss.full}` },
+          { role: 'alert', className: `${formCss.fieldError} ${formCss.full}` },
           t('personaCatalogError'),
           h('button', { type: 'button', onClick: () => setRevision(value => value + 1) }, t('refresh'))
         )

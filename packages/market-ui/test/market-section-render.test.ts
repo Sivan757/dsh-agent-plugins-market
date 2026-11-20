@@ -40,7 +40,6 @@ const overviewPayload = vi.hoisted(() => ({
 
 vi.mock('../../../packages/market-ui/src/api.js', () => ({
   fetchOverview: vi.fn().mockResolvedValue(overviewPayload),
-  fetchSourceProgress: vi.fn().mockResolvedValue({ step: undefined, error: undefined }),
   fetchSuiteDetail: vi.fn(),
   fetchMcpStatus: vi.fn(),
   fetchSuiteDocument: vi.fn(),
@@ -56,8 +55,7 @@ vi.mock('../../../packages/market-ui/src/features/market/market-resource.js', ()
     revalidating: false,
     promise: Promise.resolve(overviewPayload)
   })),
-  invalidateOverview: vi.fn(),
-  startSourceProgressPolling: vi.fn(() => ({ stop: () => {} }))
+  invalidateOverview: vi.fn()
 }))
 
 import { MarketSection } from '../../../packages/market-ui/src/features/market/MarketSection.js'

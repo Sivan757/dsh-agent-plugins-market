@@ -18,7 +18,6 @@ import type {
   OverviewPayload,
   ServerConfigPayload,
   ServerPolicyRequest,
-  SourceProgress,
   SuiteDetail,
   SuiteDocumentText,
   SuiteOverviewCard
@@ -52,7 +51,6 @@ export type {
   ServerPolicyRequest,
   ServerTimeoutPolicy,
   SourceOverview,
-  SourceProgress,
   SuiteDetail,
   SuiteDocumentMeta,
   SuiteDocumentText,
@@ -218,10 +216,6 @@ export async function fetchModelCatalog(
 
 export async function fetchOverview(): Promise<OverviewData> {
   return withBusyOperation(() => getJson<OverviewData>(MARKET_ROUTES.overview, 'overview failed'), { blocking: false })
-}
-
-export async function fetchSourceProgress(): Promise<SourceProgress> {
-  return getJson<SourceProgress>(MARKET_ROUTES.progress, 'progress failed')
 }
 
 /**
@@ -802,22 +796,6 @@ export async function requestAiDiagnosis(input: { face: AiDiagnoseFace; failure:
 }
 
 /* ---- User hooks --------------------------------------------------------- */
-
-/**
- * Draft one hook entry from an intent.
- *
- * The answer is a proposal for the form: the event and the command both stay editable, and
- * nothing is saved until the reader presses save.
- * @param input - what the hook should do.
- * @param input.intent - the reader's own words.
- * @param input.locale - the language the exchange is written in.
- * @returns the proposed entry, with the route that produced it.
- */
-export async function draftUserHook(input: { intent: string; locale: 'zh' | 'en' }): Promise<UserHookSaveRequest & { provider: string; model: string }> {
-  return withBusyOperation(() =>
-    postOkJson<UserHookSaveRequest & { provider: string; model: string }>(USER_HOOKS_ROUTES.draft, { intent: input.intent, locale: input.locale }, 'hook draft failed')
-  )
-}
 
 /**
  * Append one entry to the reader's own hook document.

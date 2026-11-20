@@ -69,7 +69,6 @@ function marketService(): MarketService {
     overview: async () => ({ sources: [], suites: [], totals: { all: 0, installed: 0, enabled: 0 }, roots: { user: '/user', data: '/data' } }),
     mcpStatus: async () => mcpPayload('global', [mcpEntry('direct:user')]),
     lspStatus: async () => lspPayload('global', [lspEntry('lsp:direct/user')]),
-    sourceProgress: () => ({ active: false, sourceId: '', step: '' }),
     serverConfig: async (kind, id) => ({ kind, id, key: 'service', editable: true, config: {} }),
     clearTranslations: async () => {},
     lspServers: async () => ({}),

@@ -224,20 +224,24 @@ describe('unified Markdown resource panel', () => {
     expect(api.deleteUserPanelEntry).not.toHaveBeenCalled()
   })
 
-  it('keeps the delete in the detail of a user entry, and out of a suite entry detail', async () => {
+  it('keeps the delete in the footer of a user entry detail, and out of a suite entry detail', async () => {
+    /** The detail's own delete: the one action its footer row carries. */
+    const detailDelete = (): HTMLElement | undefined => [...host.querySelectorAll<HTMLElement>('[role="dialog"] button')].find(node => node.textContent === 'panelDelete')
     api.fetchUserPanel.mockResolvedValue([plugin, user])
     await mountPanel()
     const [pluginCard] = [...host.querySelectorAll<HTMLElement>('article')]
     // Suite-owned files uninstall with their suite, so their detail carries no
-    // delete; a user entry's detail keeps the button it always had.
+    // delete; a user entry's detail keeps the action it always had.
     await act(async () => pluginCard!.querySelector<HTMLElement>('[data-card-open]')!.click())
-    expect(host.querySelector('[role="dialog"] button[aria-label="panelDelete"]')).toBeNull()
+    expect(detailDelete()).toBeUndefined()
     await act(async () => root.unmount())
     host.remove()
     await mountPanel()
     const [, userCardAgain] = [...host.querySelectorAll<HTMLElement>('article')]
     await act(async () => userCardAgain!.querySelector<HTMLElement>('[data-card-open]')!.click())
-    expect(host.querySelector('[role="dialog"] button[aria-label="panelDelete"]')).not.toBeNull()
+    // One row at the bottom edge: the body above it states facts and documents.
+    expect(detailDelete()).toBeDefined()
+    expect(detailDelete()!.closest('[class*="footer"]')).not.toBeNull()
   })
 
   it('gives plugin skill and command cards no edit affordance', async () => {
@@ -253,7 +257,7 @@ describe('unified Markdown resource panel', () => {
       root = createRoot(host)
       await act(async () => root.render(h(UserPanelSurface, { t, kind })))
       expect(host.querySelector('button[aria-label^="panelEdit "]'), kind).toBeNull()
-      expect(host.querySelector('button[aria-label="panelDelete"]'), kind).toBeNull()
+      expect(host.querySelector('button[aria-label^="panelDelete"]'), kind).toBeNull()
     }
   })
 
@@ -366,7 +370,7 @@ describe('unified Markdown resource panel', () => {
     if (kind === 'skills') expect(text).toContain('user-invocable: false')
     expect(text).toContain('Review code')
     expect(control().getAttribute('aria-checked')).toBe('false')
-    expect(host.querySelector('button[aria-label="panelDelete"]')).toBeNull()
+    expect(host.querySelector('button[aria-label^="panelDelete"]')).toBeNull()
     if (kind !== 'agents') expect(host.querySelector('button[aria-label^="panelEdit "]')).toBeNull()
     await act(async () => control().click())
     const restored = api.updateUserPanelEntry.mock.calls[1]?.[2] as string

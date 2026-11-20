@@ -9,13 +9,13 @@
  * @module client/ui/panel
  */
 import { createElement as h, useEffect, useState, type ReactNode } from 'react'
-import { Button, Modal, IconLoadingOutlineMedium, IconPlusOutlineMedium, IconRefreshOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button, IconLoadingOutlineMedium, IconPlusOutlineMedium, IconRefreshOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import css from './panel.module.css'
 import cardCss from './resource-card.module.css'
 import formCss from './form.module.css'
 import { beginBusyOperation } from './busy-operation.js'
 import { CodeEditor } from './CodeEditor.js'
-import { DetailModal } from './DetailModal.js'
+import { DetailModal, FormDialog } from './DetailModal.js'
 import { MarkdownDocument } from './MarkdownDocument.js'
 import type { Translate } from '../i18n.js'
 import { clientErrorMessage } from './error-message.js'
@@ -144,7 +144,7 @@ export function EntryEditorModal(props: {
   namePlaceholder?: string
   textLabel: string
   /** Shown opposite the dialog's buttons; says what happens after saving. */
-  footerHint?: string
+  description?: string
   /** A short field that pairs with the name on the create row (e.g. argument hint). */
   renderNamePairField?: (text: string, onChange: (text: string) => void) => ReactNode
   /** True once the caller has switched the body to the rendered draft. */
@@ -194,26 +194,22 @@ export function EntryEditorModal(props: {
     onChange: (event: { target: HTMLInputElement }) => setDraft({ ...current, name: event.target.value })
   })
   return h(
-    DetailModal,
+    FormDialog,
     {
-      open: true,
-      size: 'lg',
       onClose: () => {
         if (props.busy !== true) props.onClose()
       },
+      size: 'lg',
       title: props.title,
       closeLabel: props.cancelLabel ?? '×',
-      className: css.editorDialog,
-      contentClassName: css.editorBody,
-      footer: h(
-        'div',
-        { className: formCss.footer },
-        (error ?? props.saveError) === undefined ? null : h('span', { className: formCss.footerError, role: 'alert' }, error ?? props.saveError),
-        props.footerHint === undefined ? null : h('span', { className: formCss.footerHint }, props.footerHint),
-        h('div', { className: formCss.grow }),
-        h(Button, { variant: 'outline', disabled: props.busy, onClick: props.onClose }, props.cancelLabel ?? '×'),
-        h(Button, { variant: 'primary', disabled: props.busy === true, onClick: submit }, props.saveLabel ?? '✓')
-      )
+      // What saving does belongs under the title; the footer carries only the
+      // two buttons, and a refused save reports in the same block.
+      ...(props.description === undefined ? {} : { description: props.description }),
+      ...((error ?? props.saveError) === undefined ? {} : { alert: error ?? props.saveError }),
+      actions: [
+        h(Button, { key: 'cancel', variant: 'outline', disabled: props.busy, onClick: props.onClose }, props.cancelLabel ?? '×'),
+        h(Button, { key: 'save', variant: 'primary', disabled: props.busy === true, onClick: submit }, props.saveLabel ?? '✓')
+      ]
     },
     h(
       'div',
@@ -277,20 +273,19 @@ export function ConfirmModal(props: { state: PanelConfirmState | undefined; conf
   if (props.state === undefined) return null
   const state = props.state
   return h(
-    Modal,
+    DetailModal,
     {
       open: true,
       onClose: props.onClose,
       title: state.title,
-      description: state.description,
+      ...(state.description === undefined ? {} : { description: state.description }),
       closeLabel: props.cancelLabel,
-      footer: h(
-        'div',
-        { className: css.editorFooter },
-        h(Button, { variant: 'ghost', onClick: props.onClose }, props.cancelLabel),
+      actions: [
+        h(Button, { key: 'cancel', variant: 'ghost', onClick: props.onClose }, props.cancelLabel),
         h(
           Button,
           {
+            key: 'confirm',
             variant: 'primary',
             disabled: props.busy === true,
             onClick: () => {
@@ -299,7 +294,7 @@ export function ConfirmModal(props: { state: PanelConfirmState | undefined; conf
           },
           props.confirmLabel
         )
-      )
+      ]
     },
     props.state.checkbox === undefined
       ? null

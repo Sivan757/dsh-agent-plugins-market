@@ -10,7 +10,7 @@ The demo profile produced a review with four points, each visible in a screensho
 
 - **A draft can become a session.** `POST ai-session` writes the task as a session's first message and answers with its id and workspace. The reader opens that session, edits the requirement, switches the model the way they would for any session, and sends. The inline draft stays for the quick case; the session is the path for iterating.
 - **The filter strip keeps every declared cut.** A cut nothing falls into is still a question the reader learned to ask, and hiding it made the faces disagree about their own grammar. The hooks face gained the pair (its rows can be a suite's or the reader's own hooks.json), the language-engine face gained the toolbar it never rendered, and the output-style face shows 用户 at zero until a person writes one.
-- **A hook can be configured, with AI filling the form.** `POST user-hooks/draft` proposes an event and a command, `POST user-hooks/save` appends the entry to the reader's own `~/.agents/hooks/hooks.json`. The append merges into whatever shape the file already has and refuses an exact duplicate; the form stays editable, so the model is an assistant rather than the author.
+- **A hook can be configured from the form.** `POST user-hooks/save` appends the entry to the reader's own `~/.agents/hooks/hooks.json`. The append merges into whatever shape the file already has and refuses an exact duplicate, so a hand-written document survives the save. The form fields were the feature here, not the drafting action this note originally paired with them: [the one action row note](../bug-fix/2026-11-19-one-surface-per-fact.md) removed the draft route, because a hook is configuration the reader writes.
 - **The manager stopped explaining itself.** Both static paragraphs are gone, the modal subtitle with them, and the tab rail shares its spare width so a short row fills the strip. The output-style card no longer shows the SessionStart hint: it shows the same sentence the manager shows for the same condition (uncaptured text injects nothing).
 
 ## Alternatives considered
@@ -22,7 +22,7 @@ The demo profile produced a review with four points, each visible in a screensho
 
 ## Consequences
 
-- Two new routes and one new contract file; the hook writer is the only place this plugin appends to a document the reader owns.
+- One new route and one new contract file; the hook writer is the only place this plugin appends to a document the reader owns.
 - A session created from the plugin carries the workspace the server runs in (or the live session's workspace when the panel has one), and its id is minted per creation, so a second draft never overwrites the first transcript.
 - The manager is shorter by two paragraphs and its tab rail no longer stops half way.
 
@@ -30,7 +30,7 @@ The demo profile produced a review with four points, each visible in a screensho
 
 - Live in `market-demo` (a profile linked to this checkout, its own default model):
   - every one of the eight named faces shows three conditions (技能 158/158/0, 快捷指令 22/21/1, 连接器 5/2/3, 语言引擎 1/1/0, 输出风格 1/1/0, 钩子 1/1/0, 系统提示词 1/项目0/用户级1);
-  - a hook drafted from "每次我用 Bash 修改文件后，运行一次 prettier" came back as `PostToolUse` + `git diff --name-only --diff-filter=ACM | xargs -r npx prettier --write`, saved into `~/.agents/hooks/hooks.json`, and the 用户 cut then read 1;
+  - a hook saved from the form as `PostToolUse` + `git diff --name-only --diff-filter=ACM | xargs -r npx prettier --write` landed in `~/.agents/hooks/hooks.json`, and the 用户 cut then read 1;
   - the assist route answered in 18 ms and 143 ms with two distinct `session-<uuid>` ids, each session carrying the task as its first message;
   - the preset manager renders no explainer paragraph, and its tab rail's tabs fill the row (730 px of tabs in a 752 px rail);
   - the output-style card shows 未捕获 + the capture action + the manager's own sentence, and no SessionStart hint.

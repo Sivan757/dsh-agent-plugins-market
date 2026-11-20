@@ -41,24 +41,9 @@
   min-width: 0;
   overflow-wrap: anywhere;
 }
-.footer {
-  display: flex;
-  justify-content: flex-end;
-  width: 100%;
-  gap: 8px;
-  align-items: center;
-}
 .clipboardText {
   box-sizing: border-box;
   width: 100%;
   height: 220px;
   resize: vertical;
-}
-@media (max-width: 600px) {
-  .footer {
-    flex-wrap: wrap;
-  }
-  .footer > button {
-    flex: 1;
-  }
 }

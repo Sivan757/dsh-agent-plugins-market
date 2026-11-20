@@ -46,9 +46,9 @@ async function mount(entry: LspStatusEntry = base, translate: Translate = t, onR
   await act(async () => root.render(h(LspDetailModal, { entry, t: translate, onClose: vi.fn(), ...(onRestart === undefined ? {} : { onRestart }) })))
 }
 
-/** The band's one recovery action, found by the label it renders. */
+/** The dialog footer's one recovery action, found by the label it renders. */
 const restartButton = (): HTMLButtonElement | undefined =>
-  [...document.querySelectorAll<HTMLButtonElement>('[data-status-band] button')].find(node => node.textContent?.includes('lspRestart'))
+  [...document.querySelectorAll<HTMLButtonElement>('[role="dialog"] button')].find(node => node.textContent?.includes('lspRestart'))
 
 /** The host disclosure row is a `role="button"` div when the whole row expands. */
 const disclosure = (text: string): HTMLElement | undefined => [...document.querySelectorAll<HTMLElement>('[data-disclosure-row]')].find(node => node.textContent === text)
@@ -124,6 +124,9 @@ it('offers a restart on a row whose process may have died and echoes what it did
   }
   await mount({ ...base, state: 'mounted' }, t, onRestart)
   expect(restartButton()).toBeDefined()
+  // The band states the condition; every action this detail offers stands on
+  // the footer row, beside the close action.
+  expect(band().querySelector('button')).toBeNull()
   await act(async () => restartButton()!.click())
   expect(attempted).toHaveLength(1)
   expect(document.body.textContent).toContain('lspRestartDone')

@@ -19,7 +19,7 @@ The editors for a skill, a shortcut, an expert, an output style or a system-prom
 
 ## What the marketplace recommendation does
 
-Say what the workspace is for, and the model picks from the catalogue this deployment already scanned. It never sees the browser's copy of the list, and every id it answers is checked against the catalogue. Applying the answer narrows the list to those suites. Installing stays the per-suite confirmation each card already has.
+Say what the workspace is for, and the model picks from the catalogue this deployment already scanned. It never sees the browser's copy of the list, and every id it answers is checked against the catalogue. A catalogue of a thousand suites is more than one call should read, so the rows your words touch are offered first and the list stops at 120, each row with one line of its description. The answer arrives as a list you can judge: every recommended suite shows its name and what it is for, and you untick the ones you do not want before applying. Applying the answer narrows the list to the suites you kept. Installing stays the per-suite confirmation each card already has.
 
 ## What the preset suggestion does
 
@@ -36,6 +36,7 @@ The call runs on the plugin's side. Your browser never sees a credential, and th
 ## What it is bounded by
 
 - One answer per request, at most 1,500 output tokens, abandoned after 60 seconds.
+- A call that outlives those 60 seconds reports as a timeout you can retry, in your language, rather than as a provider refusal.
 - The intent is capped at 2,000 characters; a longer one is refused before the model is called.
 - The answer arrives in one piece, so you read a finished suggestion rather than watching text arrive.
 

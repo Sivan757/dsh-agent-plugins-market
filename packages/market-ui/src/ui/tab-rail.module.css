@@ -24,7 +24,7 @@
   min-width: 0;
   padding: 4px;
   border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 10px;
+  border-radius: var(--dsw-radius-lg);
   background: var(--dsw-alias-interactive-bg-hover);
   overflow-x: auto;
   overflow-y: hidden;
@@ -91,7 +91,7 @@
   min-width: fit-content;
   text-align: center;
   border: 0;
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-md);
   padding: 5px 10px;
   background: transparent;
   color: var(--dsw-alias-label-secondary);
@@ -133,7 +133,8 @@
   right: 6px;
   bottom: 2px;
   height: 2px;
-  border-radius: 1px;
+  border-radius: 999px;
+  corner-shape: round;
   background: var(--dsw-alias-state-business-primary);
   transform-origin: left center;
   animation: hold-fill 280ms linear forwards;

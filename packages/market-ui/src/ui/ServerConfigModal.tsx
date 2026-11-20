@@ -2,10 +2,9 @@ import { createElement as h, type ReactNode } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import type { CredentialApi } from '../credentials.js'
 import type { Translate } from '../i18n.js'
-import { DetailModal } from './DetailModal.js'
+import { FormDialog } from './DetailModal.js'
 import { ServerConfigDetail } from './ServerConfigDetail.js'
 import type { ServerKind } from './server-form.js'
-import css from './form.module.css'
 
 /** Shared create/edit shell for MCP and LSP service configuration. */
 export function ServerConfigModal({
@@ -24,20 +23,15 @@ export function ServerConfigModal({
   onSaved: () => void
 }): ReactNode {
   const create = id === undefined
-  return h(DetailModal, {
-    open: true,
+  return h(FormDialog, {
     title: t(kind === 'mcp' ? (create ? 'mcpAddTitle' : 'mcpEditTitle') : create ? 'lspAddTitle' : 'lspEditTitle'),
     size: 'md',
     height: 'tall',
     onClose,
     closeLabel: t('cancel'),
-    footer: h(
-      'div',
-      { className: css.footer },
-      create ? h('span', { className: css.footerHint }, t('editorFooterCreate')) : null,
-      h('div', { className: css.grow }),
-      h(Button, { variant: 'outline', onClick: onClose }, t('cancel'))
-    ),
+    // What saving does belongs under the title; the footer is the button row.
+    ...(create ? { description: t('editorCreateHint') } : {}),
+    actions: [h(Button, { key: 'cancel', variant: 'outline', onClick: onClose }, t('cancel'))],
     children: h(ServerConfigDetail, {
       key: `${kind}:${id ?? 'create'}`,
       kind,

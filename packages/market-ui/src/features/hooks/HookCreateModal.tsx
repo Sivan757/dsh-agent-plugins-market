@@ -1,16 +1,21 @@
 /**
- * Creating one user hook: describe it, adjust the proposal, save it.
+ * Creating one user hook: event, matcher, command, save.
  *
- * A hook is configuration the reader needs, not prose they read: the form is the feature, and
- * the model only fills it in. The event and the command both stay editable after a draft, and
- * saving appends to the reader's own hook document without touching the entries already there.
+ * A hook is configuration the reader needs, not prose they read: the form is the
+ * feature. The three fields are the whole entry, and saving appends to the
+ * reader's own hook document without touching the entries already there.
+ *
+ * The dialog rides the same shell, the same field geometry, and the same footer
+ * row as the service editors, so every create dialog in the workspace is one
+ * shape seen from different tabs.
  *
  * @module features/hooks/HookCreateModal
  */
 import { createElement as h, useState, type ReactNode } from 'react'
-import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
-import { draftUserHook, saveUserHook } from '../../api.js'
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
+import { saveUserHook } from '../../api.js'
 import { USER_HOOK_EVENTS, type UserHookEvent } from '../../../../market-contracts/src/contracts/user-hooks.js'
+import { FormDialog } from '../../ui/DetailModal.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import type { Translate } from '../../i18n.js'
 import css from '../../ui/form.module.css'
@@ -40,30 +45,12 @@ const EVENT_LABELS: Record<string, { zh: string; en: string }> = {
 export function HookCreateModal(props: HookCreateModalProps): ReactNode {
   const { t, onSaved, onClose } = props
   const zh = !String(t('localeProbeLang')).toLowerCase().startsWith('en')
-  const [intent, setIntent] = useState('')
   const [event, setEvent] = useState<UserHookEvent>('UserPromptSubmit')
   const [matcher, setMatcher] = useState('')
   const [command, setCommand] = useState('')
-  const [busy, setBusy] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | undefined>(undefined)
-  const labelOf = (event: UserHookEvent): string => event + (zh ? ' · ' + (EVENT_LABELS[event]?.zh ?? '') : ' · ' + (EVENT_LABELS[event]?.en ?? ''))
-  const draft = (): void => {
-    if (intent.trim() === '' || busy) return
-    setBusy(true)
-    setError(undefined)
-    draftUserHook({ intent, locale: zh ? 'zh' : 'en' })
-      .then(drafted => {
-        setEvent(drafted.event)
-        setCommand(drafted.command)
-        setMatcher(drafted.matcher ?? '')
-      })
-      .catch(caught => {
-        const code = typeof caught === 'object' && caught !== null ? (caught as { code?: unknown }).code : undefined
-        setError(code === 'ai-provider-limited' ? t('aiDraftLimited') : clientErrorMessage(t, caught))
-      })
-      .finally(() => setBusy(false))
-  }
+  const labelOf = (event: UserHookEvent): string => event + ' · ' + (zh ? (EVENT_LABELS[event]?.zh ?? '') : (EVENT_LABELS[event]?.en ?? ''))
   const save = (): void => {
     if (command.trim() === '' || saving) return
     setSaving(true)
@@ -77,39 +64,18 @@ export function HookCreateModal(props: HookCreateModalProps): ReactNode {
       .finally(() => setSaving(false))
   }
   return h(
-    Modal,
+    FormDialog,
     {
-      open: true,
       onClose,
       title: t('hooksCreateTitle'),
       description: t('hooksCreateHint'),
       closeLabel: t('cancel'),
-      footer: h(
-        'div',
-        { className: css.footer },
-        error === undefined ? null : h('span', { className: css.footerError, role: 'alert' }, error),
-        h('div', { className: css.grow }),
-        h(Button, { variant: 'outline', onClick: onClose }, t('cancel')),
-        h(Button, { variant: 'primary', disabled: saving || command.trim() === '', onClick: save }, t('hooksSave'))
-      )
+      ...(error === undefined ? {} : { alert: error }),
+      actions: [
+        h(Button, { key: 'cancel', variant: 'outline', onClick: onClose }, t('cancel')),
+        h(Button, { key: 'save', variant: 'primary', disabled: saving || command.trim() === '', onClick: save }, t('hooksSave'))
+      ]
     },
-    h(
-      'div',
-      { className: css.field },
-      h('span', null, t('hooksIntentLabel')),
-      h(
-        'div',
-        { className: css.aiField, 'data-ai-draft': 'hooks' },
-        h('input', {
-          value: intent,
-          disabled: busy,
-          placeholder: t('hooksCreatePlaceholder'),
-          'aria-label': t('hooksIntentLabel'),
-          onChange: (event2: { target: HTMLInputElement }) => setIntent(event2.target.value)
-        }),
-        h(Button, { variant: 'outline', size: 'sm', disabled: busy || intent.trim() === '', onClick: draft }, busy ? t('aiDraftBusy') : t('hooksDraftAi'))
-      )
-    ),
     h(
       'label',
       { className: css.field },

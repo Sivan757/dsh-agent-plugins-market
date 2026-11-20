@@ -3,7 +3,6 @@ import {
   Button,
   Input,
   Menu,
-  Modal,
   Tooltip,
   Toast,
   IconSettingsOutlineMedium,
@@ -30,6 +29,7 @@ import type { RenderExtensionDetail } from './details.js'
 import { useExtensionWindow, type ExtensionWindowObserver } from './use-window.js'
 import { canonicalPresetSelection, presetCoverage, presetSuggestionCandidates, resourceSelected, uniquePresetName } from './resource.js'
 import { AiSelectionModal } from '../../ui/AiSelectionModal.js'
+import { DetailModal } from '../../ui/DetailModal.js'
 import css from './presets.module.css'
 import entryCss from './entry.module.css'
 import { AgentExtensionIcon } from '../../ui/AgentExtensionIcon.js'
@@ -409,25 +409,22 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
       />
       {toast && <Toast key={toast.id} text={toast.text} tone={toast.success ? 'success' : undefined} holdMs={toast.success ? 3000 : 10000} onDone={() => setToast(undefined)} />}
       {manager && data && (
-        <Modal
+        <DetailModal
           open
           title={t('epManageTitle')}
           closeLabel={t('epClose')}
           className={css.modal}
           contentClassName={css.modalContent}
           onClose={dismiss}
-          footer={
-            // One row, one size: the footer row carries the host's default
-            // geometry (md, 36px), like every other dialog's footer in the
-            // plugin. A compact pair here was the one footer that did not.
-            <div className={css.footer}>
+          actions={
+            <>
               <Button variant="outline" disabled={writes > 0 || savedDirty || defaultSelected} onClick={setDefault}>
                 {defaultSelected ? t('epIsDefault') : t('epDefault')}
               </Button>
               <Button variant="primary" disabled={writes > 0 || savedDirty} onClick={libraryDraft ? () => beginName('save') : dismiss}>
                 {libraryDraft ? t('epSave') : t('epDone')}
               </Button>
-            </div>
+            </>
           }
         >
           <div
@@ -580,16 +577,16 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
               onView={setDetail}
             />
           </div>
-        </Modal>
+        </DetailModal>
       )}
-      <Modal
+      <DetailModal
         open={naming !== null}
         title={t(naming === 'rename' ? 'epRename' : 'epSave')}
         closeLabel={t('epClose')}
         onClose={() => {
           if (!writes) setNaming(null)
         }}
-        footer={
+        actions={
           <>
             <Button onClick={() => setNaming(null)} disabled={writes > 0}>
               {t('epCancel')}
@@ -613,8 +610,8 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
         />
         {duplicate && <p role="alert">{t('epDuplicate')}</p>}
         {feedback.startsWith(t('epFailed')) && <p role="alert">{feedback}</p>}
-      </Modal>
-      <Modal
+      </DetailModal>
+      <DetailModal
         open={deletingId !== undefined}
         title={t('epDelete')}
         description={t('epDeleteConfirm')}
@@ -622,7 +619,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
         onClose={() => {
           if (!writes) setDeletingId(undefined)
         }}
-        footer={
+        actions={
           <Button
             disabled={writes > 0}
             onClick={() =>
@@ -638,7 +635,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
           </Button>
         }
       />
-      <Modal
+      <DetailModal
         open={clipboard !== null}
         title={t(clipboard === 'copy' ? 'epCopy' : 'epPaste')}
         description={t(clipboard === 'copy' ? 'epCopyFallback' : 'epPasteHint')}
@@ -646,7 +643,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
         onClose={() => {
           if (!writes) setClipboard(null)
         }}
-        footer={
+        actions={
           clipboard === 'paste' ? (
             <Button disabled={writes > 0 || !clipText.trim()} onClick={() => importText(clipText)}>
               {t('epImport')}
@@ -665,14 +662,14 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
           }}
         />
         {feedback && <p role="status">{feedback}</p>}
-      </Modal>
-      <Modal
+      </DetailModal>
+      <DetailModal
         open={leave !== undefined}
         title={t('epDiscard')}
         description={t('epDiscardHint')}
         closeLabel={t('epClose')}
         onClose={() => setLeave(undefined)}
-        footer={
+        actions={
           <>
             <Button onClick={() => setLeave(undefined)}>{t('epCancel')}</Button>
             <Button
@@ -689,13 +686,13 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
           </>
         }
       />
-      <Modal
+      <DetailModal
         open={replacement !== undefined}
         title={t('epReplace')}
         description={t('epReplaceHint')}
         closeLabel={t('epClose')}
         onClose={() => setReplacement(undefined)}
-        footer={
+        actions={
           <Button
             disabled={writes > 0}
             onClick={() => {
@@ -717,7 +714,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
             // has, in the order that keeps the ones that carry a selection when the list
             // is cut at the bound the contract states.
             candidates: presetSuggestionCandidates(data?.resources ?? []),
-            onApply: async suggestion => {
+            onApply: async (suggestion, ids) => {
               // The suggestion names rows the way a person does, so the preset has to carry
               // the same closure the manager's switches build. A row under a suite carries
               // the suite that owns it, and a suite carries the rows under it: without
@@ -725,7 +722,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
               const enabledIds = canonicalPresetSelection(
                 data?.resources ?? [],
                 [],
-                suggestion.enabledIds.map(id => ({ id, enabled: true }))
+                ids.map(id => ({ id, enabled: true }))
               )
               // The name the model chose may already be taken. A conflict would fail the
               // create and lose the suggestion, so the name is made unique first.
