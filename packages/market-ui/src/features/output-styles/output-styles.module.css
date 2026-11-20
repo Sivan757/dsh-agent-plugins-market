@@ -15,58 +15,19 @@
   color: var(--dsw-alias-label-secondary, #57606a);
   overflow-wrap: anywhere;
 }
+
+/* The prompt text a style would carry: a code block, so it takes the host's
+   code-block tier rather than a control's arc. */
 .previewText {
   margin: 0;
   padding: 10px;
   max-height: 320px;
   overflow: auto;
   border: 1px solid var(--dsw-alias-border-l1, #e5e7eb);
-  border-radius: 6px;
+  border-radius: var(--dsw-radius-lg);
   background: var(--dsw-alias-bg-layer-1, #fafafa);
   font-family: var(--ds-font-family-code);
   font-size: 12px;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
-}
-
-.editorStack {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-.field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  font-size: 12px;
-}
-.field input {
-  padding: 6px 8px;
-  border: 1px solid var(--dsw-alias-border-l1, #e5e7eb);
-  border-radius: 6px;
-  background: var(--dsw-alias-bg-layer-1, #ffffff);
-  color: inherit;
-  font: inherit;
-}
-
-.footer {
-  display: flex;
-  flex: 1 1 auto;
-  min-width: 0;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-.footerHint {
-  font-size: 12px;
-  color: var(--dsw-alias-label-tertiary, #8b93a1);
-  overflow-wrap: anywhere;
-}
-.footerError {
-  font-size: 12px;
-  color: var(--dsw-alias-state-error-primary, #dc2626);
-  overflow-wrap: anywhere;
-}
-.grow {
-  flex: 1 1 auto;
 }

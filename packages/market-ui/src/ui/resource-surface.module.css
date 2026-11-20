@@ -63,7 +63,7 @@
 .moreButton {
   padding: 5px 12px;
   border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-md);
   background: transparent;
   color: var(--dsw-alias-label-secondary);
   font: inherit;

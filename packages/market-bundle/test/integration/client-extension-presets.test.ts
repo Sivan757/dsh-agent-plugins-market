@@ -283,7 +283,7 @@ describe('extension preset rendering', () => {
         })
       )
     )
-    await click('Session extensions are not ready')
+    await click('Research')
     expect([...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Default')!.disabled).toBe(true)
     await click('Recover session extensions and continue queued input')
     expect(posts[0]!.url).toContain('/recover')
@@ -305,9 +305,70 @@ describe('extension preset rendering', () => {
     )
     await act(async () => host!.querySelector('button')!.click())
     expect(document.body.textContent).toContain(extensionPresetsEn.epInventoryPending)
-    // The line is not the not-ready state: the session is usable and selections stay open.
-    expect(document.body.textContent).not.toContain(extensionPresetsEn.epNotReady)
+    // The line is not a failure: the session is usable and selections stay open.
+    expect(document.body.textContent).not.toContain(extensionPresetsEn.epLoadFailed)
     expect([...document.querySelectorAll<HTMLButtonElement>('button')].find(button => button.textContent === 'Default')!.disabled).toBe(false)
+  })
+  it('renders the committed selection from the session projection before any read answers', async () => {
+    // A session projection is seeded by the session snapshot, so the composer chip
+    // has its answer without a request: no loading word, and nothing to wait for.
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => {}))
+    )
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => {
+      root!.render(
+        h(ExtensionPresetEntry, {
+          renderDetail,
+          sessionId: 'cold-session',
+          useProjection: (key: string) => (key === 'marketExtensionSelection' ? { presetId: 'preset', presetName: 'Research', modified: false } : undefined),
+          t: key => extensionPresetsEn[key as keyof typeof extensionPresetsEn] ?? settingsEn[key as keyof typeof settingsEn] ?? key
+        })
+      )
+    })
+    expect(host.querySelector('button')!.getAttribute('aria-label')).toBe('Research')
+    expect(host.querySelector('button')!.textContent).toContain('Research')
+  })
+  it('names the global selection from the projection without a read', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(() => new Promise(() => {}))
+    )
+    host = document.createElement('div')
+    document.body.append(host)
+    root = createRoot(host)
+    await act(async () => {
+      root!.render(
+        h(ExtensionPresetEntry, {
+          renderDetail,
+          sessionId: 'global-session',
+          useProjection: (key: string) => (key === 'marketExtensionSelection' ? { presetId: null, presetName: null, modified: false } : undefined),
+          t: key => extensionPresetsEn[key as keyof typeof extensionPresetsEn] ?? settingsEn[key as keyof typeof settingsEn] ?? key
+        })
+      )
+    })
+    expect(host.querySelector('button')!.getAttribute('aria-label')).toBe('Default')
+  })
+  it('names the chosen preset before the write is acknowledged, and reverts when it fails', async () => {
+    // The commit mounts suites and services, so the chip must answer the click itself;
+    // waiting for the acknowledgement reads as a frozen control.
+    await mount()
+    expect(host!.querySelector('button')!.getAttribute('aria-label')).toBe('Research')
+    let fail: ((reason: unknown) => void) | undefined
+    vi.mocked(fetch).mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          fail = reject
+        }) as never
+    )
+    await click('Research')
+    await click('Default')
+    expect(host!.querySelector('button')!.getAttribute('aria-label')).toBe('Default')
+    await act(async () => fail!(new Error('mount failed')))
+    expect(host!.querySelector('button')!.getAttribute('aria-label')).toBe('Research')
   })
   it('keeps a retry action after load failure without claiming global selection', async () => {
     await mount()

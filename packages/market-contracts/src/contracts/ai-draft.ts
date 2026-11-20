@@ -55,6 +55,8 @@ export const AI_ANSWER_LIMITS = {
 export interface AiPresetCandidate {
   id: string
   label: string
+  /** One line about the row, shown to the model and to the reader judging it. */
+  description?: string
 }
 
 /** One preset-suggestion request. */
@@ -98,6 +100,8 @@ export const AI_PRESET_LIMITS = {
   candidates: 300,
   /** Catalogue rows the server itself may offer; the scan can hold a thousand. */
   catalogueCandidates: 1_000,
+  /** Rows one recommendation actually offers the model, after the intent filters them. */
+  modelCandidates: 120,
   /** Rows one suggestion may select. */
   picks: 60,
   /** Output tokens one suggestion may spend. */

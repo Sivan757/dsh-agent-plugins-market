@@ -45,11 +45,11 @@
   flex: 0 0 auto;
 }
 
-/* One step smaller on the exposed trigger, exactly as the permission chip
-   renders its 16px glyphs. */
+/* Full 16px on the exposed trigger: the permission chip shrinks its shield to 14,
+   and a ring at that size loses the gap between its nodes and the arcs. */
 .entryIcon svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
 /* The name is the control's own label: it truncates rather than widening the
@@ -62,14 +62,13 @@
 }
 
 .entryChevron {
+  /* The host's own chevron treatment on the sibling permission trigger: the
+     caption tone rather than the trigger's label colour, and the icon's own
+     14px size, so the two chips read as one family. */
   display: inline-flex;
   flex: 0 0 auto;
+  color: var(--dsw-alias-label-caption);
   transition: transform 120ms ease;
-}
-
-.entryChevron svg {
-  width: 12px;
-  height: 12px;
 }
 
 .entryChevronOpen {

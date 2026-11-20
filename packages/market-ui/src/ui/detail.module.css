@@ -29,12 +29,70 @@
   max-width: 100%;
   max-height: 100%;
 }
+/* The host's body box holds the alert (when a request was refused) and the
+   scrolling column. Scrolling belongs to that column, not to this box: its own
+   scrollbar would take width from the fields and leave them short of the
+   footer's right edge. */
 .body {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  overflow: hidden;
+  max-height: calc(100dvh - 200px);
+  overflow-wrap: anywhere;
+}
+/* A refused save, under the title: the reader meets it where the form starts,
+   never in the footer row that only carries buttons. */
+.alert {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--dsw-alias-state-error-primary);
+  border-radius: var(--dsw-radius-md);
+  color: var(--dsw-alias-state-error-primary);
+  font-size: 12px;
+  line-height: 18px;
+  overflow-wrap: anywhere;
+}
+/* The dialog's scroll column. The native scrollbar is hidden and reserves no
+   width, so content keeps the dialog's full inner width; the floating thumb
+   below reports the position without moving anything. */
+.scrollHost {
+  position: relative;
+  display: flex;
+  flex: 1 1 auto;
+  min-width: 0;
+  min-height: 0;
+}
+.scrollBody {
+  flex: 1 1 auto;
   min-width: 0;
   min-height: 0;
   overflow-y: auto;
-  max-height: calc(100dvh - 200px);
-  overflow-wrap: anywhere;
+  scrollbar-width: none;
+}
+.scrollBody::-webkit-scrollbar {
+  width: 0;
+  height: 0;
+}
+.scrollContent {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+/* A slim translucent thumb, painted above the content: a scrollbar the reader
+   can find without the layout paying for it. */
+.scrollThumb {
+  position: absolute;
+  top: 0;
+  right: 2px;
+  width: 6px;
+  border-radius: 999px;
+  corner-shape: round;
+  background: var(--dsw-alias-label-tertiary);
+  background: color-mix(in oklab, var(--dsw-alias-label-primary) 24%, transparent);
+  opacity: 0;
+  pointer-events: none;
 }
 /* The host Modal wraps the content in its own body box with a 20px top margin,
    sized for a description sentence the market's dialogs do not carry: without
@@ -60,7 +118,6 @@
 .tallDialog [class*='content'] > [class*='body'] {
   flex: 1 1 auto;
   min-height: 0;
-  overflow-y: auto;
 }
 /* Own the flex allocation without overriding the layout of individual detail blocks. */
 .contentStack {
@@ -101,7 +158,7 @@
   margin: 0 0 10px;
   padding: 8px 10px;
   border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-lg);
   background: var(--dsw-alias-markdown-code-block);
   color: var(--dsw-alias-label-tertiary);
   font-family: var(--ds-font-family-code);

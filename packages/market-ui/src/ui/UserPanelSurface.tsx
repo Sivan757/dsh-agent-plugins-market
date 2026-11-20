@@ -377,7 +377,7 @@ export function UserPanelSurface(props: { t: Translate; kind: UserPanelKind }): 
       nameLabel: t('panelNamePh'),
       namePlaceholder: t(kind === 'skills' ? 'editorNamePhSkill' : kind === 'commands' ? 'editorNamePhCommand' : 'editorNamePhPersona'),
       textLabel: t(kind === 'skills' ? 'panelSkillTextLabel' : kind === 'commands' ? 'panelCommandTextLabel' : 'panelPersonaTextLabel'),
-      footerHint: t(editor?.mode === 'create' ? 'editorFooterCreate' : editor?.routingOnly === true ? 'editorFooterRouting' : 'editorFooterEdit'),
+      description: t(editor?.mode === 'create' ? 'editorCreateHint' : editor?.routingOnly === true ? 'editorRoutingHint' : 'editorEditHint'),
       busy,
       saveError: error,
       saveLabel: editor?.mode === 'create' ? t('editorCreate') : t('panelSave'),

@@ -1,6 +1,7 @@
 /** Pre-install confirmation modal: concise surface counts plus a risk notice. */
 import { createElement as h, type ReactNode } from 'react'
-import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
+import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
+import { DetailModal } from '../../ui/DetailModal.js'
 import type { SuiteCardData } from '../../api.js'
 import type { SuiteSurfaceCounts } from '../../../../market-contracts/src/contracts/market.js'
 import type { Translate } from '../../i18n.js'
@@ -44,20 +45,18 @@ export function InstallConfirmModal(props: InstallConfirmModalProps): ReactNode 
   const tags = SURFACE_TAGS.filter(tag => surfaces[tag.key] > 0)
   const executable = surfaces.mcp > 0 || surfaces.hooks > 0
 
-  return h(Modal, {
+  return h(DetailModal, {
     open: true,
     onClose: props.onClose,
     title: t('installConfirmTitle'),
     description: t('installConfirmDesc'),
     closeLabel: t('cancel'),
-    className: css.editorDialog,
-    footer: h(
-      'div',
-      { className: css.modalFooter },
-      h(Button, { variant: 'ghost', disabled: busy, onClick: props.onClose }, t('cancel')),
+    actions: [
+      h(Button, { key: 'cancel', variant: 'ghost', disabled: busy, onClick: props.onClose }, t('cancel')),
       h(
         Button,
         {
+          key: 'confirm',
           variant: 'primary',
           disabled: busy,
           onClick: () => {
@@ -66,7 +65,7 @@ export function InstallConfirmModal(props: InstallConfirmModalProps): ReactNode 
         },
         t('installConfirmAction')
       )
-    ),
+    ],
     children: h(
       'div',
       { className: css.installConfirmBody },

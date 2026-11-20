@@ -703,6 +703,19 @@ export class ExtensionSessionState {
       })
     )
   }
+  /**
+   * Join an initialization already in flight; never starts one.
+   *
+   * A panel read uses this so it never answers while the session's own state is
+   * still being folded: the wait exists for a payload that would otherwise report
+   * a transient neither the person nor the client can act on. A rejection is not
+   * rethrown here either; {@link status} carries the recorded failure.
+   * @param agent - the agent whose initialization may be running.
+   */
+  async whenInitialized(agent: Agent): Promise<void> {
+    await this.initializing.get(agent)?.catch(() => undefined)
+  }
+
   /** Join the current selection writer, not the active user turn; failures remain visible through status. */
   async whenSelectionSettled(agent: Agent): Promise<void> {
     await this.requests.get(agent)

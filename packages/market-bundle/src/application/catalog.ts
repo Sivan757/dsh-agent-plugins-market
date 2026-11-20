@@ -17,7 +17,6 @@ import type {
   OverviewPayload,
   ServerConfigPayload,
   SourceOverview,
-  SourceProgress,
   SuiteDetail,
   SuiteDocumentText,
   UserPanelKind
@@ -431,26 +430,6 @@ export class Catalog implements MarketService {
     // No warm-up here: a refresh runs from the background updater too, and
     // translating then would make the layer eager again. The next panel read
     // discovers the new text and queues it.
-  }
-
-  /** Progress snapshot for the progress route. */
-  sourceProgress(): SourceProgress {
-    return this.sourceStore.progress()
-  }
-
-  /** Begin reporting progress for a source mutation. */
-  beginSourceState(sourceId: string, step: string, cloned: boolean): void {
-    this.sourceStore.beginSourceState(sourceId, step, cloned)
-  }
-
-  /** Advance the in-flight source mutation step. */
-  updateSourceStep(step: string): void {
-    this.sourceStore.updateSourceStep(step)
-  }
-
-  /** Stop reporting source mutation progress. */
-  endSourceState(): void {
-    this.sourceStore.endSourceState()
   }
 
   // ---- Install state ----

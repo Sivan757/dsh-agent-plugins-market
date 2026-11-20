@@ -2,10 +2,10 @@
  * The one status band the MCP and LSP service details open with.
  *
  * The band is the dialog's only state container. Its first line holds the state
- * dot, the state tags, and the one recovery action the state offers on the
- * trailing edge; under it come what the last operation did, the sentence the
- * failure classifier picked, the recorded diagnostic behind a disclosure, and
- * the endpoint or command the service runs.
+ * dot and the state tags; under it come what the last operation did, the
+ * sentence the failure classifier picked, the recorded diagnostic behind a
+ * disclosure, and the endpoint or command the service runs. Actions belong to
+ * the footer of the dialog that shows the band, never to the band itself.
  *
  * The 3px leading edge carries the state with the same mapping the inventory
  * card uses, while the fill stays the platform's soft neutral one: a healthy
@@ -44,8 +44,6 @@ export interface StatusBandProps {
   tone: BandTone
   /** The state tags on the band's first line. */
   labels: ReactNode
-  /** The one recovery action this state offers, on the first line's trailing edge. */
-  action?: ReactNode
   /** What the last operation did; it never restates the reason below it. */
   echo?: { readonly error: boolean; readonly text: string } | undefined
   /** The classified failure shape; its sentence leads the reason line. */
@@ -58,7 +56,7 @@ export interface StatusBandProps {
   mono?: string | undefined
 }
 
-export function StatusBand({ t, dot, tone, labels, action, echo, guidance, reason, causes, mono }: StatusBandProps): ReactNode {
+export function StatusBand({ t, dot, tone, labels, echo, guidance, reason, causes, mono }: StatusBandProps): ReactNode {
   const [open, setOpen] = useState(false)
   const lead = guidance === undefined ? reason : t(FAILURE_GUIDANCE_LABEL[guidance])
   // A classified failure keeps the words another layer chose behind the
@@ -68,13 +66,7 @@ export function StatusBand({ t, dot, tone, labels, action, echo, guidance, reaso
   return h(
     'section',
     { className: css.band, 'data-band-tone': tone, 'data-status-band': true },
-    h(
-      'div',
-      { className: css.top },
-      h(StateDot, { state: dot }),
-      h('div', { className: css.labels }, labels),
-      action === undefined ? null : h('div', { className: css.actions }, action)
-    ),
+    h('div', { className: css.top }, h(StateDot, { state: dot }), h('div', { className: css.labels }, labels)),
     echo === undefined ? null : h('p', { className: echo.error ? css.echo : `${css.echo} ${css.echoSuccess}`, role: echo.error ? 'alert' : 'status' }, echo.text),
     lead === undefined ? null : h('p', { className: css.reason }, lead),
     diagnostic.length === 0

@@ -9,7 +9,7 @@
  * background, so those two shapes cannot be reconciled from the outside.
  * @module client/ui/DetailRows
  */
-import { createElement as h, useId, type ReactNode } from 'react'
+import { Fragment, createElement as h, useId, type ReactNode } from 'react'
 import { IconChevronDownOutlineMedium, IconChevronRightOutlineMedium } from '@deepseek-ai/dsh-client-ui-primitives'
 import { hintProps, hoverHint } from './hover-hint.js'
 import css from './detail-rows.module.css'
@@ -155,7 +155,9 @@ export function DetailRow(props: {
 export function KvGrid({ cells }: { cells: Array<ReactNode | null | undefined> }): ReactNode {
   const shown = cells.filter((cell): cell is ReactNode => cell !== null && cell !== undefined)
   const columns = shown.length <= 4 ? Math.max(1, shown.length) : Math.ceil(shown.length / Math.ceil(shown.length / 4))
-  return h('dl', { className: panelCss.kvGrid, style: { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } }, shown)
+  // The caller builds the cells as a list literal, so the grid owns their keys.
+  const keyed = shown.map((cell, index) => h(Fragment, { key: index }, cell))
+  return h('dl', { className: panelCss.kvGrid, style: { gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))` } }, keyed)
 }
 
 /** One label/value pair in a detail dialog's overview grid; `key` props a row built in a loop. */

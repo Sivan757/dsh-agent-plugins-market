@@ -183,7 +183,7 @@ export function SuiteDetailModal({
     // No subtitle: the kind and the source are already tags on the identity row,
     // and the source repeats the overview grid's own `来源套件` cell.
     closeLabel: t('cancel'),
-    footer: footer(t, detail, { onClose, onInstall, onUninstall }),
+    actions: footerAction(t, detail, { onInstall, onUninstall }),
     children: h(ErrorBoundary, {
       fallback: boundaryError => h('div', { className: css.warnLine }, `${t('actionFail')}: ${boundaryError.message}`),
       children:
@@ -337,12 +337,8 @@ function row(current: string | undefined, id: string, name: string, description:
   })
 }
 
-function footer(
-  t: Translate,
-  detail: SuiteDetail | undefined,
-  actions: { onClose: () => void; onInstall?: (() => void) | undefined; onUninstall?: (() => void) | undefined }
-): ReactNode {
-  // One action per state; closing rides the modal chrome (closeLabel / ESC).
+/** The dialog's one action for this suite's state; closing rides the chrome. */
+function footerAction(t: Translate, detail: SuiteDetail | undefined, actions: { onInstall?: (() => void) | undefined; onUninstall?: (() => void) | undefined }): ReactNode {
   if (detail !== undefined && !detail.installed && actions.onInstall !== undefined) {
     return h(Button, { key: 'install', variant: 'primary', onClick: actions.onInstall }, t('install'))
   }

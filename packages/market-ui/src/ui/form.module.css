@@ -46,7 +46,7 @@
   min-width: 0;
   padding: 7px 9px;
   border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-bg-layer-1);
   color: var(--dsw-alias-label-primary);
   font: inherit;
@@ -59,6 +59,19 @@
   font-size: 12px;
   line-height: 19px;
   resize: vertical;
+}
+
+/* Focus is the field's own edge, not a frame outside it: the host's global
+   `:focus-visible` outlines a text control with 2px at an offset, which read as
+   a second, heavier box around the input. The border takes the accent and a
+   soft halo states the same thing without leaving the field's geometry. */
+.field input:focus,
+.field select:focus,
+.field textarea:focus {
+  outline: none;
+  border-color: var(--dsw-alias-state-business-primary);
+  box-shadow: 0 0 0 2px var(--dsw-alias-state-business-tertiary);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--dsw-alias-state-business-primary) 18%, transparent);
 }
 
 /* The JSON view of a service document is shorter than a whole document body. */
@@ -90,13 +103,6 @@
   flex: 1 1 auto;
 }
 
-.field input:focus-visible,
-.field select:focus-visible,
-.field textarea:focus-visible {
-  outline: 2px solid var(--dsw-alias-brand-primary);
-  outline-offset: 1px;
-}
-
 .hint {
   color: var(--dsw-alias-label-tertiary);
   font-size: 11px;
@@ -124,7 +130,7 @@
   box-sizing: border-box;
   padding: 7px 9px;
   border: 1px dashed var(--dsw-alias-border-l3);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
@@ -162,7 +168,7 @@
   width: 100%;
   padding: 8px 10px;
   border: 1px dashed var(--dsw-alias-border-l3);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-md);
   background: none;
   color: var(--dsw-alias-label-tertiary);
   font: inherit;
@@ -185,12 +191,12 @@
   gap: 10px;
 }
 
-/* One editing column: a wide dialog does not stretch its fields across the
-   page. It fills the height its dialog gives the body and never shrinks below
-   its own content, so an overflowing form scrolls the body instead of being
-   clipped inside a compressed column. */
+/* One editing column per dialog: the fields take the column the dialog gives
+   them, so their leading and trailing edges match the dialog's own header and
+   footer instead of stopping short of it. The body fills the height its dialog
+   gives it and never shrinks below its own content, so an overflowing form
+   scrolls the body instead of being clipped inside a compressed column. */
 .editorBody {
-  max-width: 620px;
   flex: 1 0 auto;
 }
 
@@ -208,21 +214,24 @@
   grid-column: 1 / -1;
 }
 
-/* One bordered track holding its options, not a row of separate buttons. */
+/* One bordered track holding its options, not a row of separate buttons. The
+   track sizes to its segments: a field column would otherwise stretch it to
+   full width, which reads as an empty input carrying a pill of text. */
 .seg {
   display: inline-flex;
   flex: none;
+  align-self: flex-start;
   gap: 2px;
   padding: 2px;
   border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-md);
 }
 
 .seg button {
   height: 24px;
   padding: 0 10px;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--dsw-radius-sm);
   background: none;
   color: var(--dsw-alias-label-secondary);
   cursor: pointer;
@@ -258,7 +267,7 @@
 .readonly {
   padding: 7px 9px;
   border: 1px dashed var(--dsw-alias-border-l3);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-md);
   background: var(--dsw-alias-interactive-bg-hover);
   color: var(--dsw-alias-label-primary);
   font-family: var(--ds-font-family-code);
@@ -304,7 +313,7 @@
   height: 24px;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--dsw-radius-sm);
   background: none;
   color: var(--dsw-alias-label-tertiary);
   cursor: pointer;
@@ -335,7 +344,7 @@
   height: 24px;
   padding: 0;
   border: none;
-  border-radius: 6px;
+  border-radius: var(--dsw-radius-sm);
   background: none;
   color: var(--dsw-alias-brand-primary);
   cursor: pointer;
@@ -368,7 +377,7 @@
      above the first row can stay small. */
   padding: 4px 12px 12px;
   border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-lg);
 }
 
 .roleFieldset {
@@ -395,34 +404,15 @@
   padding: 12px 14px;
   /* matches the editor frame so both views read as one body */
   border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-lg);
   overflow-y: auto;
   box-sizing: border-box;
 }
 
-/* ---- the dialog footer ------------------------------------------------- */
+/* ---- inline failures ---------------------------------------------------- */
 
-.footer {
-  display: flex;
-  flex: 1;
-  min-width: 0;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-}
-
-.footerHint {
-  min-width: 0;
-  overflow-wrap: anywhere;
-  color: var(--dsw-alias-label-tertiary);
-  font-size: 12px;
-}
-
-.grow {
-  flex: 1 1 auto;
-}
-
-.footerError {
+/* A reason placed beside the field it belongs to. */
+.fieldError {
   color: var(--dsw-alias-state-error-primary);
   font-size: 12px;
 }
@@ -442,18 +432,46 @@
   }
 }
 
-/* The intent row: one line above the fields it fills, used by the hook form and the AI
-   suggestion dialogs. The row stays quiet until it has something to say, so it does not
-   compete with the fields a person came to edit. */
-.aiField {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
+/* The rows an answer chose: each one a line the reader reads and keeps or drops.
+   The list never scrolls on its own; the dialog body already does, under its
+   floating thumb. */
+.aiChoices {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.aiChoice {
+  display: flex;
+  align-items: flex-start;
   gap: 8px;
-  align-items: center;
-  padding: 8px 10px;
+  padding: 6px 8px;
   border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 8px;
-  background: var(--dsw-alias-bg-layer-2);
+  border-radius: var(--dsw-radius-md);
+  cursor: pointer;
+}
+.aiChoice:hover {
+  background: var(--dsw-alias-interactive-bg-hover);
+}
+.aiChoice input {
+  margin-top: 2px;
+  flex: none;
+}
+.aiChoiceText {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.aiChoiceName {
+  color: var(--dsw-alias-label-primary);
+  font-size: 12px;
+  font-weight: 600;
+}
+.aiChoiceDetail {
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 11px;
+  line-height: 16px;
+  overflow-wrap: anywhere;
 }
 
 .aiNote {
@@ -467,15 +485,6 @@
 }
 
 /* The suggestion preview: a short list, because the point is to read what would be created. */
-.aiList {
-  margin: 4px 0 0;
-  padding-left: 18px;
-  color: var(--dsw-alias-label-secondary);
-  font-size: 12px;
-  max-height: 180px;
-  overflow: auto;
-}
-
 /* The explanation block: a press, then prose. It sits inside a dialog's body beside the facts
    it explains, so it reads as a continuation of the row rather than a separate tool. */
 .diagnoseBlock {

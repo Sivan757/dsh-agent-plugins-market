@@ -1,27 +1,23 @@
 /**
- * The user-hooks routes: draft one entry, append one entry.
+ * The user-hooks route: append one entry.
  *
- * The document is the reader's file, so the save route is an append with a merge rule and the
- * draft route is a model call with a shape check. Neither reads anything but the layout root
- * they were given, and neither can rewrite an entry the reader wrote by hand.
+ * The document is the reader's file, so the save is an append with a merge rule. It reads
+ * nothing but the layout root it was given, and it cannot rewrite an entry the reader wrote by
+ * hand.
  *
  * @module routes-user-hooks
  */
 import type { IncomingMessage, ServerResponse } from 'node:http'
 import { USER_HOOK_EVENTS, USER_HOOK_LIMITS, USER_HOOKS_ROUTES, type UserHookEvent, type UserHookSaveRequest } from '../../market-contracts/src/contracts/user-hooks.js'
 import { appendUserHook } from './application/user-hooks-writer.js'
-import { createAiHookService } from './application/ai-hook.js'
-import type { AiPort } from './application/ai-port.js'
 import { isTrustedMutation, requestTrustAuthoritiesOf } from './request-trust.js'
 import { routeFailurePayload, type RouteLogger } from './route-errors.js'
 import { readJsonBody, sendJson } from './route-http.js'
 
-/** What the routes need from the composition root. */
+/** What the route needs from the composition root. */
 export interface UserHooksRouteDeps {
   /** The Agent layout root the hook document lives under. */
   agentsRoot: string
-  /** The model call, or undefined when this deployment has none. */
-  port: AiPort | undefined
   logger: RouteLogger
 }
 
@@ -75,45 +71,7 @@ export function mountUserHooksRoutes(ctx: { get(name: string): unknown }, deps: 
       }
     }
   })
-  const hookService = createAiHookService(deps.port)
-  const disposeDraft = server.register({
-    kind: 'exact',
-    path: USER_HOOKS_ROUTES.draft,
-    handler: async (request: IncomingMessage, response: ServerResponse) => {
-      if (request.method !== 'POST') {
-        sendJson(response, 405, { error: 'method not allowed' })
-        return
-      }
-      if (!isTrustedMutation(request, requestTrustAuthoritiesOf(ctx))) {
-        sendJson(response, 403, { error: 'untrusted request' })
-        return
-      }
-      const body = (await readJsonBody(request)) as { intent?: unknown; locale?: unknown }
-      if (typeof body.intent !== 'string' || body.intent.trim() === '' || body.intent.length > USER_HOOK_LIMITS.intentChars) {
-        sendJson(response, 400, { error: 'say what the hook should do' })
-        return
-      }
-      try {
-        const draft = await hookService.draft({ intent: body.intent, locale: body.locale === 'en' ? 'en' : 'zh' })
-        sendJson(response, 200, { ok: true, ...draft })
-      } catch (error) {
-        const code = (error as { code?: string }).code
-        const payload = looksLikeALimit(error)
-          ? { ok: false as const, code: 'ai-provider-limited', error: 'the model refused the call: ' + String((error as Error).message) }
-          : routeFailurePayload(error, 'user hooks draft', deps.logger)
-        sendJson(response, code === 'ai-model-unconfigured' || code === 'ai-unavailable' ? 409 : code === 'ai-invalid-draft' ? 422 : 502, payload)
-      }
-    }
-  })
   return () => {
     disposeSave()
-    disposeDraft()
   }
-}
-
-/** Whether a failure is the provider refusing the call for a limit. */
-function looksLikeALimit(error: unknown): boolean {
-  if (!(error instanceof Error)) return false
-  const text = error.message.toLowerCase()
-  return text.includes('429') || text.includes('rate limit') || text.includes('usage limit') || text.includes('quota')
 }

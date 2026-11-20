@@ -29,7 +29,13 @@ export function createLlmDraftPort(host: AuxiliaryCallHost): AiPort {
         throw Object.assign(new Error('no model is configured for drafting; set the default model first'), { code: 'ai-model-unconfigured' })
       }
       const controller = new AbortController()
-      const timeout = setTimeout(() => controller.abort(), AI_ANSWER_LIMITS.timeoutMs)
+      // A call that outlives its budget is a failure the reader can retry, not a
+      // provider refusal: it crosses with its own code so the header says so.
+      let expired = false
+      const timeout = setTimeout(() => {
+        expired = true
+        controller.abort()
+      }, AI_ANSWER_LIMITS.timeoutMs)
       const forward = (): void => controller.abort()
       outerSignal?.addEventListener('abort', forward, { once: true })
       try {
@@ -65,6 +71,9 @@ export function createLlmDraftPort(host: AuxiliaryCallHost): AiPort {
           model: route.model,
           ...(usage === undefined ? {} : { usage: { inputTokens: usage.inputTokens, outputTokens: usage.outputTokens } })
         }
+      } catch (error) {
+        if (expired) throw Object.assign(new Error('the model did not answer within ' + String(AI_ANSWER_LIMITS.timeoutMs) + ' ms'), { code: 'ai-timeout' })
+        throw error
       } finally {
         clearTimeout(timeout)
         outerSignal?.removeEventListener('abort', forward)

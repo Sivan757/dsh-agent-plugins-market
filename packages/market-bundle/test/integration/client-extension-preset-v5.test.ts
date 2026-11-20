@@ -144,7 +144,7 @@ it.each([false, true])('uses the shared agent extension icon for started=%s', as
   // The entry names the preset it selects; the icon still leads it.
   expect(button.textContent).toBe('Default')
   expect(button.querySelector('svg')!.getAttribute('width')).toBe('16')
-  expect(button.querySelector('svg')!.getAttribute('viewBox')).toBe('0 0 28 28')
+  expect(button.querySelector('svg')!.getAttribute('viewBox')).toBe('0 0 16 16')
   await click('Default')
   expect(document.querySelector('[role="menu"]')).not.toBeNull()
   expect(document.body.textContent).not.toContain('Adjust this session')
@@ -413,7 +413,9 @@ it('keeps frame geometry but delegates card layout and typography to shared styl
   expect(css).toContain('height: 800px')
   expect(css).toContain('max-width: 100%')
   expect(css).toContain('max-height: 100%')
-  expect(css).toContain('max-width: 600px')
+  // The action row belongs to the shared dialog shell now: this sheet keeps the
+  // frame, the plan strip and the body, and no footer of its own.
+  expect(css).not.toContain('.footer')
   expect(css).not.toContain('grid-template-columns')
   expect(css).not.toContain('font-size:')
   expect(css).not.toContain('position: absolute')

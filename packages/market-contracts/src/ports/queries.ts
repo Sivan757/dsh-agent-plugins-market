@@ -1,7 +1,7 @@
 /** Narrow application interfaces consumed by the HTTP transport adapter. */
 import type { McpStatusPayload } from '../contracts/mcp-status.js'
 import type { LspLegacySeamMigration, LspStatusPayload } from '../contracts/lsp-status.js'
-import type { MenuRowFaceWire, OverviewPayload, SourceProgress, SuiteDetail, SuiteDocumentText, UserPanelKind } from '../contracts/market.js'
+import type { MenuRowFaceWire, OverviewPayload, SuiteDetail, SuiteDocumentText, UserPanelKind } from '../contracts/market.js'
 import type { DocumentTranslation } from '../contracts/translation.js'
 import type { SourceRef, SuiteSurfaceKey } from '../model/types.js'
 import type { McpServerOverride, McpSuiteOverrides } from '../contracts/mcp-overrides.js'
@@ -17,7 +17,6 @@ export interface MarketQueries {
   mcpStatus(): Promise<McpStatusPayload>
   lspStatus(): Promise<LspStatusPayload>
   lspServers(): Promise<LspServerTable>
-  sourceProgress(): SourceProgress
   suiteDetail(sourceId: string, suiteId: string): Promise<SuiteDetail>
   /**
    * One suite document's authored text — a skill, a command, or an agent — for

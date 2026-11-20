@@ -8,14 +8,11 @@
  * @module contracts/user-hooks
  */
 import { MARKET_API_PREFIX } from './market.js'
-import type { AiUsage } from './ai-draft.js'
 
 /** The routes this contract owns. */
 export const USER_HOOKS_ROUTES = {
   /** Append one hook entry to the user's hook document. POST. */
-  save: `${MARKET_API_PREFIX}user-hooks/save`,
-  /** Draft one hook entry from an intent. POST. */
-  draft: `${MARKET_API_PREFIX}user-hooks/draft`
+  save: `${MARKET_API_PREFIX}user-hooks/save`
 } as const
 
 /** The events a hook can attach to, most useful first. */
@@ -44,21 +41,8 @@ export interface UserHookSaveRequest {
   matcher?: string
 }
 
-/** One drafted hook entry, with the route that produced it. */
-export interface UserHookDraft {
-  event: UserHookEvent
-  command: string
-  matcher?: string
-  provider: string
-  model: string
-  /** What the call cost, when the provider reported it. */
-  usage?: AiUsage
-}
-
 /** Bounds one hook request is measured against. */
 export const USER_HOOK_LIMITS = {
-  /** Characters of intent one draft may carry. */
-  intentChars: 500,
   /** Characters of command one entry may carry. */
   commandChars: 500,
   /** Characters of matcher one entry may carry. */

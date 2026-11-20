@@ -3,7 +3,6 @@ import {
   Button,
   Input,
   Menu,
-  Modal,
   Tooltip,
   Toast,
   IconSettingsOutlineMedium,
@@ -15,6 +14,7 @@ import {
   IconRefreshOutlineMedium
 } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
+  EXTENSION_SELECTION_PROJECTION_KEY,
   stripConfigurationParentIds,
   parseExtensionName,
   parseExtensionPresetTransfer,
@@ -23,12 +23,13 @@ import {
   type ExtensionPresetLibrary,
   type ExtensionResource
 } from '../../../../market-contracts/src/contracts/extension-presets.js'
-import type { ExtensionTranslate } from './types.js'
+import type { ExtensionSelectionFace, ExtensionTranslate, UseSessionProjection } from './types.js'
 import { ResourceList } from './ResourceList.js'
 import type { RenderExtensionDetail } from './details.js'
 import { useExtensionWindow, type ExtensionWindowObserver } from './use-window.js'
 import { canonicalPresetSelection, presetCoverage, presetSuggestionCandidates, resourceSelected, uniquePresetName } from './resource.js'
 import { AiSelectionModal } from '../../ui/AiSelectionModal.js'
+import { DetailModal } from '../../ui/DetailModal.js'
 import css from './presets.module.css'
 import entryCss from './entry.module.css'
 import { AgentExtensionIcon } from '../../ui/AgentExtensionIcon.js'
@@ -45,13 +46,15 @@ export interface ExtensionPresetEntryProps {
   t: ExtensionTranslate
   renderDetail: RenderExtensionDetail
   observer?: ExtensionWindowObserver
+  /** Host-computed projection values; absent outside a session-scoped seat. */
+  useProjection?: UseSessionProjection
 }
 
 export function ExtensionPresetEntry(props: ExtensionPresetEntryProps): ReactNode {
   return h(SessionEntry, { ...props, key: props.sessionId })
 }
-function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetEntryProps): ReactNode {
-  const { data, error, notReady, mutate, retry } = useExtensionWindow(sessionId, observer)
+function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: ExtensionPresetEntryProps): ReactNode {
+  const { data, error, mutate, retry } = useExtensionWindow(sessionId, observer)
   const selected = data?.intendedSelection ?? data?.state.selection
   const [menu, setMenu] = useState(false),
     [manager, setManager] = useState(false)
@@ -81,6 +84,10 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
     [clipText, setClipText] = useState('')
   const [leave, setLeave] = useState<{ action: () => void }>()
   const [replacement, setReplacement] = useState<{ presetId: string | null }>()
+  // The preset the person just clicked. The commit is a mount, not a database write,
+  // so the chip answers the click now and the acknowledged selection reconciles it;
+  // holding the old name until a server-side mount finished reads as a frozen control.
+  const [pendingSelection, setPendingSelection] = useState<{ id: string | null; name: string | null }>()
   // The same shape the server capture publishes: available, globally on, and
   // never carrying a configuration parent id.
   const globalIds = () =>
@@ -99,6 +106,26 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
     setFeedback('')
   }
   /**
+   * Commit one preset choice, showing it before the server acknowledges it.
+   *
+   * The commit mounts suites, hooks and services, so waiting for it before the chip
+   * says anything reads as a frozen control. A failure drops the pending name, so the
+   * chip falls back to whatever the session still runs; a second click replaces the
+   * pending one without the first write's settlement clearing it.
+   * @param presetId - the preset to run, or null for the global selection.
+   * @param success - the sentence the toast shows once the commit is acknowledged.
+   * @returns after the write settles.
+   */
+  const applyPreset = async (presetId: string | null, success?: string): Promise<void> => {
+    const name = presetId === null ? null : data?.library.presets.find(row => row.id === presetId)?.name
+    if (name !== undefined) setPendingSelection({ id: presetId, name })
+    try {
+      await report(() => mutate('select', { presetId }), success)
+    } finally {
+      setPendingSelection(current => (current?.id === presetId ? undefined : current))
+    }
+  }
+  /**
    * Choose a preset, and say what it changed besides the switches.
    *
    * A preset can carry an output style now, so selecting one may change how the session
@@ -114,7 +141,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
       setReplacement({ presetId })
       return
     }
-    void report(() => mutate('select', { presetId }), styleRow === undefined ? t('epSelected') : t('epSelectedWithStyle', { style: styleRow }))
+    void applyPreset(presetId, styleRow === undefined ? t('epSelected') : t('epSelectedWithStyle', { style: styleRow }))
   }
   /**
    * One line saying what a set of ids covers.
@@ -291,18 +318,25 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
     })
   }
   const unready = data?.status?.ready === false
-  const name = unready
-    ? t('epNotReady')
-    : data
-      ? (selected?.presetName ?? t('epGlobal')) + (selected?.modified ? ' · ' + t('epModified') : '')
-      : t(error ? (notReady ? 'epSessionInactive' : 'epLoadFailed') : 'epLoading')
-  // What the entry says beside its icon: the preset this session is in, the
-  // global word when it follows no preset, and the state word while the read
-  // has not answered. The modified suffix and the loading copy stay in the
-  // tooltip and the accessible name, because the composer row is shared with
-  // Permissions and Plan and a translated suffix would push it wider without
-  // answering the reader's question.
-  const label = selected?.presetName ?? (data === undefined ? name : t('epGlobal'))
+  // The host folds the committed selection into a session projection, so the chip
+  // has an answer before any request runs: this is the same carrier the host's own
+  // composer chips read, and it exists for a session that has no Agent yet. A
+  // pending request is the newer intent, so an answered panel wins over the fold.
+  const projected = useProjection?.(EXTENSION_SELECTION_PROJECTION_KEY) as ExtensionSelectionFace | undefined
+  const face =
+    pendingSelection !== undefined
+      ? { presetId: pendingSelection.id, presetName: pendingSelection.name, modified: false }
+      : selected === undefined
+        ? projected
+        : { presetId: selected.presetId, presetName: selected.presetName, modified: selected.modified }
+  // What the entry says beside its icon: the preset this session is in, or the
+  // global word when it follows no preset. The modified suffix stays in the tooltip
+  // and the accessible name, because the composer row is shared with Permissions
+  // and Plan and a translated suffix would push it wider without answering the
+  // reader's question. Nothing is drawn before the first answer: a state word here
+  // would be a wait the other composer chips never ask for.
+  const label = face === undefined ? (error === '' ? undefined : t('epLoadFailed')) : (face.presetName ?? t('epGlobal'))
+  const name = label === undefined ? t('epTitle') : label + (face?.modified === true ? ' · ' + t('epModified') : '')
   const savedDirty = dirty && !libraryDraft
   const duplicate = data?.library.presets.some(p => p.name === newName.trim() && (naming !== 'rename' || p.id !== editing)) === true
   const editableClipboard = (target: EventTarget | null) => target instanceof HTMLElement && !!target.closest('input, textarea, select, [contenteditable="true"]')
@@ -315,9 +349,9 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
         side="top"
         dense
         selection="check"
-        selectedId={unready || selected?.modified ? undefined : (selected?.presetId ?? 'global')}
+        selectedId={unready || face?.modified === true ? undefined : (face?.presetId ?? 'global')}
         anchor={
-          <Tooltip label={t('epTitle') + ' · ' + name} side="top">
+          <Tooltip label={label === undefined ? t('epTitle') : t('epTitle') + ' · ' + name} side="top">
             <span>
               <button
                 type="button"
@@ -331,7 +365,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
                 <span className={entryCss.entryIcon} aria-hidden>
                   <AgentExtensionIcon />
                 </span>
-                <span className={entryCss.entryLabel}>{label}</span>
+                {label !== undefined && <span className={entryCss.entryLabel}>{label}</span>}
                 <span className={menu ? `${entryCss.entryChevron} ${entryCss.entryChevronOpen}` : entryCss.entryChevron} aria-hidden>
                   <IconChevronDownOutlineRegular />
                 </span>
@@ -345,10 +379,17 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
           { id: 'global', label: t('epGlobal'), icon: <IconRefreshOutlineMedium />, disabled: !data || unready || writes > 0 },
           ...(data?.library.presets.map(p => ({ id: p.id, label: p.name, icon: <AgentExtensionIcon size={16} />, disabled: unready || writes > 0 })) ?? []),
 
+          // A session whose selection could not be published is a failed read, not a
+          // wait: the panel names the failure the same way every other read failure
+          // is named, and offers the recovery that clears it.
           ...(unready
             ? [
-                { type: 'label' as const, id: 'not-ready', text: t('epNotReady') + ' ' + (data.status?.error ?? '') },
-                ...(data.status?.recoverable ? [{ id: 'recover', label: t('epRecover'), disabled: data.busy || writes > 0 }] : [])
+                {
+                  type: 'label' as const,
+                  id: 'not-ready',
+                  text: t('epLoadFailed') + (data?.status?.error === undefined ? '' : ' ' + data.status.error)
+                },
+                ...(data?.status?.recoverable === true ? [{ id: 'recover', label: t('epRecover'), disabled: data.busy || writes > 0 }] : [])
               ]
             : []),
           // The session is ready but its catalog read is in flight, so its tools
@@ -357,7 +398,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
           ...(data?.status?.inventoryPending === true && !unready ? [{ type: 'label' as const, id: 'inventory-pending', text: t('epInventoryPending') }] : []),
           ...(error
             ? [
-                { type: 'label' as const, id: 'error', text: t(notReady ? 'epSessionInactive' : 'epLoadFailed') + ' ' + error },
+                { type: 'label' as const, id: 'error', text: t('epLoadFailed') + ' ' + error },
                 { id: 'retry', label: t('epRetry') }
               ]
             : [])
@@ -368,25 +409,22 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
       />
       {toast && <Toast key={toast.id} text={toast.text} tone={toast.success ? 'success' : undefined} holdMs={toast.success ? 3000 : 10000} onDone={() => setToast(undefined)} />}
       {manager && data && (
-        <Modal
+        <DetailModal
           open
           title={t('epManageTitle')}
           closeLabel={t('epClose')}
           className={css.modal}
           contentClassName={css.modalContent}
           onClose={dismiss}
-          footer={
-            // One row, one size: the footer row carries the host's default
-            // geometry (md, 36px), like every other dialog's footer in the
-            // plugin. A compact pair here was the one footer that did not.
-            <div className={css.footer}>
+          actions={
+            <>
               <Button variant="outline" disabled={writes > 0 || savedDirty || defaultSelected} onClick={setDefault}>
                 {defaultSelected ? t('epIsDefault') : t('epDefault')}
               </Button>
               <Button variant="primary" disabled={writes > 0 || savedDirty} onClick={libraryDraft ? () => beginName('save') : dismiss}>
                 {libraryDraft ? t('epSave') : t('epDone')}
               </Button>
-            </div>
+            </>
           }
         >
           <div
@@ -539,16 +577,16 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
               onView={setDetail}
             />
           </div>
-        </Modal>
+        </DetailModal>
       )}
-      <Modal
+      <DetailModal
         open={naming !== null}
         title={t(naming === 'rename' ? 'epRename' : 'epSave')}
         closeLabel={t('epClose')}
         onClose={() => {
           if (!writes) setNaming(null)
         }}
-        footer={
+        actions={
           <>
             <Button onClick={() => setNaming(null)} disabled={writes > 0}>
               {t('epCancel')}
@@ -572,8 +610,8 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
         />
         {duplicate && <p role="alert">{t('epDuplicate')}</p>}
         {feedback.startsWith(t('epFailed')) && <p role="alert">{feedback}</p>}
-      </Modal>
-      <Modal
+      </DetailModal>
+      <DetailModal
         open={deletingId !== undefined}
         title={t('epDelete')}
         description={t('epDeleteConfirm')}
@@ -581,7 +619,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
         onClose={() => {
           if (!writes) setDeletingId(undefined)
         }}
-        footer={
+        actions={
           <Button
             disabled={writes > 0}
             onClick={() =>
@@ -597,7 +635,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
           </Button>
         }
       />
-      <Modal
+      <DetailModal
         open={clipboard !== null}
         title={t(clipboard === 'copy' ? 'epCopy' : 'epPaste')}
         description={t(clipboard === 'copy' ? 'epCopyFallback' : 'epPasteHint')}
@@ -605,7 +643,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
         onClose={() => {
           if (!writes) setClipboard(null)
         }}
-        footer={
+        actions={
           clipboard === 'paste' ? (
             <Button disabled={writes > 0 || !clipText.trim()} onClick={() => importText(clipText)}>
               {t('epImport')}
@@ -624,14 +662,14 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
           }}
         />
         {feedback && <p role="status">{feedback}</p>}
-      </Modal>
-      <Modal
+      </DetailModal>
+      <DetailModal
         open={leave !== undefined}
         title={t('epDiscard')}
         description={t('epDiscardHint')}
         closeLabel={t('epClose')}
         onClose={() => setLeave(undefined)}
-        footer={
+        actions={
           <>
             <Button onClick={() => setLeave(undefined)}>{t('epCancel')}</Button>
             <Button
@@ -648,20 +686,20 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
           </>
         }
       />
-      <Modal
+      <DetailModal
         open={replacement !== undefined}
         title={t('epReplace')}
         description={t('epReplaceHint')}
         closeLabel={t('epClose')}
         onClose={() => setReplacement(undefined)}
-        footer={
+        actions={
           <Button
             disabled={writes > 0}
             onClick={() => {
               if (replacement) {
                 const presetId = replacement.presetId
                 setReplacement(undefined)
-                void report(() => mutate('select', { presetId }))
+                void applyPreset(presetId)
               }
             }}
           >
@@ -676,7 +714,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
             // has, in the order that keeps the ones that carry a selection when the list
             // is cut at the bound the contract states.
             candidates: presetSuggestionCandidates(data?.resources ?? []),
-            onApply: async suggestion => {
+            onApply: async (suggestion, ids) => {
               // The suggestion names rows the way a person does, so the preset has to carry
               // the same closure the manager's switches build. A row under a suite carries
               // the suite that owns it, and a suite carries the rows under it: without
@@ -684,7 +722,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer }: ExtensionPresetE
               const enabledIds = canonicalPresetSelection(
                 data?.resources ?? [],
                 [],
-                suggestion.enabledIds.map(id => ({ id, enabled: true }))
+                ids.map(id => ({ id, enabled: true }))
               )
               // The name the model chose may already be taken. A conflict would fail the
               // create and lose the suggestion, so the name is made unique first.

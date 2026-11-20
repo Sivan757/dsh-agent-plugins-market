@@ -12,7 +12,7 @@ import { createElement as h, useState, type ReactNode } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import { requestAiDiagnosis } from '../api.js'
 import type { AiDiagnoseFace, AiDiagnoseFailure } from '../../../market-contracts/src/contracts/ai-draft.js'
-import { clientErrorMessage } from './error-message.js'
+import { aiFailureText } from './error-message.js'
 import type { Translate } from '../i18n.js'
 import css from './form.module.css'
 
@@ -50,10 +50,7 @@ export function DiagnoseBlock(props: DiagnoseBlockProps): ReactNode {
       .then(result => {
         setAnswer(result.text)
       })
-      .catch(caught => {
-        const code = typeof caught === 'object' && caught !== null ? (caught as { code?: unknown }).code : undefined
-        setError(code === 'ai-provider-limited' ? t('aiDraftLimited') : clientErrorMessage(t, caught))
-      })
+      .catch(caught => setError(aiFailureText(t, caught)))
       .finally(() => setBusy(false))
   }
   return h(

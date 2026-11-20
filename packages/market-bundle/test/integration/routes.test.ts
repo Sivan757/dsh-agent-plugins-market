@@ -15,7 +15,6 @@ function service(): MarketService {
       totals: { all: 0, connected: 0, degraded: 0, failed: 0, needsCredentials: 0, orphaned: 0, disabled: 0, foreign: 0 },
       directObservationOnly: true
     }),
-    sourceProgress: () => ({ active: false, sourceId: '', step: '' }),
     serverConfig: async (kind, id) => ({ kind, id, key: 'service', editable: true, config: {} }),
     lspStatus: async () => ({ entries: [], observedAt: '', totals: { all: 0, mounted: 0, failed: 0, blocked: 0, disabled: 0 }, hostMissing: false }),
     clearTranslations: async () => {},

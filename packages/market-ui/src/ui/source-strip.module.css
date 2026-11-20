@@ -110,7 +110,7 @@
   overflow: hidden;
   padding: 6px 6px 0;
   background: var(--dsw-alias-bg-layer-1, #fff);
-  border-radius: 10px;
+  border-radius: var(--dsw-radius-lg);
   transition:
     max-height 160ms ease,
     box-shadow 160ms ease,
@@ -191,6 +191,7 @@
   padding: 0 10px;
   border: 1px solid var(--dsw-alias-border-l3, #d9dde3);
   border-radius: 999px;
+  corner-shape: round;
   overflow: hidden;
   background: var(--dsw-alias-bg-layer-1, #fff);
 }

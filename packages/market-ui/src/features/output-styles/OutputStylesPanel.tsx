@@ -16,7 +16,8 @@ import type { Translate } from '../../i18n.js'
 import { clientErrorMessage } from '../../ui/error-message.js'
 import { CodeEditor } from '../../ui/CodeEditor.js'
 import { buildFaceEntry } from '../../ui/face-entry.js'
-import { DetailModal } from '../../ui/DetailModal.js'
+import { DetailModal, FormDialog } from '../../ui/DetailModal.js'
+import formCss from '../../ui/form.module.css'
 import { ConfirmModal, PanelActions, PanelHeader, ReadFailed, type PanelConfirmState } from '../../ui/panel.js'
 import { ResourceSurface } from '../../ui/ResourceSurface.js'
 import { surfaceProviderCuts } from '../../ui/surface-facets.js'
@@ -235,23 +236,19 @@ function StyleEditor(props: {
   // What the editor held when the current draft arrived, so undo can put it back.
   const nameValid = /^[a-z0-9][a-z0-9._-]*$/.test(draft.name.trim())
   return h(
-    DetailModal,
+    FormDialog,
     {
-      open: true,
-      size: 'lg',
       onClose,
+      size: 'lg',
       title: draft.exists ? t('outputStylesEditTitle', { name: draft.name }) : t('outputStylesCreateTitle'),
       closeLabel: t('cancel'),
-      footer: h(
-        'div',
-        { className: css.footer },
-        error === undefined ? null : h('span', { className: css.footerError, role: 'alert' }, error),
-        h('span', { className: css.footerHint }, t('outputStylesNameHint')),
-        h('div', { className: css.grow }),
-        h(Button, { variant: 'outline', onClick: onClose }, t('cancel')),
+      ...(error === undefined ? {} : { alert: error }),
+      actions: [
+        h(Button, { key: 'cancel', variant: 'outline', onClick: onClose }, t('cancel')),
         h(
           Button,
           {
+            key: 'save',
             variant: 'primary',
             disabled: busy || !nameValid,
             onClick: () => {
@@ -261,41 +258,40 @@ function StyleEditor(props: {
           },
           t('save')
         )
-      )
+      ]
     },
     h(
-      'div',
-      { className: css.editorStack },
-      h(
-        'label',
-        { className: css.field },
-        h('span', null, t('outputStylesName')),
-        h('input', {
-          value: draft.name,
-          disabled: draft.exists || busy,
-          'aria-label': t('outputStylesName'),
-          onChange: (event: { target: HTMLInputElement }) => onChange({ ...draft, name: event.target.value })
-        })
-      ),
-      h(
-        'label',
-        { className: css.field },
-        h('span', null, t('outputStylesDescription')),
-        h('input', {
-          value: draft.description,
-          disabled: busy,
-          'aria-label': t('outputStylesDescription'),
-          onChange: (event: { target: HTMLInputElement }) => onChange({ ...draft, description: event.target.value })
-        })
-      ),
-      h(CodeEditor, {
-        value: draft.body,
-        onChange: (body: string) => onChange({ ...draft, body }),
-        language: 'markdown',
-        label: t('outputStylesBody'),
-        minHeight: 240
+      'label',
+      { className: formCss.field },
+      h('span', null, t('outputStylesName')),
+      h('input', {
+        value: draft.name,
+        disabled: draft.exists || busy,
+        'aria-label': t('outputStylesName'),
+        onChange: (event: { target: HTMLInputElement }) => onChange({ ...draft, name: event.target.value })
+      }),
+      // The rule the name obeys sits under the field it constrains, not in the
+      // footer row that carries only buttons.
+      h('span', { className: formCss.hint }, t('outputStylesNameHint'))
+    ),
+    h(
+      'label',
+      { className: formCss.field },
+      h('span', null, t('outputStylesDescription')),
+      h('input', {
+        value: draft.description,
+        disabled: busy,
+        'aria-label': t('outputStylesDescription'),
+        onChange: (event: { target: HTMLInputElement }) => onChange({ ...draft, description: event.target.value })
       })
-    )
+    ),
+    h(CodeEditor, {
+      value: draft.body,
+      onChange: (body: string) => onChange({ ...draft, body }),
+      language: 'markdown',
+      label: t('outputStylesBody'),
+      minHeight: 240
+    })
   )
 }
 
@@ -324,19 +320,18 @@ function StyleDetail(props: {
       onClose,
       title: row.label,
       closeLabel: t('cancel'),
-      footer: h(
-        'div',
-        { className: css.footer },
-        selected ? h(Tag, { tone: 'success' }, t('outputStylesSelected')) : null,
-        h('div', { className: css.grow }),
-        userStyle ? h(Button, { variant: 'outline', disabled: busy, onClick: onEdit }, t('panelEdit')) : null,
-        userStyle ? h(Button, { variant: 'ghost', disabled: busy, onClick: onDelete }, t('panelDelete')) : null,
-        h(Button, { variant: 'primary', disabled: busy || selected, onClick: onSelect }, t('outputStylesSelect'))
-      )
+      actions: [
+        userStyle ? h(Button, { key: 'edit', variant: 'outline', disabled: busy, onClick: onEdit }, t('panelEdit')) : null,
+        userStyle ? h(Button, { key: 'delete', variant: 'ghost', disabled: busy, onClick: onDelete }, t('panelDelete')) : null,
+        h(Button, { key: 'select', variant: 'primary', disabled: busy || selected, onClick: onSelect }, t('outputStylesSelect'))
+      ]
     },
     h(
       'div',
-      { className: css.editorStack },
+      { className: formCss.editorStack },
+      // The state reads in the body with the style it describes; the footer
+      // row carries buttons only.
+      selected ? h(Tag, { tone: 'success' }, t('outputStylesSelected')) : null,
       h('p', { className: css.rowDescription }, row.description),
       // The block head every detail section uses: 11px, uppercase, its own bottom
       // margin. This one was 12px sentence case with the margin on the other side.

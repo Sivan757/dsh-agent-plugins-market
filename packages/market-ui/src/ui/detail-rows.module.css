@@ -9,7 +9,7 @@
   flex-direction: column;
   min-width: 0;
   border: 1px solid var(--dsw-alias-border-l2);
-  border-radius: 10px;
+  border-radius: var(--dsw-radius-lg);
   overflow: hidden;
 }
 

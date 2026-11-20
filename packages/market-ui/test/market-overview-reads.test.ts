@@ -22,7 +22,6 @@ vi.mock('../../../packages/market-ui/src/api.js', () => ({
     gets.count += 1
     return Promise.resolve(payload)
   }),
-  fetchSourceProgress: vi.fn().mockResolvedValue({ step: undefined, error: undefined }),
   fetchSuiteDetail: vi.fn(),
   fetchMcpStatus: vi.fn(),
   fetchSuiteDocument: vi.fn(),

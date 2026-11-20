@@ -6,10 +6,23 @@ updates:
   # `--frozen-lockfile`.
   - package-ecosystem: npm
     directory: '/'
+    # Updates ride the dev branch, so they merge with the next release batch
+    # instead of sitting open against main until a release day.
+    target-branch: dev
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3
+    groups:
+      # Routine development bumps arrive as one PR; a major stays its own PR.
+      dev-minor-patch:
+        dependency-type: development
+        update-types: ['minor', 'patch']
     ignore:
+      # The host line moves as one set through check:host-alignment
+      # (`pnpm run fix:host-alignment`): a single dev-mirror bump would leave
+      # every other mirror stale and fail the gate. Packages whose peer and dev
+      # entries move together, such as @deepseek-ai/cordis, stay eligible.
+      - dependency-name: '@deepseek-ai/dsh-*'
       # The DSH host pins React 18 (dsh-client-ui-* peers: ^18.2.0) and the
       # client bundle consumes the host's runtime — follow the host, not upstream.
       - dependency-name: 'react'
@@ -37,6 +50,7 @@ updates:
 
   - package-ecosystem: github-actions
     directory: '/'
+    target-branch: dev
     schedule:
       interval: weekly
-    open-pull-requests-limit: 5
+    open-pull-requests-limit: 3

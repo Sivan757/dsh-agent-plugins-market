@@ -560,8 +560,8 @@ export async function apply(
       // The AI draft: one route, one deployment model. The port reads the model at call
       // time, so a deployment that configures one later starts drafting without a restart.
       const draftPort = createLlmDraftPort(hostCtx)
-      // The reader's own hook document: draft an entry, append an entry, never rewrite the rest.
-      const disposeUserHooks = mountUserHooksRoutes(hostCtx, { agentsRoot, port: draftPort, logger: ctx.logger })
+      // The reader's own hook document: append an entry, never rewrite the rest.
+      const disposeUserHooks = mountUserHooksRoutes(hostCtx, { agentsRoot, logger: ctx.logger })
       const disposeAiDraft = mountAiDraftRoutes(hostCtx, {
         presets: createAiPresetService(draftPort),
         diagnose: createAiDiagnoseService(draftPort),

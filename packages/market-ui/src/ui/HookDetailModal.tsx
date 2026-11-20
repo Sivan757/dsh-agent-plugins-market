@@ -46,7 +46,14 @@ export function HookDetailModal({ detail, t, onClose }: { detail: Extract<Extens
       title: detail.provenance,
       closeLabel: t('mcpClose'),
       onClose,
-      footer: h(Button, { variant: 'outline', onClick: onClose }, t('mcpClose'))
+      // The dry run is an action on this declaration, so it stands on the
+      // footer row with the close action rather than beside the result it
+      // replaces. A rejected declaration carries no admitted hook and offers no
+      // run at all.
+      actions: [
+        runnable ? h(Button, { key: 'run', variant: 'outline', disabled: run?.status === 'running', onClick: start }, t('hookRunStart')) : null,
+        h(Button, { key: 'close', variant: 'ghost', onClick: onClose }, t('mcpClose'))
+      ]
     },
     h(
       'div',
@@ -108,12 +115,7 @@ export function HookDetailModal({ detail, t, onClose }: { detail: Extract<Extens
         ? h(
             'section',
             { className: panel.block },
-            h(
-              'div',
-              { className: css.sectionHead },
-              h('h3', { className: panel.blockHead }, t('hookDetailRunResult')),
-              h(Button, { variant: 'primary', disabled: run?.status === 'running', onClick: start }, t('hookRunStart'))
-            ),
+            h('h3', { className: panel.blockHead }, t('hookDetailRunResult')),
             run === undefined ? h('p', { className: css.status }, t('hookRunIdle')) : resultBlock(run, t)
           )
         : null

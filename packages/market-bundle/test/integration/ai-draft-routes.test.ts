@@ -77,6 +77,20 @@ const catalogueStub = {
   }
 }
 
+/** A port that names one of the offered rows, recording what it was asked. */
+function port_with_calls(): { port: AiPort; calls: Array<{ system: string; user: string }> } {
+  const calls: Array<{ system: string; user: string }> = []
+  return {
+    calls,
+    port: {
+      complete: async prompt => {
+        calls.push(prompt)
+        return { text: '{"name":"前端","reason":"覆盖前端","picks":["market/suite-300"]}', provider: 'deepseek', model: 'fixture' }
+      }
+    }
+  }
+}
+
 /** A port that answers a fixed artifact and records what it was asked. */
 function port(answer = '---\ndescription: 测试\n---\n\nBody'): { port: AiPort; calls: Array<{ system: string; user: string }> } {
   const calls: Array<{ system: string; user: string }> = []
@@ -124,6 +138,47 @@ describe('ai preset suggestion', () => {
     expect(answer.body).toMatchObject({ name: '前端开发', reason: '覆盖前端常用的东西' })
     // The duplicate collapses and the row that was never offered is dropped.
     expect(answer.body['enabledIds']).toEqual(['market:src/frontend', 'skills:src/frontend/review'])
+  })
+
+  it('offers an install recommendation the rows its intent names, within the model bound', async () => {
+    // A thousand catalogue rows are more than one call may read, so the intent
+    // ranks them and the list is cut: the rows its words touch come first.
+    const { ctx, routes } = host()
+    const catalogue = {
+      overview: async () => ({
+        suites: Array.from({ length: 400 }, (_unused, index) => ({
+          sourceId: 'market',
+          suiteId: 'suite-' + String(index),
+          name: index === 300 ? 'frontend-suite' : 'suite-' + String(index),
+          ...(index === 300 ? { description: '前端开发与审查' } : {})
+        }))
+      })
+    }
+    const recorder = port_with_calls()
+    mountAiDraftRoutes(ctx, { catalogue, presets: createAiPresetService(recorder.port), diagnose: createAiDiagnoseService(recorder.port), logger })
+    const answer = await suggest(routes, { intent: '前端开发', purpose: 'install' })
+    expect(answer.status).toBe(200)
+    const offered = recorder.calls[0]!.user
+    // The row the intent's words touch leads the list, and the whole catalogue
+    // never reaches the prompt.
+    expect(offered).toContain('market/suite-300 — frontend-suite (前端开发与审查)')
+    expect(offered.indexOf('market/suite-300')).toBeLessThan(offered.indexOf('market/suite-0 —'))
+    expect(offered.split('\n').length).toBeLessThan(400)
+  })
+
+  it('answers a model that outlived its budget with a timeout the browser can retry', async () => {
+    const { ctx, routes } = host()
+    const expired = Object.assign(new Error('the model did not answer within 60000 ms'), { code: 'ai-timeout' })
+    mountAiDraftRoutes(ctx, {
+      ...catalogueStub,
+      presets: { suggest: async () => Promise.reject(expired) },
+      diagnose: createAiDiagnoseService(port().port),
+      logger
+    })
+    const answer = await suggest(routes, { intent: '前端开发用', candidates, locale: 'zh' })
+    // A timeout is its own family: not a provider refusal, and not a bad answer.
+    expect(answer.status).toBe(504)
+    expect(answer.body['code']).toBe('ai-timeout')
   })
 
   it('reads a fenced answer, and refuses one that selects nothing it was offered', () => {

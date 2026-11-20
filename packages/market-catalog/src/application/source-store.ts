@@ -4,8 +4,8 @@
  * A source is a configured Git repository, archive URL, or local directory the
  * catalog reads suites from. This module owns everything that touches the
  * `.sources/` storage: adoption of pre-existing checkouts, id selection,
- * clone/archive/download, refresh, removal, and the progress state the market
- * page polls while a long acquisition runs.
+ * clone/archive/download, refresh, removal, and the one record of the
+ * acquisition currently in flight, which keeps a checkout probe from racing it.
  */
 import { mkdir, readdir, rename } from 'node:fs/promises'
 import { join } from 'node:path'
@@ -18,8 +18,8 @@ import { canonicalGitUrl } from '../scanning/scan-resolvers.js'
 import { qualifiedSourceName } from '../scanning/source-name.js'
 import { configuredSourceCheckout } from '../scanning/source-catalog.js'
 import { githubCloneUrl, resolveRegion, type EffectiveRegion } from './regions.js'
-import type { SourceOverview, SourceProgress, UnmanagedSource } from '../../../market-contracts/src/contracts/market.js'
-import { resolveSourceKind, type SourceRef } from '../../../market-contracts/src/model/types.js'
+import type { SourceOverview, UnmanagedSource } from '../../../market-contracts/src/contracts/market.js'
+import { resolveSourceKind, type SourceKind, type SourceRef } from '../../../market-contracts/src/model/types.js'
 import type { CatalogContext } from './catalog-context.js'
 import type { CatalogPorts, SourceInput, SourcePatch } from '../../../market-contracts/src/ports/ports.js'
 import type { CatalogSnapshot } from './snapshot-cache.js'
@@ -33,8 +33,8 @@ export interface SourceCheckoutStatus {
 
 export class SourceStore {
   private readonly headCache = new Map<string, string>()
-  /** Progress snapshot of the source mutation currently in flight. */
-  private currentSourceState: { sourceId: string; step: string; cloned: boolean; head?: string } | undefined
+  /** The source mutation currently in flight, if any. */
+  private currentSourceState: { sourceId: string; cloned: boolean } | undefined
 
   constructor(
     private readonly context: CatalogContext,
@@ -48,10 +48,16 @@ export class SourceStore {
    * input URL are adopted in place — the manual-clone repair path — so no
    * second clone is made and no `-2` suffixed id is invented. Adopted
    * checkouts are never deleted on source removal.
+   *
+   * One acquisition exists once: a second add for the same URL, branch, and
+   * kind is refused instead of cloned again under another id. Every accepted
+   * add writes a new row, so a duplicate would leave two rows in the source
+   * strip and two checkouts on disk that no reader can tell apart.
    */
   async add(input: SourceInput): Promise<SourceRef> {
     return this.context.enqueue(async () => {
       const kind = input.local === true ? ('local' as const) : resolveSourceKind({ url: input.url, kind: input.kind })
+      this.rejectDuplicate(input, kind)
       if (kind === 'git') {
         // Adoption first: a pre-existing checkout with a matching origin URL
         // is registered as-is, skipping the clone entirely.
@@ -84,7 +90,7 @@ export class SourceStore {
         if (kind === 'local') {
           if (!(await isDirectory(checkout))) throw new Error(`local source directory ${checkout} is missing`)
         } else {
-          this.beginSourceState(baseId, kind === 'archive' ? 'downloading' : 'cloning', false)
+          this.beginSourceState(baseId, false)
           try {
             const lock = await this.acquire(source)
             if (lock !== undefined) this.headCache.set(source.id, lock)
@@ -92,7 +98,6 @@ export class SourceStore {
             this.endSourceState()
             throw error
           }
-          this.updateSourceStep('reading')
         }
         // The repo's own manifest names the source; move the checkout along so
         // the registered id and its `.sources/` directory stay coherent. URL
@@ -115,6 +120,28 @@ export class SourceStore {
       await this.context.notifyChanged()
       return added
     })
+  }
+
+  /**
+   * Refuse one acquisition the state already holds.
+   *
+   * The identity is what a source does, not the id it was registered under: a
+   * URL-derived id and a manifest-derived id can name the same repository, so
+   * the id cannot decide this. The branch is part of it — one repository at two
+   * branches is two sources, which is why the branch field exists.
+   * @param identity - the URL, branch, and kind an add or an update asks for.
+   * @param kind - the kind the caller resolved for that request.
+   * @param exceptId - the source editing its own record, which may not collide with itself.
+   */
+  private rejectDuplicate(identity: { url: string; branch?: string | undefined }, kind: SourceKind, exceptId?: string): void {
+    const requested = {
+      url: identity.url,
+      ...(identity.branch === undefined || identity.branch === '' ? {} : { branch: identity.branch }),
+      kind
+    }
+    const existing = this.context.state.sources.find(source => source.id !== exceptId && sameSourceAcquisition(requested, source))
+    if (existing === undefined) return
+    throw Object.assign(new Error(`source "${existing.id}" already uses ${identity.url}`), { code: 'source-duplicate' })
   }
 
   /** Register one unmanaged `.sources/` checkout as a source without touching its files. */
@@ -176,6 +203,9 @@ export class SourceStore {
       if (current === undefined) throw new Error(`unknown source "${sourceId}"`)
       const updated = await this.context.changeSources([sourceId], async () => {
         const next: SourceRef = { ...current, ...patch, id: sourceId }
+        // A URL or branch change can point one row at another row's acquisition;
+        // the row keeps its own record, so it may only select an unused one.
+        this.rejectDuplicate(next, resolveSourceKind(next), sourceId)
         const urlChanged = patch.url !== undefined && patch.url !== current.url
         if (urlChanged && resolveSourceKind(current) !== 'local' && current.adopted !== true) await gitRemove(sourceCheckoutDir(this.context.userRoot, sourceId))
         if (urlChanged || patch.branch !== undefined) this.headCache.delete(sourceId)
@@ -283,12 +313,6 @@ export class SourceStore {
     return resolveRegion(await this.ports.downloadRegion(), this.ports.localePreference())
   }
 
-  /** Progress snapshot for the progress route. */
-  progress(): SourceProgress {
-    const state = this.currentSourceState
-    return state === undefined ? { active: false, sourceId: '', step: '' } : { active: true, sourceId: state.sourceId, step: state.step }
-  }
-
   /**
    * Checkout status of one source for the market overview. A mutation owning
    * the source right now short-circuits the probe: a Git read raced against
@@ -310,7 +334,6 @@ export class SourceStore {
     } else if (inFlight !== undefined) {
       // A mutation owns this source right now: do not race git against its checkout.
       cloned = inFlight.cloned || (await isDirectory(checkout))
-      lockCommit = inFlight.head
     } else {
       const cachedHead = this.headCache.get(source.id)
       if (cachedHead !== undefined && (await isDirectory(checkout))) {
@@ -457,20 +480,32 @@ export class SourceStore {
     }
   }
 
-  /** Begin reporting progress for a source mutation. */
-  beginSourceState(sourceId: string, step: string, cloned: boolean): void {
-    this.currentSourceState = { sourceId, step, cloned }
+  /** Record the acquisition this store currently owns. */
+  beginSourceState(sourceId: string, cloned: boolean): void {
+    this.currentSourceState = { sourceId, cloned }
   }
 
-  /** Advance the in-flight source mutation step. */
-  updateSourceStep(step: string): void {
-    if (this.currentSourceState !== undefined) this.currentSourceState = { ...this.currentSourceState, step }
-  }
-
-  /** Stop reporting source mutation progress. */
+  /** Release the in-flight record once the acquisition settled. */
   endSourceState(): void {
     this.currentSourceState = undefined
   }
+}
+
+/**
+ * Whether one requested acquisition names the source a registered row holds.
+ *
+ * URLs arrive in several dialects for one repository (`git@host:owner/repo.git`,
+ * a trailing slash, a mirror prefix), so Git rows compare in canonical form. A
+ * local source is a directory and an archive is a document, so those compare as
+ * the normalized path and the trimmed URL they already are.
+ */
+function sameSourceAcquisition(identity: { url: string; branch?: string | undefined; kind: SourceKind }, source: SourceRef): boolean {
+  const kind = resolveSourceKind(source)
+  if (kind !== identity.kind) return false
+  if ((identity.branch ?? '') !== (source.branch ?? '')) return false
+  if (kind === 'local') return expandHome(identity.url) === expandHome(source.url)
+  if (kind === 'git') return canonicalGitUrl(identity.url) === canonicalGitUrl(source.url)
+  return identity.url.trim() === source.url.trim()
 }
 
 /** Read a checkout's HEAD when it is a Git repository. */

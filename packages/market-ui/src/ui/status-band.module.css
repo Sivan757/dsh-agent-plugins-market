@@ -7,7 +7,7 @@
   gap: 6px;
   padding: 12px 14px;
   border-left: 3px solid var(--dsw-alias-label-tertiary);
-  border-radius: 10px;
+  border-radius: var(--dsw-radius-lg);
   background: var(--dsw-alias-interactive-bg-hover);
 }
 
@@ -23,8 +23,7 @@
   border-left-color: var(--dsw-alias-state-error-primary);
 }
 
-/* The first line: state dot, state tags, and the recovery action pushed to the
-   trailing edge. */
+/* The first line: state dot and state tags. */
 .top {
   display: flex;
   align-items: center;
@@ -37,14 +36,6 @@
   align-items: center;
   gap: 7px;
   min-width: 0;
-}
-
-.actions {
-  display: flex;
-  flex: none;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
 }
 
 /* What the last operation did: a line under the label row, in the success or

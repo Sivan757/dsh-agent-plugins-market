@@ -19,7 +19,7 @@
   /* The leading summary box the market and connector details draw: this one had
      grown a 14/18 box with a 12px radius of its own. */
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: var(--dsw-radius-lg);
   background: var(--dsw-alias-bg-layer-2);
 }
 
@@ -55,13 +55,6 @@
   font-size: 11.5px;
   line-height: 18px;
   overflow-wrap: anywhere;
-}
-
-.sectionHead {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
 }
 
 .status {

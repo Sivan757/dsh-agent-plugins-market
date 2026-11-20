@@ -84,6 +84,7 @@
   padding: 0 4px 0 8px;
   border: 1px dashed var(--dsw-alias-border-l3, #d9dde3);
   border-radius: 999px;
+  corner-shape: round;
   background: var(--dsw-alias-bg-layer-1, #fff);
   max-width: 220px;
 }
@@ -126,7 +127,7 @@
 .tag {
   border: 1px solid var(--dsw-alias-border-l3, #d9dde3);
   color: var(--dsw-alias-label-secondary, #6b7280);
-  border-radius: 4px;
+  border-radius: var(--dsw-radius-xs);
   flex-shrink: 0;
   padding: 1px 6px;
   font-size: 12px;
@@ -142,13 +143,6 @@
   cursor: help;
 }
 
-.modalFooter {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  width: 100%;
-}
-
 /* The remove-source "also delete local files" checkbox row (matches
    ui/panel.module.css .confirmCheck). */
 .confirmCheck {
@@ -158,19 +152,6 @@
   align-items: center;
   color: var(--dsw-alias-label-primary, #1f2328);
   font-size: 12px;
-}
-
-.modalFooterLeft {
-  margin-right: auto;
-  display: flex;
-  gap: 8px;
-}
-
-/* --- source editor modal --------------------------------------------------------- */
-
-.editorDialog {
-  /* The md step of the shared dialog scale: a short form, not a detail. */
-  width: min(640px, 92vw);
 }
 
 /* --- install confirmation modal --------------------------------------------------- */
@@ -208,67 +189,13 @@
   color: var(--dsw-alias-state-warn-label, rgb(221, 134, 41));
   font-size: 12px;
   border: 1px solid var(--dsw-alias-state-warn-label, rgb(221, 134, 41));
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-lg);
   padding: 8px 10px;
-}
-
-/* --- add-source progress ------------------------------------------------------- */
-
-.progress,
-.progressError {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 10px 12px;
-  border-radius: 8px;
-  font-size: 13px;
-  line-height: 20px;
-  border: 1px solid var(--dsw-alias-border-l2, #e5e7eb);
-  background: var(--dsw-alias-bg-layer-2, rgba(127, 127, 127, 0.06));
-  color: var(--dsw-alias-label-primary, #1f2328);
-}
-
-.progressError {
-  border-color: var(--dsw-alias-state-error-primary, rgb(236, 19, 19));
-  color: var(--dsw-alias-state-error-primary, rgb(236, 19, 19));
-}
-
-.progressSpin {
-  flex-shrink: 0;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  border: 2px solid var(--dsw-alias-border-l2, #e5e7eb);
-  border-top-color: var(--dsw-alias-brand-primary, #4f6ef7);
-  animation: dshApmSpin 0.8s linear infinite;
-}
-
-@keyframes dshApmSpin {
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-.progressFail {
-  font-size: 13px;
-  flex-shrink: 0;
-}
-
-.progressText {
-  min-width: 0;
-  overflow-wrap: anywhere;
 }
 
 @media (max-width: 720px) {
   .pageView {
     padding: 14px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .progressSpin {
-    animation: none;
-    transition: none;
   }
 }
 
@@ -365,7 +292,7 @@
   margin: 0 0 8px;
   padding: 6px 10px;
   border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: 8px;
+  border-radius: var(--dsw-radius-lg);
   background: var(--dsw-alias-bg-layer-2);
   color: var(--dsw-alias-label-secondary);
   font-size: 12px;
