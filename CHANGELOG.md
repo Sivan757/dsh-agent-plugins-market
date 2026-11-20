@@ -9,6 +9,31 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 <!-- The 0.5.0 section will be created by the first release-please PR, -->
 <!-- covering all commits after the v0.4.5 bootstrap-sha. -->
 
+## [0.16.1](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.16.0...dsh-agent-plugins-market-v0.16.1) (2026-11-20)
+
+
+### Features
+
+* **ai:** rank the rows a recommendation offers, and name a timeout ([232efb1](https://github.com/Sivan757/dsh-agent-plugins-market/commit/232efb1d740b78ba8890bfaae62a7900740c43b7))
+* **ui:** one action row, one dialog shell, one radius scale ([db59bd0](https://github.com/Sivan757/dsh-agent-plugins-market/commit/db59bd01297c979a52d3418e2112d1d0cf1c587c))
+
+
+### Bug Fixes
+
+* **extensions:** refuse a window answer that carries no session state ([ca061eb](https://github.com/Sivan757/dsh-agent-plugins-market/commit/ca061ebb308ef0997a4dfcb324b0990f544f1669))
+* **presets:** enlarge the extension glyph and break it from its nodes ([962fdea](https://github.com/Sivan757/dsh-agent-plugins-market/commit/962fdea6b59f2660d0d8bbfad27b3ce19b3fbadb))
+* **presets:** open the hollow node's outline ([b424f97](https://github.com/Sivan757/dsh-agent-plugins-market/commit/b424f97993be08fa49ba3284ef99265f22b2620b))
+* **presets:** size the hollow node to its outlined edge ([e142a28](https://github.com/Sivan757/dsh-agent-plugins-market/commit/e142a28d41c7209fa5790660150b9d387fbbd076))
+* **presets:** the chip answers a preset click with the chosen name ([523f9ea](https://github.com/Sivan757/dsh-agent-plugins-market/commit/523f9eadf38d4230140c3de4e93609e07f3cb2f8))
+* **presets:** the chip reads its session projection instead of a wait state ([4d9a647](https://github.com/Sivan757/dsh-agent-plugins-market/commit/4d9a647d1d268f027376b872c402c448a0f190bf))
+* **process:** route documentation through the host's published skill name ([b714ca1](https://github.com/Sivan757/dsh-agent-plugins-market/commit/b714ca13f34989bbb56c5887e3477462b5fb311a))
+* **test:** compare the dialog sources with one separator ([cc861e2](https://github.com/Sivan757/dsh-agent-plugins-market/commit/cc861e2c156138d154e6af6e1fe5afd1412e56a2))
+
+
+### Miscellaneous Chores
+
+* **release:** pin this release to 0.16.1 ([fffbb50](https://github.com/Sivan757/dsh-agent-plugins-market/commit/fffbb50d9fce7e33fd02fbda2ef8c68a9e0590a9))
+
 ## [0.16.0](https://github.com/Sivan757/dsh-agent-plugins-market/compare/dsh-agent-plugins-market-v0.15.3...dsh-agent-plugins-market-v0.16.0) (2026-11-19)
 
 
