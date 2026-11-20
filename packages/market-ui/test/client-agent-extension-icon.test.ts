@@ -20,15 +20,23 @@ it('renders the ring with one filled and one hollow node in one inherited color'
   expect(circles).toHaveLength(2)
   const filled = circles.find(node => node.getAttribute('fill') === 'currentColor')
   const hollow = circles.find(node => node.getAttribute('fill') !== 'currentColor')
-  // The nodes sit on the ring's horizontal extremes, inside a 74% width band so the
-  // glyph keeps the shield's breathing room in the 14px composer seat.
-  expect(filled?.getAttribute('cx')).toBe('3.6')
-  expect(hollow?.getAttribute('cx')).toBe('12.4')
+  // The nodes sit on the ring's horizontal extremes, inside a 77% width band.
+  expect(filled?.getAttribute('cx')).toBe('3.4')
+  expect(hollow?.getAttribute('cx')).toBe('12.6')
   // Both dots share the ring's vertical center line.
   expect(filled?.getAttribute('cy')).toBe('8')
   expect(hollow?.getAttribute('cy')).toBe('8')
   // The host's 16-unit grid carries the medium stroke unchanged, like the permission glyphs.
   expect(icon.getAttribute('stroke-width')).toBe(String(ICON_MEDIUM_STROKE))
+  // Each arc starts at least one unit clear of its node's edge, so the node and the
+  // ring read as separate marks at 1:1 instead of fusing into one blob.
+  const centers = circles.map(node => ({ x: Number(node.getAttribute('cx')), y: Number(node.getAttribute('cy')) }))
+  const radius = Number(filled?.getAttribute('r'))
+  for (const path of icon.querySelectorAll('path')) {
+    const [x, y] = (path.getAttribute('d') ?? '').slice(1).split('A')[0]!.trim().split(/\s+/).map(Number)
+    const nearest = Math.min(...centers.map(center => Math.hypot(center.x - x!, center.y - y!)))
+    expect(nearest).toBeGreaterThanOrEqual(radius + ICON_MEDIUM_STROKE / 2 + 1)
+  }
 })
 it('accepts native placement and accessible naming without duplicate ids', () => {
   const markup = renderToStaticMarkup(h(AgentExtensionIcon, { size: 20, className: 'slot-icon', role: 'img', 'aria-hidden': false, 'aria-label': 'Agent extensions' }))
