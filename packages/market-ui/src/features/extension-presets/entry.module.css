@@ -62,14 +62,13 @@
 }
 
 .entryChevron {
+  /* The host's own chevron treatment on the sibling permission trigger: the
+     caption tone rather than the trigger's label colour, and the icon's own
+     14px size, so the two chips read as one family. */
   display: inline-flex;
   flex: 0 0 auto;
+  color: var(--dsw-alias-label-caption);
   transition: transform 120ms ease;
-}
-
-.entryChevron svg {
-  width: 12px;
-  height: 12px;
 }
 
 .entryChevronOpen {

@@ -352,6 +352,24 @@ describe('extension preset rendering', () => {
     })
     expect(host.querySelector('button')!.getAttribute('aria-label')).toBe('Default')
   })
+  it('names the chosen preset before the write is acknowledged, and reverts when it fails', async () => {
+    // The commit mounts suites and services, so the chip must answer the click itself;
+    // waiting for the acknowledgement reads as a frozen control.
+    await mount()
+    expect(host!.querySelector('button')!.getAttribute('aria-label')).toBe('Research')
+    let fail: ((reason: unknown) => void) | undefined
+    vi.mocked(fetch).mockImplementationOnce(
+      () =>
+        new Promise((_resolve, reject) => {
+          fail = reject
+        }) as never
+    )
+    await click('Research')
+    await click('Default')
+    expect(host!.querySelector('button')!.getAttribute('aria-label')).toBe('Default')
+    await act(async () => fail!(new Error('mount failed')))
+    expect(host!.querySelector('button')!.getAttribute('aria-label')).toBe('Research')
+  })
   it('keeps a retry action after load failure without claiming global selection', async () => {
     await mount()
     vi.mocked(fetch).mockRejectedValueOnce(new Error('offline'))

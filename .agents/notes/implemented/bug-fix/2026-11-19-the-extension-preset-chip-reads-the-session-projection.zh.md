@@ -16,6 +16,8 @@ composer 里的预设 chip 渲染的是状态词，而不是选择本身。它�
 
 composer seat 的会话标准 kit 会交付 `useProjection`，入口用 `useProjection(EXTENSION_SELECTION_PROJECTION_KEY)` 渲染 chip：预设名，或在折叠结果没有命名预设时显示全局词。没有加载词、没有未就绪词、没有指令。第一次答案之前 chip 只画图标，因此不断言自己不知道的事。待处理请求仍然胜过折叠结果，因为面板已应答的意图更新。
 
+菜单里做出的选择在服务器确认之前就显示。提交会挂载套件、钩子与服务，所以在挂载 MCP 服务器的会话上，确认后的选择可能要一秒；等它就是把旧名字按在一个刚被点击的控件上。`applyPreset` 立刻显示选中的预设，确认后的窗口替换它，失败则退回已提交的名字；第二次点击替换待生效的那一个，不会被第一次的收尾清掉。
+
 窗口路由保留原有职责：菜单行、预设库、清单与全部写入。它在作答前通过 `ctx.get('sessionController').resolveAgent(sessionId)` 激活持久化会话，与并发读共享一次尝试，失败记住十秒，并且对已经在进行的初始化只等待、不报告。没有该 seam 的宿主仍然回答 `extension-session-not-found`。
 
 `epSessionInactive` 与 `epNotReady` 已从中英两份语言表删除。读失败渲染 `epLoadFailed` 及其 code，chip 与菜单都是如此，因为失败不是等待。
@@ -34,4 +36,4 @@ chip 在第一次渲染就正确：没有 Agent 的会话、静置时、轮次�
 
 ## Testing
 
-`extension-selection-projection.test.ts` 钉住折叠（待处理被忽略、已提交被接受、重复信封保持同一引用）以及真实 `select` 之后发布的值。`extension-window-activation.test.ts` 钉住激活、共享一次尝试、失败 code 与重试窗口。composer 集成测试钉住 chip 在任何读回答之前就渲染投影出的名字，且读失败仍然提供重试。
+`extension-selection-projection.test.ts` 钉住折叠（待处理被忽略、已提交被接受、重复信封保持同一引用）以及真实 `select` 之后发布的值。`extension-window-activation.test.ts` 钉住激活、共享一次尝试、失败 code 与重试窗口。composer 集成测试钉住 chip 在任何读回答之前就渲染投影出的名字、点选的预设在写入确认之前就被命名并在失败时回退，且读失败仍然提供重试。

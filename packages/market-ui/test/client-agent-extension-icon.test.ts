@@ -9,7 +9,7 @@ it('renders the ring with one filled and one hollow node in one inherited color'
   const wrapper = document.createElement('div')
   wrapper.innerHTML = renderToStaticMarkup(h(AgentExtensionIcon))
   const icon = wrapper.querySelector('svg')!
-  expect(icon.getAttribute('viewBox')).toBe('0 0 28 28')
+  expect(icon.getAttribute('viewBox')).toBe('0 0 16 16')
   expect(icon.getAttribute('stroke')).toBe('currentColor')
   expect(icon.getAttribute('fill')).toBe('none')
   expect(icon.getAttribute('aria-hidden')).toBe('true')
@@ -20,13 +20,15 @@ it('renders the ring with one filled and one hollow node in one inherited color'
   expect(circles).toHaveLength(2)
   const filled = circles.find(node => node.getAttribute('fill') === 'currentColor')
   const hollow = circles.find(node => node.getAttribute('fill') !== 'currentColor')
-  expect(filled?.getAttribute('cx')).toBe('4.2')
-  expect(hollow?.getAttribute('cx')).toBe('23.8')
+  // The nodes sit on the ring's horizontal extremes, inside a 74% width band so the
+  // glyph keeps the shield's breathing room in the 14px composer seat.
+  expect(filled?.getAttribute('cx')).toBe('3.6')
+  expect(hollow?.getAttribute('cx')).toBe('12.4')
   // Both dots share the ring's vertical center line.
-  expect(filled?.getAttribute('cy')).toBe('14')
-  expect(hollow?.getAttribute('cy')).toBe('14')
-  // The artwork's 28-unit grid must render at the host icons' medium weight.
-  expect(hollow?.getAttribute('stroke-width')).toBe(String((ICON_MEDIUM_STROKE * 28) / 16))
+  expect(filled?.getAttribute('cy')).toBe('8')
+  expect(hollow?.getAttribute('cy')).toBe('8')
+  // The host's 16-unit grid carries the medium stroke unchanged, like the permission glyphs.
+  expect(icon.getAttribute('stroke-width')).toBe(String(ICON_MEDIUM_STROKE))
 })
 it('accepts native placement and accessible naming without duplicate ids', () => {
   const markup = renderToStaticMarkup(h(AgentExtensionIcon, { size: 20, className: 'slot-icon', role: 'img', 'aria-hidden': false, 'aria-label': 'Agent extensions' }))

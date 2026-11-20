@@ -84,6 +84,10 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
     [clipText, setClipText] = useState('')
   const [leave, setLeave] = useState<{ action: () => void }>()
   const [replacement, setReplacement] = useState<{ presetId: string | null }>()
+  // The preset the person just clicked. The commit is a mount, not a database write,
+  // so the chip answers the click now and the acknowledged selection reconciles it;
+  // holding the old name until a server-side mount finished reads as a frozen control.
+  const [pendingSelection, setPendingSelection] = useState<{ id: string | null; name: string | null }>()
   // The same shape the server capture publishes: available, globally on, and
   // never carrying a configuration parent id.
   const globalIds = () =>
@@ -102,6 +106,26 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
     setFeedback('')
   }
   /**
+   * Commit one preset choice, showing it before the server acknowledges it.
+   *
+   * The commit mounts suites, hooks and services, so waiting for it before the chip
+   * says anything reads as a frozen control. A failure drops the pending name, so the
+   * chip falls back to whatever the session still runs; a second click replaces the
+   * pending one without the first write's settlement clearing it.
+   * @param presetId - the preset to run, or null for the global selection.
+   * @param success - the sentence the toast shows once the commit is acknowledged.
+   * @returns after the write settles.
+   */
+  const applyPreset = async (presetId: string | null, success?: string): Promise<void> => {
+    const name = presetId === null ? null : data?.library.presets.find(row => row.id === presetId)?.name
+    if (name !== undefined) setPendingSelection({ id: presetId, name })
+    try {
+      await report(() => mutate('select', { presetId }), success)
+    } finally {
+      setPendingSelection(current => (current?.id === presetId ? undefined : current))
+    }
+  }
+  /**
    * Choose a preset, and say what it changed besides the switches.
    *
    * A preset can carry an output style now, so selecting one may change how the session
@@ -117,7 +141,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
       setReplacement({ presetId })
       return
     }
-    void report(() => mutate('select', { presetId }), styleRow === undefined ? t('epSelected') : t('epSelectedWithStyle', { style: styleRow }))
+    void applyPreset(presetId, styleRow === undefined ? t('epSelected') : t('epSelectedWithStyle', { style: styleRow }))
   }
   /**
    * One line saying what a set of ids covers.
@@ -299,7 +323,12 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
   // composer chips read, and it exists for a session that has no Agent yet. A
   // pending request is the newer intent, so an answered panel wins over the fold.
   const projected = useProjection?.(EXTENSION_SELECTION_PROJECTION_KEY) as ExtensionSelectionFace | undefined
-  const face = selected === undefined ? projected : { presetId: selected.presetId, presetName: selected.presetName, modified: selected.modified }
+  const face =
+    pendingSelection !== undefined
+      ? { presetId: pendingSelection.id, presetName: pendingSelection.name, modified: false }
+      : selected === undefined
+        ? projected
+        : { presetId: selected.presetId, presetName: selected.presetName, modified: selected.modified }
   // What the entry says beside its icon: the preset this session is in, or the
   // global word when it follows no preset. The modified suffix stays in the tooltip
   // and the accessible name, because the composer row is shared with Permissions
@@ -673,7 +702,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
               if (replacement) {
                 const presetId = replacement.presetId
                 setReplacement(undefined)
-                void report(() => mutate('select', { presetId }))
+                void applyPreset(presetId)
               }
             }}
           >

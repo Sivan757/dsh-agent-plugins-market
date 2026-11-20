@@ -16,6 +16,8 @@ The committed selection is a client-visible session projection. `extensionSelect
 
 The composer seat receives `useProjection` in its session standard kit, and the entry renders the chip from `useProjection(EXTENSION_SELECTION_PROJECTION_KEY)`: the preset name, or the global word when the fold names none. No loading word, no not-ready word, no instruction. Before the first answer the chip draws its icon only, so it claims nothing it does not know. A pending request still wins over the fold, because the panel's answered intent is newer.
 
+A choice made in the menu is shown before the server acknowledges it. The commit mounts suites, hooks and services, so the acknowledged selection can take a second on a session that mounts MCP servers; waiting for it holds the old name on a control the person just clicked. `applyPreset` names the chosen preset immediately, the acknowledged window replaces it, and a failure drops back to the committed name. A second click replaces the pending one without the first settlement clearing it.
+
 The window route keeps its job: the menu rows, the library, the inventory and every write. It now activates a persisted session through `ctx.get('sessionController').resolveAgent(sessionId)` before answering, shares one in-flight attempt, remembers a failure for ten seconds, and waits for an initialization already in flight instead of reporting it. A host without that seam keeps `extension-session-not-found`.
 
 `epSessionInactive` and `epNotReady` are removed from both locales. A read failure renders `epLoadFailed` with its code, both on the chip and in the menu, because a failure is not a wait.
@@ -34,4 +36,4 @@ A failed activation now surfaces as `session/writer-held` or another seam code i
 
 ## Testing
 
-`extension-selection-projection.test.ts` pins the fold (pending ignored, committed applied, unchanged reference for a repeated envelope) and the published value after a real `select`. `extension-window-activation.test.ts` pins activation, one shared attempt, the failure code and the retry window. The composer integration tests pin that the chip renders the projected name before any read answers, and that a load failure still offers Retry.
+`extension-selection-projection.test.ts` pins the fold (pending ignored, committed applied, unchanged reference for a repeated envelope) and the published value after a real `select`. `extension-window-activation.test.ts` pins activation, one shared attempt, the failure code and the retry window. The composer integration tests pin that the chip renders the projected name before any read answers, that a chosen preset is named before its write is acknowledged and reverts when the write fails, and that a load failure still offers Retry.
