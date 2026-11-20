@@ -225,7 +225,7 @@
     "@deepseek-ai/dsh-working-directory": "0.2.2-rc.5",
     "@eslint/js": "^10.0.1",
     "@shikijs/langs": "^4.4.3",
-    "@tsdown/css": "^0.22.14",
+    "@tsdown/css": "^0.23.7",
     "@types/mdast": "^4.0.4",
     "@types/node": "^22.15.0",
     "@types/react": "~18.3.1",
@@ -250,11 +250,11 @@
     "react-dom": "~18.3.1",
     "shiki": "^4.4.3",
     "simple-icons": "^16.31.0",
-    "tsdown": "^0.22.14",
+    "tsdown": "^0.23.7",
     "typescript": "^5.8.3",
     "typescript-eslint": "^8.67.0",
     "vitest": "^4.1.10",
-    "zustand": "~5.0.15"
+    "zustand": "~5.1.0"
   },
   "publishConfig": {
     "registry": "https://registry.npmjs.org/"
