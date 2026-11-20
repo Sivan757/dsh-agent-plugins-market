@@ -96,7 +96,7 @@ export function mountAiDraftRoutes(ctx: { get(name: string): unknown }, deps: Ai
       }
       // The world comes from whoever owns it: a preset suggestion is a browser's own rows, an
       // install recommendation is the catalogue the server just scanned.
-      const candidates = body.purpose === 'install' ? await catalogueCandidates(deps.catalogue) : readCandidates(body.candidates)
+      const candidates = body.purpose === 'install' ? await catalogueCandidates(deps.catalogue, body.intent) : readCandidates(body.candidates)
       if (candidates.length === 0) {
         sendJson(response, 400, { error: 'there is nothing to build a preset from' })
         return
@@ -119,7 +119,13 @@ export function mountAiDraftRoutes(ctx: { get(name: string): unknown }, deps: Ai
           : routeFailurePayload(error, 'ai preset', deps.logger)
         sendJson(
           response,
-          code === 'ai-model-unconfigured' || code === 'ai-unavailable' ? 409 : code === 'ai-invalid-suggestion' || code === 'ai-empty-selection' ? 422 : 502,
+          code === 'ai-timeout'
+            ? 504
+            : code === 'ai-model-unconfigured' || code === 'ai-unavailable'
+              ? 409
+              : code === 'ai-invalid-suggestion' || code === 'ai-empty-selection'
+                ? 422
+                : 502,
           payload
         )
       }
@@ -210,17 +216,53 @@ function readFailure(value: unknown): AiDiagnoseFailure | undefined {
  * Only suites that are not switched on are offered: already-enabled rows are not candidates for
  * "what should this workspace add". A read failure is a 500-class failure rather than an empty
  * world, because an empty world would blame the reader's sources for a scan that broke.
+ *
+ * The catalogue carries a thousand suites, and a prompt listing all of them takes the model
+ * longer to read than the call may live. The rows the intent's own words touch are offered
+ * first, then the rest until the bound: a narrow brief sees a short list, and a broad one
+ * still sees the whole choice.
  * @param catalogue - the catalog service.
- * @returns the rows on offer, capped at the contract's catalogue bound.
+ * @param intent - the reader's own words, which rank the rows.
+ * @returns the rows on offer, capped at the contract's model bound.
  */
-async function catalogueCandidates(catalogue: {
-  overview(): Promise<{ suites: Array<{ sourceId: string; suiteId: string; name: string; enabled?: boolean }> }>
-}): Promise<AiPresetCandidate[]> {
+async function catalogueCandidates(
+  catalogue: {
+    overview(): Promise<{ suites: Array<{ sourceId: string; suiteId: string; name: string; description?: string; enabled?: boolean }> }>
+  },
+  intent: string
+): Promise<AiPresetCandidate[]> {
   const overview = await catalogue.overview()
-  return overview.suites
+  const rows = overview.suites
     .filter(suite => suite.enabled !== true)
     .slice(0, AI_PRESET_LIMITS.catalogueCandidates)
-    .map(suite => ({ id: suite.sourceId + '/' + suite.suiteId, label: suite.name }))
+    .map(suite => ({
+      id: suite.sourceId + '/' + suite.suiteId,
+      label: suite.name,
+      ...(suite.description === undefined || suite.description === '' ? {} : { description: suite.description })
+    }))
+  const wanted = intentWords(intent)
+  if (wanted.length === 0) return rows.slice(0, AI_PRESET_LIMITS.modelCandidates)
+  const scored = rows.map((row, index) => {
+    const haystack = (row.label + ' ' + (row.description ?? '') + ' ' + row.id).toLowerCase()
+    return { row, index, score: wanted.filter(word => haystack.includes(word)).length }
+  })
+  const touched = scored.filter(entry => entry.score > 0).sort((left, right) => right.score - left.score || left.index - right.index)
+  const rest = rows.filter(row => !touched.some(entry => entry.row === row))
+  return [...touched.map(entry => entry.row), ...rest].slice(0, AI_PRESET_LIMITS.modelCandidates)
+}
+
+/** The words an intent offers for ranking: its own, plus the two-character slices of a run. */
+function intentWords(intent: string): string[] {
+  const words = intent
+    .toLowerCase()
+    .split(/[^\p{L}\p{N}]+/u)
+    .filter(word => word.length >= 2)
+  const cjk = /[\u4e00-\u9fff]/
+  for (const word of [...words]) {
+    if (!cjk.test(word)) continue
+    for (let index = 0; index + 2 <= word.length; index += 1) words.push(word.slice(index, index + 2))
+  }
+  return [...new Set(words)]
 }
 
 /**

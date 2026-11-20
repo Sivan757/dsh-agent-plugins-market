@@ -51,7 +51,11 @@ export function buildPresetPrompt(
   locale: 'zh' | 'en',
   purpose: 'preset' | 'install' = 'preset'
 ): { system: string; user: string } {
-  const listing = candidates.map(candidate => candidate.id + ' — ' + candidate.label).join('\n')
+  const listing = candidates
+    .map(
+      candidate => candidate.id + ' — ' + candidate.label + (candidate.description === undefined || candidate.description === '' ? '' : ' (' + oneLine(candidate.description) + ')')
+    )
+    .join('\n')
   const subject =
     purpose === 'install'
       ? 'You choose which catalogue suites a coding-agent workspace should install for a stated purpose.'
@@ -70,6 +74,12 @@ export function buildPresetPrompt(
   const user =
     (locale === 'zh' ? '我要一个这样的预设：' : 'I want a preset like this: ') + intent + '\n\n' + (locale === 'zh' ? '可选的行：' : 'Rows you may pick from:') + '\n' + listing
   return { system, user }
+}
+
+/** One description on one line, short enough to sit in a prompt list. */
+function oneLine(text: string): string {
+  const flat = text.replace(/\s+/g, ' ').trim()
+  return flat.length <= 140 ? flat : flat.slice(0, 139) + '…'
 }
 
 /** Pull the first JSON object out of an answer, tolerating fences and stray prose. */
