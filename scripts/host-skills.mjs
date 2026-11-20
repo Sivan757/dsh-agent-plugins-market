@@ -173,7 +173,9 @@ function check() {
   console.log(`host-skills: ${available.length} skills available from ${source}`)
   const missing = routed.filter(name => !available.includes(name))
   const unrouted = available.filter(name => !routed.includes(name))
-  if (missing.length > 0) console.warn(`host-skills: the routing table points at ${missing.length} skill(s) the host does not publish: ${missing.join(', ')}`)
+  // A routed name the host renamed is a dead instruction, not a notice: the gate fails
+  // on it so the table cannot drift away from what the host actually publishes.
+  if (missing.length > 0) problems.push(`the routing table points at ${missing.length} skill(s) the host does not publish: ${missing.join(', ')}`)
   if (unrouted.length > 0) console.log(`host-skills: ${unrouted.length} host skill(s) are not routed: ${unrouted.join(', ')}`)
 
   for (const problem of problems) console.error(`host-skills: ${problem}`)

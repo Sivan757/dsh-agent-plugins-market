@@ -98,7 +98,7 @@ Route these duties through the dsh-workflow skills rather than ad-hoc practice.
 | Push, mark ready for review, or claim checks pass                          | dsh-pre-push-checks      |
 | Write or review prose, comments, README/JSDoc contracts, CLI or UI strings | dsh-prose-standard       |
 | Audit text that reads like a reasoning transcript                          | dsh-trim-cot-leakage     |
-| Add, restructure, review, or audit documentation                           | dsh-doc                  |
+| Add, restructure, review, or audit documentation                           | dsh-doc-writing          |
 | Record or reclassify rationale, decisions, or postmortems                  | dsh-archive-agent-notes  |
 | Update either side of a bilingual pair                                     | dsh-translate-docs       |
 | Review a pull request                                                      | dsh-code-review          |
