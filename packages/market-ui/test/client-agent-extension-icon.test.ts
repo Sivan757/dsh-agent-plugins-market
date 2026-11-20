@@ -26,6 +26,8 @@ it('renders the ring with one filled and one hollow node in one inherited color'
   // Both dots share the ring's vertical center line.
   expect(filled?.getAttribute('cy')).toBe('8')
   expect(hollow?.getAttribute('cy')).toBe('8')
+  // The hollow node's outline is lighter than the ring, so its opening stays visible at 16px.
+  expect(hollow?.getAttribute('stroke-width')).toBe('0.9')
   // The host's 16-unit grid carries the medium stroke unchanged, like the permission glyphs.
   expect(icon.getAttribute('stroke-width')).toBe(String(ICON_MEDIUM_STROKE))
   // Each arc starts at least one unit clear of its node's edge, so the node and the

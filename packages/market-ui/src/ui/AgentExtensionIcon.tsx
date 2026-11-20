@@ -31,6 +31,8 @@ export function AgentExtensionIcon({ size = 16, style, ...props }: SVGProps<SVGS
     h('path', { d: 'M4.533 11.023A4.6 4.6 0 0 0 8 12.6' }),
     h('path', { d: 'M11.467 11.023A4.6 4.6 0 0 1 8 12.6' }),
     h('circle', { cx: 3.4, cy: 8, r: 1.55, fill: 'currentColor', stroke: 'none' }),
-    h('circle', { cx: 12.6, cy: 8, r: 1.2 })
+    // The hollow node carries a lighter outline than the ring: at the 16px seat a
+    // uniform 1.3 stroke closes its opening to a hairline.
+    h('circle', { cx: 12.6, cy: 8, r: 1.3, strokeWidth: 0.9 })
   )
 }
