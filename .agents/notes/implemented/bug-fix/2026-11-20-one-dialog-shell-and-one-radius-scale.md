@@ -55,8 +55,8 @@ Every corner comes from the host's `--dsw-radius-*` tiers, selected by the role 
 
 ## Verification
 
-- `pnpm run test` is green after this change: 302 files, 2711 tests.
-- `packages/market-ui/test/dialog-shell.test.ts` (5 tests) reads the sources and stylesheets; it was checked against the pre-change tree, where it flags every host-`Modal` import and every hand-written radius.
+- `pnpm run test` is green after this change: 302 files, 2712 tests.
+- `packages/market-ui/test/dialog-shell.test.ts` (6 tests) reads the sources and stylesheets; it was checked against the pre-change tree, where it flags every host-`Modal` import and every hand-written radius.
 - `packages/market-ui/test/dialog-footer-size.test.ts` renders the instruction and language-server details and asserts their footer buttons are one size, and scans every `actions` expression for a stated size.
 - Live in `market-demo` at 1448x1126, settings frame 800x800:
   - the user skill detail's footer holds 删除 at its leading edge and 完成 at its trailing edge, and its scroll thumb reports opacity 1 with a 335px height;

@@ -38,5 +38,5 @@ Status: implemented
 
 ## Verification
 
-- `pnpm run test` 全绿：302 个文件、2711 个测试，其中 `packages/market-bundle/test/integration/ai-draft-routes.test.ts`（12 个用例：排序且有界的候选、504 与 `ai-timeout` 的映射、原有的接受与拒绝用例）与 `packages/market-ui/test/preset-ai-suggestion.test.ts`（应用后的选择仍构造出与改动前相同的预设闭包）。
+- `pnpm run test` 全绿：302 个文件、2712 个测试，其中 `packages/market-bundle/test/integration/ai-draft-routes.test.ts`（12 个用例：排序且有界的候选、504 与 `ai-timeout` 的映射、原有的接受与拒绝用例）与 `packages/market-ui/test/preset-ai-suggestion.test.ts`（应用后的选择仍构造出与改动前相同的预设闭包）。
 - 在 `market-demo` 现场：对话框以「用途」为意图标签，页脚两颗按钮且 生成建议 在前，说明只有一句；提交后作答的是提供方的拒绝，显示在标题下方（红色块），不落在页脚行。这个 profile 里无法把对话框自己的作答流程走通，因为提供方拒绝了辅助调用；这一点如实记在上文，作为环境事实，不当作通过用例。

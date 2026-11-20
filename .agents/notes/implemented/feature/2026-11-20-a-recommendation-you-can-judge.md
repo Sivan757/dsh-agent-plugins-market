@@ -38,5 +38,5 @@ A third fact made the first failure likelier than it needed to be. An install re
 
 ## Verification
 
-- `pnpm run test` green: 302 files, 2711 tests, including `packages/market-bundle/test/integration/ai-draft-routes.test.ts` (12 cases: the ranked/bounded candidate list, the 504 `ai-timeout` mapping, the existing acceptance and refusal cases) and `packages/market-ui/test/preset-ai-suggestion.test.ts` (the applied selection still builds the preset closure it did before).
+- `pnpm run test` green: 302 files, 2712 tests, including `packages/market-bundle/test/integration/ai-draft-routes.test.ts` (12 cases: the ranked/bounded candidate list, the 504 `ai-timeout` mapping, the existing acceptance and refusal cases) and `packages/market-ui/test/preset-ai-suggestion.test.ts` (the applied selection still builds the preset closure it did before).
 - Live in `market-demo`: the dialog renders 用途 as the intent label, two footer buttons with 生成建议 first, and the trimmed description; submitting it answered with the provider's refusal, shown under the title (the red block) rather than in the footer row. The dialog's own answer path could not be exercised end to end in this profile because the provider refuses the auxiliary call; that is recorded above as an environment fact, not as a passing case.

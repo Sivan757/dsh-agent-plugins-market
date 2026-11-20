@@ -55,7 +55,7 @@ Status: implemented
 
 ## Verification
 
-- 这次改动之后 `pnpm run test` 全绿：302 个文件，2711 个测试。
+- 这次改动之后 `pnpm run test` 全绿：302 个文件，2712 个测试。
 - `packages/market-ui/test/dialog-shell.test.ts`（5 个用例）读源码与样式表；对着改动前的树验过，它会把每一处宿主 `Modal` 导入与每一处手写弧度都标出来。
 - `packages/market-ui/test/dialog-footer-size.test.ts` 渲染指令文件与语言引擎详情，断言它们的页脚按钮只有一个尺寸，并扫描每个 `actions` 表达式有没有自带尺寸。
 - 在 `market-demo` 里以 1448x1126、设置框架 800x800 现场测量：
