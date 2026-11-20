@@ -18,18 +18,21 @@
  * the code rather than on one rendering of one surface.
  */
 import { readFileSync, readdirSync } from 'node:fs'
-import { join } from 'node:path'
+import { join, sep } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 const ROOT = 'packages/market-ui/src'
 
-/** Every file under a directory with one of the extensions. */
+/**
+ * Every file under a directory with one of the extensions, as a `/`-separated
+ * path so the suffix comparisons below read the same on every platform.
+ */
 function sourceFiles(directory: string, extensions: readonly string[]): string[] {
   const found: string[] = []
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
     const path = join(directory, entry.name)
     if (entry.isDirectory()) found.push(...sourceFiles(path, extensions))
-    else if (extensions.some(extension => entry.name.endsWith(extension))) found.push(path)
+    else if (extensions.some(extension => entry.name.endsWith(extension))) found.push(path.split(sep).join('/'))
   }
   return found
 }
