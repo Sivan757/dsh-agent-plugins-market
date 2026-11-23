@@ -21,18 +21,7 @@ export { ScopedExtensionContributors } from './runtime/host/scoped-contributors.
 export { projectExtensionSuites } from './application/extension-suite-selection.js'
 export { ResourceFilterService } from './runtime/host/resource-filter-service.js'
 export { shellSeamOf } from './runtime/surfaces/dynamic-context.js'
-export {
-  HOOK_RUN_DEFAULT_TIMEOUT_SEC,
-  HOOK_RUN_MAX_OUTPUT_CHARS,
-  HOOK_RUN_MAX_TIMEOUT_MS,
-  HOOK_RUN_NO_COMMAND,
-  HOOK_RUN_SHELL_UNAVAILABLE,
-  HOOK_RUN_UNKNOWN_DECLARATION,
-  hookRunFailure,
-  hookRunShellOf,
-  runHookDryRun
-} from './runtime/surfaces/hook-dry-run.js'
-export type { HookRunShell, HookRunShellRequest, HookRunShellResult } from './runtime/surfaces/hook-dry-run.js'
+export { HOOK_RUN_NO_COMMAND, HOOK_RUN_SHELL_UNAVAILABLE, HOOK_RUN_UNKNOWN_DECLARATION, hookRunFailure, hookRunShellOf, runHookDryRun } from './runtime/surfaces/hook-dry-run.js'
 export { LOCALE_SETTINGS_ENTRY, bindHostLocale, readHostLocalePreference, readLocalePreference, setHostLocaleSource } from './runtime/host/host-locale.js'
 export type { HostLocaleKey, HostTranslate, LocaleSettingsSource } from './runtime/host/host-locale.js'
 export { UserPanelSkillProvider, createUserPanelStores } from './runtime/panels/user-panels.js'
@@ -50,13 +39,9 @@ export { TabLayoutService } from './runtime/host/tab-layout-service.js'
 export { OutputStyleService } from './runtime/host/output-style-service.js'
 export type { OutputStyleSuitePort } from './runtime/host/output-style-service.js'
 export { mountOutputStyleSection } from './runtime/host/output-style-section.js'
-export { renderOutputStyleSection } from './runtime/host/output-style-render.js'
-export { loadOutputStyle, mutateOutputStyle, outputStylePath, saveOutputStyleSelection } from './application/state/output-style.js'
-export { userStylePath, writeUserStyle } from './application/output-styles.js'
 export type { SuiteStyleEntry } from './application/output-styles.js'
-export { DEFAULT_INVENTORY_RETRY, INVENTORY_RETRY_BASE_MS, INVENTORY_RETRY_MAX_MS, inventoryRetryDelay, resolveInventoryRetry } from './runtime/host/inventory-retry.js'
+export { resolveInventoryRetry } from './runtime/host/inventory-retry.js'
 export type { InventoryRetryPolicy } from './runtime/host/inventory-retry.js'
-export { loadTabLayout, mutateTabLayout, saveTabLayout, tabLayoutPath } from './application/state/tab-layout.js'
-export { MCP_HEALTH_SECTION_NAME, mcpHealthSectionText, mountMcpHealthSection } from './runtime/host/mcp-health-section.js'
-export { mcpHealthNoticeCopy, mountMcpHealthNotices } from './runtime/host/mcp-health-notice.js'
-export type { McpHealthEventSource } from './runtime/host/mcp-health-notice.js'
+export { loadTabLayout, saveTabLayout } from './application/state/tab-layout.js'
+export { mountMcpHealthSection } from './runtime/host/mcp-health-section.js'
+export { mountMcpHealthNotices } from './runtime/host/mcp-health-notice.js'

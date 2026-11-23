@@ -237,12 +237,12 @@ CC 契约与 dsh-lsp-stdio Config 字段几乎一一对应，零转换损耗；�
 
 ### 3.6 验证
 
-单测（vitest，对齐现有 surfaces/mounts 测试布局）：
+本仓库当前只有 Web UI 自动化测试，扫描、挂载与合同行为按下述手工验收覆盖：
 
-1. **发现**：claude-plugins-official fixture → typescript-lsp 被发现，`surfaces.lsp === 1`；marketplace 条目级与 manifest 级两路径各自覆盖；非法 lspServers fail-closed 进 errors。
-2. **规范化**：lsp-spec 校验表（空 command / 空映射 / 非法扩展名 / 大小写规范化）。
-3. **挂载**：fake `ctx.plugin` + 动态导入注入 → 正确 Config 形状、provider id 命名、suite 粒度挂载、host-missing 不重试、mount-failed 重试上界、activeSurfaces.lsp=false 过滤、extension 冲突次序确定性。
-4. **合同**：SuiteDetail.lsp 新形状的类型测试与现有消费者更新。
+1. **发现**：claude-plugins-official 源 → typescript-lsp 被发现，详情页显示 LSP 1；marketplace 条目级与 manifest 级两路径各查一次；写入非法 lspServers 后详情页出现诊断而非半挂载。
+2. **规范化**：在详情页检查空 command / 空映射 / 非法扩展名 / 大小写规范化后的 server 表。
+3. **挂载**：安装启用后 `ctx.lsp` 路由表出现该 provider；重复声明同一扩展名时详情页报 seam-conflict；卸载后 provider 释放。
+4. **合同**：`SuiteDetail.lsp` 形状变更时更新 `packages/market-ui` 的消费者，`pnpm run typecheck` 通过。
 
 手工验收：
 

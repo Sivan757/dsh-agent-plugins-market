@@ -10,9 +10,9 @@ Adding the job found more of the same class, this time in the tests rather than 
 
 ## Decision
 
-`.github/workflows/windows.yml` runs the whole suite on `windows-latest`: install, then `pnpm run test`, whose `pretest` hook brings typecheck and lint with it. It triggers on pushes to `main` and `dev`, on pull requests into either, and on `workflow_dispatch`.
+`.github/workflows/windows.yml` runs the static gates and the Web UI suite on `windows-latest`: install, `pnpm run check:quick`, then `pnpm run test`. It triggers on pushes to `main` and `dev`, on pull requests into either, and on `workflow_dispatch`.
 
-The suites that had only ever run on one host now derive what they assert from the host's path rules instead of spelling it out: temp roots come from `os.tmpdir()`, expected paths are built with `join`/`resolve`, and the single permission assertion states that it is POSIX-only, because `chmod` on Windows only toggles the read-only attribute and the mode there is `0o666`.
+The suite that remains resolves what it touches through the host's own path rules instead of spelling it out: the e2e cache root is built with `join`/`resolve`, and the host boots from it on either platform.
 
 `.gitattributes` checks every text file out with `eol=lf`, because a second Windows-only failure had nothing to do with paths: a `commands/*.md` fixture is forwarded byte-for-byte and its trailing newline is asserted, so a CRLF checkout reported a difference the product does not have. `eol=lf` is the attribute that overrides the host's `core.autocrlf`; `text=auto` alone defers to it and still yields CRLF. Every committed blob was already LF, so the rule renormalized nothing.
 
@@ -34,4 +34,4 @@ The file-mode assertion is the one guarantee Windows cannot observe at all; it s
 
 ## Testing
 
-The job is its own test: it fails on `windows-latest` for every `/tmp` root, POSIX assertion, and CRLF-dependent fixture listed above, which is how each was found. `packages/market-catalog/test/paths.test.ts` keeps the separator rules themselves covered on every host, so the win32 behavior stays pinned even when a change is only exercised on Linux.
+The job is its own test: it fails on `windows-latest` when the host boot or a UI assertion assumes POSIX paths or POSIX file modes. Separator and casing rules for the scanning paths have no automated test; a change there is checked by adding a source on each host and reading the suite detail.

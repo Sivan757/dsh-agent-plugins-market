@@ -10,9 +10,9 @@ Status: implemented
 
 ## Decision
 
-`.github/workflows/windows.yml` 在 `windows-latest` 上跑整套测试：安装，然后 `pnpm run test`，其 `pretest` 钩子会一并带上类型检查与 lint。触发条件是推送到 `main` 与 `dev`、指向这两者的 PR，以及 `workflow_dispatch`。
+`.github/workflows/windows.yml` 在 `windows-latest` 上跑静态门禁与 Web UI 套件：安装、`pnpm run check:quick`，然后 `pnpm run test`。触发条件是推送到 `main` 与 `dev`、指向这两者的 PR，以及 `workflow_dispatch`。
 
-那些此前只在一个宿主上运行过的套件，现在改为按宿主路径规则推导断言，而不是把路径写死：临时根来自 `os.tmpdir()`，期望路径用 `join`/`resolve` 构造，唯一那处权限断言则明确声明它只属于 POSIX——Windows 上 `chmod` 只切换只读属性，权限位是 `0o666`。
+现在剩下的套件用宿主自己的路径规则推导它要碰的路径，而不是把路径写死：e2e 缓存根由 `join`/`resolve` 构造，宿主在两个平台上都从它启动。
 
 `.gitattributes` 让每个文本文件在所有平台上都以 `eol=lf` 检出，因为第二处只在 Windows 出现的失败与路径无关：一个 `commands/*.md` fixture 是按字节原样转发的，其结尾换行会被断言，于是 CRLF 检出报告了一个产品本身并不存在的差异。要覆盖宿主的 `core.autocrlf` 靠的是 `eol=lf`；只有 `text=auto` 会让步于它，仍然得到 CRLF。仓库里已提交的 blob 本来就全是 LF，所以这条规则没有重新规范化任何文件。
 
@@ -34,4 +34,4 @@ Status: implemented
 
 ## Testing
 
-这个 job 本身就是它的测试：对上面列出的每一个 `/tmp` 根、POSIX 断言与依赖 CRLF 的 fixture，它都会在 `windows-latest` 上失败——每一处都是这样被发现的。`packages/market-catalog/test/paths.test.ts` 让分隔符规则本身在每个宿主上都被覆盖，因此即使某次改动只在 Linux 上被执行，win32 行为也仍然被钉住。
+这个 job 本身就是它的测试：当宿主启动或 UI 断言假定 POSIX 路径或 POSIX 权限时，它会在 `windows-latest` 上失败。扫描路径的分隔符与大小写规则没有自动化测试；改动它们要在两个宿主上都加一次来源、再读套件详情核对。

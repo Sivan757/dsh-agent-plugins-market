@@ -3,18 +3,20 @@ import tseslint from 'typescript-eslint'
 
 export default tseslint.config(
   {
-    ignores: ['lib/**', 'client/**', 'node_modules/**']
+    // The e2e host harness is a plain Node script like scripts/*.mjs; the typed
+    // rules need a TypeScript program that a .mjs file does not have.
+    ignores: ['lib/**', 'client/**', 'node_modules/**', 'e2e/host.mjs']
   },
   eslint.configs.recommended,
   ...tseslint.configs.recommendedTypeChecked,
   {
-    files: ['index.ts', 'packages/**/*.ts', 'packages/**/*.tsx', 'packages/*/test/**/*.ts'],
+    files: ['index.ts', 'packages/**/*.ts', 'packages/**/*.tsx', 'e2e/**/*.ts', 'playwright.config.ts'],
     languageOptions: {
       parserOptions: {
-        // Type-aware rules need to know which program a file belongs to. The four
-        // projects are listed most-specific-last so a file that appears in two of
-        // them resolves to the shipped one rather than the test one.
-        project: ['./tsconfig.json', './tsconfig.client.json', './tsconfig.test.json', './tsconfig.test.client.json'],
+        // Type-aware rules need to know which program a file belongs to. The
+        // three projects are distinguished by where the file lives: server code,
+        // client code, and the Playwright suite that drives both.
+        project: ['./tsconfig.json', './tsconfig.client.json', './tsconfig.e2e.json'],
         tsconfigRootDir: import.meta.dirname
       }
     },

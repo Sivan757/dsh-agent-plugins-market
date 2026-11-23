@@ -4,7 +4,7 @@
 
 **Guide:** [安装](install.md) · [来源](sources.md) · [自建资源](resources.md) · [服务](services.md) · [翻译](translation.md) · [设置](settings.md) · [工作区](workspace.md) · [代理角色](agent-roles.md) · [布局审计](layout-coverage.md)
 
-`schemas/` 的当前契约包含十种布局：八种客户端/约定方言、agent-plugins v1（schema 位于 `1.0.0` 与 `1.1.0`，另有 [`com.deepseek.harness` 命名空间契约](../../packages/market-catalog/schemas/com.deepseek.harness/spec.md)）及无清单技能集合。十种布局都有可执行发现测试，不以 schema 通过或其它高优先级清单成功读取同一仓库代替兼容性证明。
+`schemas/` 的当前契约包含十种布局：八种客户端/约定方言、agent-plugins v1（schema 位于 `1.0.0` 与 `1.1.0`，另有 [`com.deepseek.harness` 命名空间契约](../../packages/market-catalog/schemas/com.deepseek.harness/spec.md)）及无清单技能集合。十种布局的发现路径都由兼容性报告在对应样本仓库上执行，不以 schema 通过或其它高优先级清单成功读取同一仓库代替兼容性证明。
 
 | 布局 | README 仓库快照 | 独立核验内容 |
 | --- | --- | --- |
@@ -17,17 +17,17 @@
 | ZCode | `zenstory-ai/oh-story-claudecode` | 自身 marketplace、自定义命令路径、全部四项 process hooks 声明 |
 | Qoder CLI | `DietrichGebert/ponytail` | 自身身份及声明的 `qoder-hooks.json` |
 | GitHub Copilot | `headroomlabs-ai/headroom` | 自身 marketplace 与嵌套插件清单、hooks 目录；ponytail 补充 Copilot 原生事件名称 |
-| 技能集合 | 上述 Universal 仓库，测试中移除清单 | 原始 SKILL.md 无清单仍可发现 |
+| 技能集合 | 上述 Universal 仓库，移除清单 | 原始 SKILL.md 无清单仍可发现 |
 
-## 测试设计
+## 结论的核对方式
 
-`packages/market-bundle/test/integration/fixtures/real-layouts/` 保存选定的原始声明与运行时文本，固定完整提交号、每文件 SHA-256 和上游许可证。`scripts/update-layout-fixtures.mjs` 读取对应提交的 Git blob，不信任缓存工作树里的改动。测试不会执行这些仓库的脚本或二进制程序。
+布局结论来自 `node scripts/compat-report.mjs`：它克隆样本仓库，并用市场自己的扫描器读取清单；报告记录每个样本声明了什么、扫描器在哪里找到它，本页据此引用。
 
-`packages/market-bundle/test/integration/real-layouts.test.ts` 核验来源、对真实清单执行 schema 校验，扫描原始多布局目录，再构建第二棵目录树，在每个套件根移除竞争清单。实际生效的 marketplace 来自扫描器返回值。测试还验证运行时命令读取、hooks 归一化、详情投影和 Kimi 指令加载。无清单和 Kimi 主路径用例明确属于派生布局变体，不冒充上游原始文件位置。
+仓库不再随附离线快照或布局测试套件。扫描、组件声明、hooks 归一化与技能源聚合没有自动化测试；改动的核对方式是在真实宿主里把样本仓库加为市场来源，再读它的套件详情。
 
-`packages/market-bundle/test/integration/component-declarations.test.ts` 补充样本未必具备的 schema 形式：文件/目录/数组路径、Cursor 文本扩展名、MCP 文件/内联数组、文件式 LSP、Qoder 内联命令、Kimi hooks/系统提示/catalog 别名、marketplace pluginRoot 与仅条目声明的套件、Codex API catalog，以及路径隔离和失败关闭。`packages/market-bundle/test/integration/project-hooks.test.ts` 覆盖项目维度：设置表与独立 hook 文件、`hooks.json` 可携带的裸事件表、文件损坏时的失败关闭，以及桥挂载的私有运行时快照。
+显式市场条目与插件声明保留各自身份，包含其它运行面的无清单目录保持独立；安装行为由[技能集合契约](../../packages/market-catalog/schemas/skill-collection/spec.md#source-grouping)定义。
 
-[技能源聚合测试](../../packages/market-bundle/test/integration/skill-source-aggregation.test.ts)覆盖单卡片聚合、安装、重新加载、资源路径、同名去重和无效技能诊断。显式市场条目和插件声明保留各自身份。包含其它运行面的无清单目录仍保持独立。[技能集合契约](../../packages/market-catalog/schemas/skill-collection/spec.md#source-grouping)定义安装行为。
+十种布局都通过市场的来源扫描核对：只能解析却产不出套件的布局会表现为扫描备注，而不是悄悄通过。
 
 ## 实现
 
@@ -35,7 +35,7 @@
 
 项目维度通过 `native-project.ts` 复用同一套归一化，因此 `.agents/hooks/hooks.json` 与 `.agents/hooks.json` 的挂载方式与套件自身的 `hooks.json` 一致；独立文件既可写裸事件表，也可写 `hooks` 键。`.agents/mcp.json` 是该布局自己的 `mcpServers` 文档，与 Claude Code 的根 `.mcp.json`、Cursor 的 `.cursor/mcp.json` 并列；ZCode 只读自己的文件。用户 Agent 布局根目录 `~/.agents/` 承载同样的运行面：面板创作或读取的技能、命令与角色，同样两个文件名的 hooks，以及手写的 `mcp.json`、`lsp.json` 声明。
 
-仅含元数据的根 `plugin.json` 保留现有身份，但会从同根 Claude 清单补充缺失的组件声明。未修改的 ponytail 快照验证这一行为，避免根名称文件继续遮蔽真实 hooks，却在隔离测试中表现正常。
+仅含元数据的根 `plugin.json` 保留现有身份，但会从同根 Claude 清单补充缺失的组件声明。把 ponytail 加为市场来源即可看到这一点：否则根名称文件会继续遮蔽真实 hooks。
 
 Kimi 系统/启动指令使用已有的作用域 `systemPrompt` 服务。ZCode process hooks 通过带引用的命令适配保留 argv 边界。受支持的 Copilot/Cursor 生命周期事件名称映射到现有 command-hook 桥。本轮没有修改宿主仓库，也没有增加依赖。
 
@@ -49,9 +49,7 @@ Kimi 系统/启动指令使用已有的作用域 `systemPrompt` 服务。ZCode p
 
 ```sh
 node scripts/compat-report.mjs
-node scripts/update-layout-fixtures.mjs
-pnpm exec vitest run tests/real-layouts.test.ts tests/component-declarations.test.ts
 pnpm run check:refactor
 ```
 
-只有第一个命令会获取缺失的仓库缓存。日常测试使用仓库内快照，不需要访问 GitHub。
+第一个命令把仓库获取到 `node_modules/.cache/compat-report` 并写出报告，第二个命令校验工作树。扫描与解析在本仓库没有自动化测试，布局结论要在真实宿主里用市场面板核对。

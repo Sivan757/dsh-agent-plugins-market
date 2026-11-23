@@ -20,7 +20,7 @@
  * @module runtime/mcp-client/bridge
  */
 
-import type { Context } from '@deepseek-ai/cordis'
+import { Context } from '@deepseek-ai/cordis'
 import { scopeOf } from '@deepseek-ai/dsh-scope'
 import { registerOwnedBridgeTool } from './tool-ownership.js'
 import { resolveReconnectPolicy, startConnection } from './connection.js'
@@ -123,7 +123,7 @@ export async function apply(ctx: Context, config: Config): Promise<void> {
   // Reserve the namespace next: a duplicate `serverName` fails THIS instance
   // at load with an actionable error and leaves the earlier instance intact.
   ctx.effect(() => {
-    const owner = scopeOf(ctx) ?? ctx.root
+    const owner = scopeOf(ctx) ?? ctx[Context.root]
     let names = activeServerNames.get(owner)
     if (!names) {
       names = new Set()

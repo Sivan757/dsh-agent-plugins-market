@@ -54,8 +54,7 @@ function schemasDirectory(): string {
     // same two relative spots: beside the catalog package, or under the
     // packages/ path preserved by the npm "files" entry
     // "packages/market-catalog/schemas" in package.json. A tarball without that
-    // entry throws ENOENT on the first validation, so
-    // packages/market-bundle/test/repo/published-schemas.test.ts guards it.
+    // entry throws ENOENT on the first validation.
     if (name === '@dsh-market/catalog') return join(directory, 'schemas')
     if (name === 'dsh-agent-plugins-market') return join(directory, 'packages/market-catalog/schemas')
     // One level per pass: a walk that skips a level could step over the package

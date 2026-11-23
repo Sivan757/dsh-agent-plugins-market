@@ -3,11 +3,8 @@
 /**
  * The workspace tabs a workspace can stow, in display order.
  *
- * The client renders the row from its own display-order list and treats this
- * list as the stowable set, so the two must name the same tabs. The drift
- * assertion in `packages/market-ui/test/client-workspace-tab-stow.test.ts` fails
- * when a tab is added to one and not the other, which is the moment to extend
- * this list.
+ * The client renders the row from this array and treats it as the stowable
+ * set, so one list owns both the row and the store.
  */
 export const WORKSPACE_TAB_KEYS = ['market', 'skills', 'personas', 'commands', 'mcp', 'lsp', 'instructions', 'outputStyles', 'hooks'] as const
 

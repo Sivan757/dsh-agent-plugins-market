@@ -84,7 +84,7 @@ What it costs:
 
 ## Testing
 
-[Chain tests](../../../../packages/market-bundle/test/integration/translation-chain.test.ts) cover order, deadlines, failure and cancellation; [localizer tests](../../../../packages/market-translation/test/translation-localizer.test.ts) cover text reuse, target isolation, bounds and recovery; [cache tests](../../../../packages/market-translation/test/translation-cache.test.ts) cover persistent keys. [The lifecycle decision](2026-10-06-translation-reading-and-lifecycle.md) identifies structural and disable/reset race coverage. These are traceable coverage references, not carried-forward mutation-testing or performance claims.
+No automated test covers the translation chain, localizer or cache; a change here is checked in a real host. The structural concerns and the disable/reset race live in [the lifecycle decision](2026-10-06-translation-reading-and-lifecycle.md).
 
 ## Related
 

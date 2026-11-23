@@ -31,3 +31,5 @@ Status: implemented
 ## Related decisions
 
 在通道问题上完整取代 [resolve the alignment baseline from the latest release line](2026-09-22-latest-release-line-baseline.md)：锚点包解析、两段供给规则、`--fix` 行为与三处门禁调用点全部沿用。它自身曾部分取代 [force the host dependency baseline to one release line before it can ship](2026-09-11-host-dependency-alignment-gate.md)，后者的其余规则继续有效。
+
+本 Note 现被 [the suite drives the Web UI in a real host](../testing/2026-11-23-the-suite-drives-the-web-ui-in-a-real-host.md) 部分取代：默认解析改为同时读取 `next` 与 `alpha` 并取较新版本，原因是新线的 alpha 发布到 `alpha` 时 `next` 仍停在旧线。显式 `--channel` 仍可钉住单条 tag，这里其余规则继续有效。

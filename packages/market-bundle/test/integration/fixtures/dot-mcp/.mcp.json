@@ -1,1 +1,0 @@
-{ "mcpServers": { "httpSrv": { "type": "http", "url": "https://mcp.example.com" }, "good": { "type": "streamable-http", "url": "https://mcp.example.com/stream" } } }

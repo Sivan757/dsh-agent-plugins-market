@@ -7,7 +7,8 @@
 #    commit, so a stale `@deepseek-ai/dsh-*` pin ships a contract that excludes the host line
 #    consumers actually run, and an undeclared dynamic import ships a surface that silently
 #    degrades. Fix with `pnpm run fix:host-alignment`.
-# 2. The cheap half of the gate — typecheck and lint, both of which cover the test projects.
+# 2. The cheap half of the gate — typecheck and lint, over the server project, the client project
+#    and the Playwright suite.
 #
 # The checks call the local binaries rather than `pnpm run check:quick`, which is the same set: pnpm
 # verifies the dependency tree before running a script and reconciles `node_modules` when it
@@ -20,7 +21,6 @@ set -e
 node scripts/check-host-alignment.mjs
 ./node_modules/.bin/tsc -p tsconfig.json --noEmit
 ./node_modules/.bin/tsc -p tsconfig.client.json --noEmit
-./node_modules/.bin/tsc -p tsconfig.test.json --noEmit
-./node_modules/.bin/tsc -p tsconfig.test.client.json --noEmit
-./node_modules/.bin/eslint index.ts packages
+./node_modules/.bin/tsc -p tsconfig.e2e.json --noEmit
+./node_modules/.bin/eslint index.ts packages e2e
 ./node_modules/.bin/prettier --check .

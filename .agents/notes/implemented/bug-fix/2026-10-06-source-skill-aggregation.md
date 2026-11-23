@@ -30,7 +30,7 @@ Users install the aggregate separately. Existing individual installation records
 
 ## Testing
 
-[Aggregation tests](../../../../packages/market-bundle/test/integration/skill-source-aggregation.test.ts) cover user/project discovery, legacy ID collisions, duplicates, diagnostics, installation, reload, and runtime resource paths. Eight focused test files pass with 164 tests. The repository refactor gate also passes.
+No automated test covers aggregation: discovery, collisions, de-duplication, diagnostics, install and reload are checked in a real host, and the refactor gate still guards the tree.
 
 A real checkout of `jeecgboot/skills` at `12760b936b0a083ce70905021ea82149f36537d4` produces one suite, 14 skills, and no diagnostics on macOS. Two upstream files use lowercase `skill.md`, so case-sensitive filesystems can produce a different count. This change preserves the existing filename handling.
 

@@ -50,7 +50,7 @@ The translated view covers the body without frontmatter and can normalize Markdo
 
 ## Testing
 
-[Document chunk tests](../../../../packages/market-translation/test/document-chunks.test.ts) cover bounded descriptions, preserved separators and document AST handling. [Document translation tests](../../../../packages/market-bundle/test/integration/translation-document.test.ts) exercise the catalog and store path. [Cache tests](../../../../packages/market-translation/test/translation-cache.test.ts) pin role-key compatibility; [localizer tests](../../../../packages/market-translation/test/translation-localizer.test.ts) cover batch limits. These are coverage references, not a claim that this documentation edit ran the suite.
+No automated test covers chunking, the catalog translation path, cache keys or batch limits; a change here is checked in a real host.
 
 ## Related
 

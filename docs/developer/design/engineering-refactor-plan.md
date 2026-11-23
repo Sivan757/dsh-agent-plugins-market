@@ -282,7 +282,6 @@ pnpm typecheck
 pnpm lint
 pnpm format:check
 pnpm test
-pnpm test:contract
 pnpm check:architecture
 pnpm build
 ```

@@ -1,5 +1,5 @@
 /** Session-scoped discovery through the published skills/list RPC, independent of execution grants. */
-import { rankByName } from '@deepseek-ai/dsh-client-ui-primitives'
+import { rankByName } from './rank-by-name.js'
 import { adaptSkillSources, registeredSkillSources, replaceSkillCandidates } from './menu-row-face.js'
 
 export interface SkillCatalogEntry {

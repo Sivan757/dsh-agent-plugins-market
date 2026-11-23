@@ -1,8 +1,0 @@
-{
-  "name": "codex-bundled",
-  "interface": "codex-marketplace-v1",
-  "plugins": [
-    { "name": "demo-tools", "source": { "source": "local", "path": "./plugins/demo-tools" } },
-    { "name": "remote-thing", "source": { "source": "remote", "url": "https://github.com/example/remote-thing.git" } }
-  ]
-}

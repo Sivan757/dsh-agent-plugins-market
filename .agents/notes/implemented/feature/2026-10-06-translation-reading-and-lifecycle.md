@@ -84,11 +84,11 @@ Tables still use whole-table comparison. Sentence grouping reduces cross-sentenc
 
 ## Testing
 
-[Document chunk tests](../../../../packages/market-translation/test/document-chunks.test.ts) and [catalog translation tests](../../../../packages/market-bundle/test/integration/translation-document.test.ts) cover protected content, structure, stable segments and English translation. [Reader tests](../../../../packages/market-bundle/test/integration/client-document-translation.test.ts), [user-detail tests](../../../../packages/market-ui/test/client-user-entry-detail-translation.test.ts) and [Market tests](../../../../packages/market-ui/test/market-detail-document-translation.test.ts) cover expansion and reading modes.
+No automated test covers document reading or the two reader surfaces; expansion, reading modes and protected content are checked in a real host.
 
-[Polling tests](../../../../packages/market-ui/test/translation-settle.test.ts) and [reader tests](../../../../packages/market-bundle/test/integration/client-document-translation.test.ts) cover read failures, retained partial results and retry. [Transport timeout tests](../../../../packages/market-ui/test/client-api-timeout.test.ts) cover stalled response bodies. [Chain tests](../../../../packages/market-bundle/test/integration/translation-chain.test.ts) cover providers that ignore cancellation and late model capability lookup. These cases do not establish the cause of a live document that stays pending.
+No automated test covers polling, transport timeouts or chain cancellation; these cases do not establish the cause of a live document that stays pending.
 
-[Localizer tests](../../../../packages/market-translation/test/translation-localizer.test.ts) cover generation isolation, persistence order, completed-cache retention and target budgets. [Chain tests](../../../../packages/market-bundle/test/integration/translation-chain.test.ts) cover cancellation before fallbacks. [Menu tests](../../../../packages/market-bundle/test/integration/client-menu-row-faces.test.ts) cover finite open-menu refresh, close cleanup and stale responses. These are verification owners, not a claim that this documentation edit ran behavior tests or reproduced live provider results.
+No automated test covers localizer isolation or menu refresh; this documentation edit ran no behavior test and reproduced no live provider result.
 
 ## Related
 

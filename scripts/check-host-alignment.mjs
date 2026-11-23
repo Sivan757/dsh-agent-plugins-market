@@ -12,15 +12,16 @@
  *    declared contract at all: it degrades to the `host-missing` diagnostic with nothing to
  *    align or audit.
  *
- * This gate resolves the host release line from the registry (`next` by default), then fails
- * unless every declared and referenced host dependency matches that one baseline. The harness
- * family publishes prerelease candidates (rc and later) to `next` and repoints `latest` only at
- * stable releases, so while the host runs a prerelease line `next` is the only tag naming the
- * version consumers actually install; `latest` lags behind by whole candidate lines. The baseline
- * is the `next` version of `@deepseek-ai/dsh` itself: it is the package a consumer installs, and
- * the only family member whose tags track the release line. The capability packages publish in
- * lockstep to `next`, while their own `latest` tags still sit on early placeholders, so they
- * cannot decide the baseline.
+ * This gate resolves the host release line from the registry, then fails unless every declared
+ * and referenced host dependency matches that one baseline. The harness family tags its
+ * candidates by phase: a new line's alphas publish to `alpha` while `next` still names the
+ * previous line's last rc, and every rc publishes to `next`. Resolving only one tag would pin
+ * the gate to the older line for the whole alpha phase, so the default resolution reads both
+ * candidate tags and takes the newest version; `latest` is ignored because it only moves at
+ * stable releases and lags by whole candidate lines. The baseline is the `@deepseek-ai/dsh`
+ * version chosen this way: it is the package a consumer installs, and the only family member
+ * whose tags track the release line. The capability packages publish in lockstep, while their
+ * own `latest` tags still sit on early placeholders, so they cannot decide the baseline.
  *
  * - a `dependencies` entry carries the support range: this plugin provisions that capability itself,
  *   so pnpm installs it into the consuming profile (a dsh profile sets `autoInstallPeers: false`,
@@ -48,7 +49,8 @@
  *
  * Options:
  *   --host-version <v>   Pin the baseline explicitly; skips registry resolution.
- *   --channel <tag>      Registry dist-tag to resolve (default: next).
+ *   --channel <tag>      Registry dist-tag to resolve; repeatable. Defaults to `next` and
+ *                        `alpha`, and the newest version among them wins.
  *   --fix                Rewrite package.json and pnpm-workspace.yaml into alignment.
  *   --json               Emit a machine-readable report.
  *   --offline            Resolve from the local dist-tag cache only.
@@ -96,7 +98,11 @@ const option = (name, fallback) => {
   return index === -1 || argv[index + 1] === undefined ? fallback : argv[index + 1]
 }
 
-const channel = option('channel', 'next')
+/** Every tag a candidate line may sit on; the newest version among them is the baseline. */
+const DEFAULT_CHANNELS = ['next', 'alpha']
+/** The tags given on the command line, in order; the default pair when none were given. */
+const channels = argv.flatMap((argument, index) => (argument === '--channel' && argv[index + 1] !== undefined ? [argv[index + 1]] : []))
+const resolvedChannels = channels.length === 0 ? DEFAULT_CHANNELS : channels
 const forcedVersion = option('host-version', process.env.DSH_HOST_VERSION)
 const cacheTtlMs = Number(option('cache-ttl', '300')) * 1000
 const useJson = flag('json')
@@ -183,9 +189,51 @@ function scanHostSurface(dir) {
   return found
 }
 
+/** Compare two semver identifiers; numeric identifiers sort below alphanumeric ones. */
+function compareIdentifiers(left, right) {
+  const numeric = /^[0-9]+$/u
+  if (numeric.test(left) && numeric.test(right)) return Number(left) - Number(right)
+  if (numeric.test(left)) return -1
+  if (numeric.test(right)) return 1
+  return left.localeCompare(right)
+}
+
+/**
+ * Compare two versions by semver precedence, prerelease included.
+ * @param left - a version such as `0.2.3-alpha.2`.
+ * @param right - the version to compare against.
+ * @returns a negative number when left precedes right, a positive one when it follows, 0 when equal.
+ */
+function compareVersions(left, right) {
+  const parse = version => {
+    const separator = version.indexOf('-')
+    return {
+      core: (separator === -1 ? version : version.slice(0, separator)).split('.').map(Number),
+      prerelease: separator === -1 ? [] : version.slice(separator + 1).split('.')
+    }
+  }
+  const first = parse(left)
+  const second = parse(right)
+  for (let index = 0; index < 3; index += 1) {
+    const difference = first.core[index] - second.core[index]
+    if (difference !== 0) return difference
+  }
+  if (first.prerelease.length === 0 && second.prerelease.length === 0) return 0
+  if (first.prerelease.length === 0) return 1
+  if (second.prerelease.length === 0) return -1
+  const shared = Math.min(first.prerelease.length, second.prerelease.length)
+  for (let index = 0; index < shared; index += 1) {
+    const difference = compareIdentifiers(first.prerelease[index], second.prerelease[index])
+    if (difference !== 0) return difference
+  }
+  return first.prerelease.length - second.prerelease.length
+}
+
 /** Dist-tags for every candidate package, served from cache when fresh. */
 async function resolveDistTags(names) {
-  if (forcedVersion !== undefined) return new Map(names.map(name => [name, { [channel]: forcedVersion }]))
+  if (forcedVersion !== undefined) {
+    return new Map(names.map(name => [name, Object.fromEntries(resolvedChannels.map(channel => [channel, forcedVersion]))]))
+  }
 
   let cache
   try {
@@ -196,7 +244,7 @@ async function resolveDistTags(names) {
   const freshEnough = cache !== undefined && Number.isFinite(cache.fetchedAt) && Date.now() - cache.fetchedAt < cacheTtlMs
   const cached = new Map(Object.entries(cache?.tags ?? {}))
   if (!refresh && (offline || freshEnough)) {
-    const missing = names.filter(name => cached.get(name)?.[channel] === undefined)
+    const missing = names.filter(name => resolvedChannels.some(channel => cached.get(name)?.[channel] === undefined))
     if (missing.length === 0) return new Map(names.map(name => [name, cached.get(name)]))
     if (offline) throw new Error(`no cached dist-tags for ${missing.join(', ')}; run once online or pass --host-version`)
   }
@@ -209,10 +257,14 @@ async function resolveDistTags(names) {
   for (const name of names) {
     const url = `https://registry.npmjs.org/-/package/${encodeURIComponent(name)}/dist-tags`
     const response = await fetch(url, { headers: { accept: 'application/json' } })
-    if (!response.ok) throw new Error(`${name}: registry responded ${response.status} for dist-tag ${channel}`)
+    if (!response.ok) throw new Error(`${name}: registry responded ${response.status} for its dist-tags`)
     const tags = await response.json()
-    if (typeof tags?.[channel] !== 'string') throw new Error(`${name}: registry has no ${channel} dist-tag`)
-    resolved.set(name, tags)
+    const record = { ...(cached.get(name) ?? {}) }
+    for (const channel of resolvedChannels) {
+      if (typeof tags?.[channel] === 'string') record[channel] = tags[channel]
+      else if (typeof record[channel] !== 'string') throw new Error(`${name}: registry has no ${channel} dist-tag`)
+    }
+    resolved.set(name, record)
   }
 
   const merged = { fetchedAt: Date.now(), tags: { ...Object.fromEntries(cached), ...Object.fromEntries(resolved) } }
@@ -222,19 +274,27 @@ async function resolveDistTags(names) {
 }
 
 /**
- * The one baseline every host package must carry: the anchor's version on the selected channel.
+ * The one baseline every host package must carry: the newest anchor version among the candidate
+ * tags.
  *
- * `next` is the default because the harness family publishes prerelease candidates there and only
- * repoints `latest` at stable releases; the 2026-09-22 note that moved the default to `latest`
- * judged a `next` tag nobody would release, which no longer describes the family's flow (see the
- * superseding note).
+ * `next` alone names the previous line while a new line's `alpha` candidates publish (2026-11-23:
+ * `next` was 0.2.2-rc.5 while `alpha` was 0.2.3-alpha.2), so the gate reads both and takes the
+ * greater version. `latest` is ignored: it only moves at stable releases.
+ * @param tags - dist-tags per candidate package.
+ * @returns the winning version and the channel it came from.
  */
 function baselineFrom(tags) {
-  const version = tags.get(HOST_ANCHOR)?.[channel]
-  if (typeof version !== 'string') {
-    throw new Error(`${HOST_ANCHOR}: registry has no ${channel} dist-tag to resolve the baseline from`)
+  const anchor = tags.get(HOST_ANCHOR) ?? {}
+  let best
+  for (const channel of resolvedChannels) {
+    const version = anchor[channel]
+    if (typeof version !== 'string') continue
+    if (best === undefined || compareVersions(version, best.version) > 0) best = { version, channel }
   }
-  return version
+  if (best === undefined) {
+    throw new Error(`${HOST_ANCHOR}: registry has no dist-tag among ${resolvedChannels.join(', ')} to resolve the baseline from`)
+  }
+  return best
 }
 
 /**
@@ -498,7 +558,7 @@ async function main() {
   if (candidates.length === 0) throw new Error('no @deepseek-ai/dsh-* dependencies to align')
 
   const tags = await resolveDistTags([...candidates, HOST_ANCHOR])
-  const baseline = baselineFrom(tags)
+  const { version: baseline, channel: baselineChannel } = baselineFrom(tags)
   if (!baselineInWindow(baseline)) {
     throw new Error(`resolved baseline ${baseline} is outside the declared support window ${HOST_SUPPORT_RANGE}; move HOST_SUPPORT_FLOOR/HOST_SUPPORT_CEILING before releasing`)
   }
@@ -533,9 +593,9 @@ async function main() {
   }
 
   if (useJson) {
-    console.log(JSON.stringify({ baseline, channel, hostNames, repaired, violations }, null, 2))
+    console.log(JSON.stringify({ baseline, channel: baselineChannel, channels: resolvedChannels, hostNames, repaired, violations }, null, 2))
   } else {
-    console.log(render({ baseline, channel, violations, hostNames, repaired }))
+    console.log(render({ baseline, channel: baselineChannel, violations, hostNames, repaired }))
     if (violations.length > 0 && !fix) {
       console.log('\nRun `pnpm run fix:host-alignment` to align package.json and pnpm-workspace.yaml, then `pnpm install`.')
     }

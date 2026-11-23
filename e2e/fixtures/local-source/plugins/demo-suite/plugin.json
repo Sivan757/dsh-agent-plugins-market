@@ -1,0 +1,8 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "demo-suite",
+  "version": "0.1.0",
+  "description": "Fixture suite the Web UI suite lists, opens, installs and uninstalls.",
+  "author": { "name": "dsh-agent-plugins-market tests" },
+  "license": "MIT"
+}

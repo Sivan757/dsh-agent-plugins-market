@@ -76,7 +76,7 @@ export const inject = ['slots', 'locale', 'remote', 'remote.credentials']
 const REQUIRED_PRIMITIVES = ['Button', 'Input', 'Modal', 'Toast', 'Tooltip'] as const
 
 /** Published composer seat after Permissions; blank and ongoing sessions share one icon entry. */
-export const COMPOSER_TOGGLE_SLOT = 'conversation.input.left'
+const COMPOSER_TOGGLE_SLOT = 'conversation.input.left'
 
 /** Reported once, because a slot that re-renders would otherwise repeat it. */
 let reportedMissingSession = false

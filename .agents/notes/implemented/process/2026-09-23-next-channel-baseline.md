@@ -31,3 +31,5 @@ When the host ships its first stable release, `latest` becomes correct again; th
 ## Related decisions
 
 Supersedes [resolve the alignment baseline from the latest release line](2026-09-22-latest-release-line-baseline.md) in full on the channel question: the anchor-package resolution, the two provisioning sections, the `--fix` behaviour, and the three gate sites carry forward. It in turn partially supersedes [force the host dependency baseline to one release line before it can ship](2026-09-11-host-dependency-alignment-gate.md), whose remaining rules stay in force.
+
+Partially superseded by [the suite drives the Web UI in a real host](../testing/2026-11-23-the-suite-drives-the-web-ui-in-a-real-host.md): the default resolution now reads `next` and `alpha` and takes the newest version, because a new line's alphas publish under `alpha` while `next` still names the previous line. An explicit `--channel` still pins one tag, and every other rule here stands.

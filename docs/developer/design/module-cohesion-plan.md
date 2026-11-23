@@ -137,7 +137,7 @@ Gate updates in the same PRs:
 
 ## Delivery stages
 
-Each stage lands behind `pnpm run check:refactor` plus the affected test files; each is a separate PR. Test **file names stay stable** through C1–C3, so the enumerated client-test lists in `tsconfig.test.json` and `tsconfig.test.client.json` do not churn — only import lines inside tests change.
+Each stage lands behind `pnpm run check:refactor`, plus `pnpm run test` when the stage touches the Web UI; each is a separate PR.
 
 ### Stage C0 — record the decision and repair the gates
 

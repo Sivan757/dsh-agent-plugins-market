@@ -80,18 +80,17 @@ Run the focused checks that match your change, then run the full gate before ope
 
 请先运行与改动相关的专项检查，再在创建 PR 前运行完整门禁：
 
-| Command                         | Purpose / 用途                                                                                  |
-| ------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `pnpm run typecheck`            | TypeScript host, client and test type checks / TypeScript 宿主、客户端与测试类型检查            |
-| `pnpm run lint`                 | ESLint checks / ESLint 检查                                                                     |
-| `pnpm run format:check`         | Prettier formatting check / Prettier 格式检查                                                   |
-| `pnpm run check:architecture`   | Dependency-boundary check / 依赖边界检查                                                        |
-| `pnpm run check:host-alignment` | Host dependency baseline check against the registry / 对照 registry 的宿主依赖基线检查          |
-| `pnpm run fix:host-alignment`   | Rewrite pins and exclusions into alignment / 按基线重写版本钉与逃生舱条目                       |
-| `pnpm run test:contract`        | Fast host/client contract tests / 快速宿主/客户端契约测试                                       |
-| `pnpm run test`                 | Full Vitest suite / 完整 Vitest 测试                                                            |
-| `pnpm run build`                | Published host and client artifacts / 发布用宿主与客户端构建产物                                |
-| `pnpm run check:refactor`       | Typecheck, lint, format, contract, and architecture gate / 类型、Lint、格式、契约与架构综合门禁 |
+| Command                         | Purpose / 用途                                                                                               |
+| ------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `pnpm run typecheck`            | TypeScript host, client and Playwright suite type checks / TypeScript 宿主、客户端与 Playwright 套件类型检查 |
+| `pnpm run lint`                 | ESLint checks / ESLint 检查                                                                                  |
+| `pnpm run format:check`         | Prettier formatting check / Prettier 格式检查                                                                |
+| `pnpm run check:architecture`   | Dependency-boundary check / 依赖边界检查                                                                     |
+| `pnpm run check:host-alignment` | Host dependency baseline check against the registry / 对照 registry 的宿主依赖基线检查                       |
+| `pnpm run fix:host-alignment`   | Rewrite pins and exclusions into alignment / 按基线重写版本钉与逃生舱条目                                    |
+| `pnpm run test`                 | Playwright Web UI suite against a booted host / 对比真实宿主的 Playwright Web UI 测试                        |
+| `pnpm run build`                | Published host and client artifacts / 发布用宿主与客户端构建产物                                             |
+| `pnpm run check:refactor`       | Typecheck, lint, format, contract, and architecture gate / 类型、Lint、格式、契约与架构综合门禁              |
 
 The pull-request workflow runs the refactor gate, the full test suite, and the build automatically. A PR should not be considered ready while a required check is failing.
 

@@ -7,8 +7,9 @@
 ```
 index.ts        public installation entry: re-exports the bundle package. The published package name and
                 artifact are unchanged; the workspace packages stay private.
-packages/       eight private workspace packages consumed by that one artifact; each owns its own
-                test/ tree, and market-catalog owns schemas/ (the vendored spec library):
+packages/       eight private workspace packages consumed by that one artifact; no package carries
+                a test tree — e2e/ holds the Web UI suite — and market-catalog owns schemas/ (the
+                vendored spec library):
   market-bundle/       composition root and HTTP surface: src/index.ts (plugin entry), routes*.ts,
                        runtime-adapters.ts, application/, platform/
   market-catalog/      pure source scanning (scanning/) and the catalog use cases (application/)
@@ -23,33 +24,33 @@ packages/       eight private workspace packages consumed by that one artifact; 
   market-ui/           Web market page: src/index.ts, api.ts, locales.ts and i18n.ts, features/,
                        workspace/, ui/
 plugins/        the first-party Agent Plugins v1 collection (plugin-dev, toolkit, engineering), authored
-                here and laid out exactly as the preset dsh-agent-plugins source scans it; conformance is
-                guarded by packages/market-catalog/test/first-party-plugins.test.ts
+                here and laid out exactly as the preset dsh-agent-plugins source scans it
+e2e/            the Playwright suite that drives the market's Web UI in a real host: fixtures/ holds the
+                local sources it scans, support/ opens the settings surface
 docs/           user/, reference/, developer/{decisions,design,discussion,release,upstream-proposal}/, scratch/ — see docs/AGENTS.md
 docs-site/      VitePress docs site
-scripts/        build and verification helpers: client banner, lifecycle verification, host-alignment
-                and reuse gates, compatibility report, fixture updates, git-hook setup
+scripts/        build and verification helpers: client banner, host-alignment and reuse gates,
+                compatibility report, git-hook setup
 ```
 
 ## Commands
 
 ```sh
-pnpm run typecheck           # the four TypeScript projects: server, client and both test projects
-pnpm run lint                # eslint index.ts packages
-pnpm run check:quick         # typecheck + lint — also runs before test and build
+pnpm run typecheck           # three TypeScript projects: server, client, Playwright suite
+pnpm run lint                # eslint index.ts packages e2e
+pnpm run check:quick         # typecheck + lint — prebuild invokes it
 pnpm run format:check        # prettier — tracked text except the paths in .prettierignore
-pnpm run test                # vitest run (full suite)
-pnpm run test:contract       # routes + market contracts only
+pnpm run test                # the Playwright Web UI suite (boots a host, drives the market page)
 pnpm run check:architecture  # dependency-cruiser over the workspace packages
 pnpm run check:reuse         # reuse ledger vs published host exports
 pnpm run check:host-skills   # the host skills link, and the routing table against it
-pnpm run check:refactor      # check:quick + format:check + test:contract + architecture + reuse
+pnpm run check:refactor      # check:quick + format:check + architecture + reuse + the static gates
 pnpm run build               # tsc emits lib/, tsdown bundles client/
 ```
 
-`check:quick` is the cheap half of the gate and runs on its own: `pretest` and `prebuild` invoke it, so a type or lint error surfaces the moment someone tests or builds rather than at review. The pre-commit hook runs it plus `format:check` and the host-alignment check — `git commit --no-verify` bypasses all three deliberately.
+`check:quick` is the cheap half of the gate: `prebuild` invokes it, so a type or lint error surfaces the moment someone builds rather than at review. The pre-commit hook runs it plus `format:check` and the host-alignment check — `git commit --no-verify` bypasses all three deliberately.
 
-`check:refactor` is the standing local gate; `npm-publish.yml` reruns it plus `pnpm run test` on a release tag, so a green full suite before push is enough locally. Prettier covers files eslint does not, except the paths in [.prettierignore](.prettierignore) — run `format:check` after writing docs or HTML before claiming a green tree.
+`check:refactor` is the standing local gate and does not run the browser suite: `npm-publish.yml` runs both on a release tag. Run `pnpm run test` before pushing a change to the Web UI. Prettier covers files eslint does not, except the paths in [.prettierignore](.prettierignore) — run `format:check` after writing docs or HTML before claiming a green tree.
 
 ## Pre-push evidence map
 
@@ -57,14 +58,14 @@ The host's `dsh-pre-push-checks` picks the method and the order; this table bind
 
 | Outgoing surface | Evidence |
 | --- | --- |
-| `packages/*/src/**` | `check:refactor` + the vitest files under `packages/<pkg>/test/` that mirror the touched area |
-| `packages/market-ui/src/**` or `packages/market-ui/src/locales*.ts` | the above + every `packages/market-ui/test/client-*.test.ts` |
-| `packages/market-catalog/schemas/**` | the above + `packages/market-bundle/test/integration/mcp-config.test.ts` + `packages/market-catalog/test/lsp-spec.test.ts` |
+| `packages/*/src/**` | `check:refactor`; the suite covers the Web UI, so server-side changes carry no automated test |
+| `packages/market-ui/src/**` or `packages/market-ui/src/locales*.ts` | the above + `pnpm run test` (the Playwright suite; a new UI surface needs a spec under `e2e/`) |
+| `packages/market-catalog/schemas/**` | the above + a seed fixture change only if the suite's scan assertions depend on it |
 | `docs/**`, `README*`, `docs-site/**` | `format:check` + `pnpm --dir docs-site run check:guide && pnpm --dir docs-site run build && pnpm --dir docs-site run check:links` (the build and link pair only when the site or the guide sources changed) |
 | `package.json` or the lockfile | `pnpm install --frozen-lockfile` + `check:refactor` + `check:host-alignment` |
 | a new `import('@deepseek-ai/dsh-*')` | the above + `check:host-alignment` — an undeclared host import is a surface that degrades silently |
 
-CI owns exhaustive coverage; the full `pnpm run test` is reserved for release verification and repository-wide changes.
+CI runs the Web UI suite on every push and pull request. Everything outside the Web UI — scanning, routes, mounts, the MCP bridge, the translation engine — has no automated test by design; verify it through the host and report what you ran.
 
 ## Conventions
 
@@ -76,7 +77,7 @@ CI owns exhaustive coverage; the full `pnpm run test` is reserved for release ve
 - **Bilingual is part of the change.** User-visible strings go through `packages/market-ui/src/locales.ts` with paired zh/en keys; user-facing docs ship `README.md` and `README.zh.md` as one edit. A surface that renders English-only text is an incomplete change.
 - **Validation fails closed.** A malformed manifest, `mcp.json` server, or `lspServers` declaration is diagnosed and skipped (or drops to an empty table), never silently half-mounted; suite data flows into `SourceOverview.scanNotes` and the status panels instead of disappearing. Follow the existing strategy-chain and status-builder patterns in `packages/market-catalog/src/` and `packages/market-runtime/src/`.
 - **Docs accompany code.** A behavior change to config keys, defaults, routes, error codes, or schemas updates README(s), the affected `docs/` page, and JSDoc in the same PR. Architecture decisions get an ADR under `docs/developer/decisions/`.
-- **Runtime owns effects; catalog stays pure.** Keep filesystem, process, and harness-context access in `packages/market-runtime/src/` and each adapter's `runtime/` folder; `packages/market-catalog/src/scanning/` resolvers stay testable pure functions. `check:architecture` enforces the boundaries, and the package dependency rules are recorded in [the domain workspace refactor](docs/developer/design/domain-workspace-refactor.md).
+- **Runtime owns effects; catalog stays pure.** Keep filesystem, process, and harness-context access in `packages/market-runtime/src/` and each adapter's `runtime/` folder; `packages/market-catalog/src/scanning/` resolvers stay pure functions. `check:architecture` enforces the boundaries, and the package dependency rules are recorded in [the domain workspace refactor](docs/developer/design/domain-workspace-refactor.md).
 - **New dependencies are justified in the PR body** and land in `pnpm-lock.yaml` (`--frozen-lockfile` is the CI contract).
 
 ## Editing these instructions

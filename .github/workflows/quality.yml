@@ -28,13 +28,17 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22
+          # The Playwright suite boots the published host, which declares
+          # ^24.22.3 || >=26.13.1. Keep the gate on the host's own floor.
+          node-version: 24.22.3
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
       - name: Run full quality gates
         run: pnpm run check:refactor
-      - name: Run full tests
+      # The suite drives the Chrome the runner image already ships
+      # (`channel: 'chrome'` in playwright.config.ts), so no browser download.
+      - name: Run the Web UI suite
         run: pnpm run test
       - name: Build published artifacts
         run: pnpm run build

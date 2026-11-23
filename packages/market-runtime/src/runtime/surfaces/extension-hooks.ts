@@ -33,9 +33,9 @@ import { attribute, frame } from './prompt-frame.js'
  * it and the catalog rejects the declaration with a diagnostic, so a suite
  * never believes a hook is live when it is not.
  *
- * The catalog derives the events it admits from the shared support table, and
- * `packages/market-runtime/test/hook-event-coverage.test.ts` holds this list to
- * that table, so the two cannot drift.
+ * The catalog admits exactly the events the shared support table does not call
+ * registered-only, so every declaration it accepts has an execution path here;
+ * this list is the bridge's own set of interception points.
  */
 export const HOOK_RUNTIME_POINTS = [
   'SessionStart',

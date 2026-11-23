@@ -150,10 +150,10 @@ Host 入口（`index.ts` / `routes.ts`）**留在 `src/` 根**作组装点，不
 
 ## §6 测试与质量门
 
-- 质量**门**命令序列 SHOULD 合为一个脚本（参考 `check:refactor`）：`typecheck → lint → format:check → test(契约优先) → check:architecture`。
-- 外部格式解析 **MUST** fixture 先行：每种 dialect 一组 fixtures（含恶意与边界样本），测试只跑 fixtures，不跑网络。
-- React 组件至少 render 冒烟测试；wire DTO 与路由有契约测试。
-- vitest 经验值：多文件共享 fixture / 全局 React 状态时 `fileParallelism: false`（串行全量秒级完成）。
+- 质量**门**命令序列 SHOULD 合为一个脚本（参考 `check:refactor`）：`typecheck → lint → format:check → check:architecture`。
+- 自动化测试只覆盖 Web UI：用 Playwright 在真实宿主里驱动界面，一个宿主一个 worker，断言只落在 DOM 与可见状态上。
+- 解析、路由、挂载等非 UI 行为不做单测；改动它们时在真实宿主里走查，并把运行过的命令与结果写进 PR。
+- 外部格式解析 **MUST** 以仓库快照为证：每种 dialect 一份代表性输入（含边界样本），结论写进兼容性报告而不是测试替身。
 - ESLint 基线：`@typescript-eslint/no-explicit-any: error`；未用变量报错（`^_` 豁免）。
 
 ## §7 工程治理

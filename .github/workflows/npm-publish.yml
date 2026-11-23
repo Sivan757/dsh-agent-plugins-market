@@ -68,11 +68,6 @@ jobs:
       # in pnpm-workspace.yaml, so this step and a developer's local `pnpm audit`
       # answer the same way. Each id there is a row in the accepted-risk table in
       # .github/SECURITY.md, which carries the reason and what would close it.
-      #
-      # `--prod` is deliberately not passed: in this pnpm version it reports the same
-      # advisories as the default audit, because the dev-only `katex` advisory appears
-      # in both modes, so it would narrow nothing while implying a filter that is not
-      # happening.
       - name: Audit dependencies for a release-blocking advisory
         run: pnpm audit --audit-level high
 
@@ -128,7 +123,8 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22
+          # The Web UI suite boots the published host, which requires 24.22.3.
+          node-version: 24.22.3
           cache: pnpm
           registry-url: https://registry.npmjs.org/
 

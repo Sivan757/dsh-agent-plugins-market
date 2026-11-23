@@ -28,7 +28,7 @@ The [docs site](../docs-site/.vitepress/config.mts) renders every `user/` page, 
 
 ## Generated artifacts
 
-[compat-report.md](reference/compat-report.md) and `compat-report.json` come from `node scripts/compat-report.mjs`; do not hand-edit them. Both are in `.prettierignore`. Moving or renaming one means updating the generator, [compat-report.test.ts](../packages/market-bundle/test/repo/compat-report.test.ts), and every inbound link in the same change.
+[compat-report.md](reference/compat-report.md) and `compat-report.json` come from `node scripts/compat-report.mjs`; do not hand-edit them. Both are in `.prettierignore`. Moving or renaming one means updating the generator and every inbound link in the same change.
 
 The `docs-site/guide/` directory is the same kind of artifact: generated from `user/` by `copy-guide.mjs`, gitignored, and never edited by hand.
 

@@ -1,0 +1,8 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "second-suite",
+  "version": "0.2.0",
+  "description": "Second fixture suite: added and removed through the source editor dialog.",
+  "author": { "name": "dsh-agent-plugins-market tests" },
+  "license": "MIT"
+}

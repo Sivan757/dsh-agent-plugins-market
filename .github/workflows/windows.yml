@@ -29,10 +29,12 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: 22
+          # The suite boots the published host, which declares 24.22.3+.
+          node-version: 24.22.3
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      # `test` runs `check:quick` (typecheck + lint) through its pretest hook.
-      - name: Run full tests
+      - name: Run the static gates
+        run: pnpm run check:quick
+      - name: Run the Web UI suite
         run: pnpm run test

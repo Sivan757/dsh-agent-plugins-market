@@ -13,14 +13,14 @@
  * it. The package id is validated instead, because the loader needs it as a
  * plain module id anyway.
  *
- * The root defaults to this checkout and can be passed as the first argument,
- * which is how `packages/market-bundle/test/repo/client-banner.test.ts` drives it against a fixture.
+ * The root is this checkout; the script reads the package manifest and the
+ * bundle the build just wrote.
  */
 import { readFileSync, writeFileSync, rmSync, existsSync } from 'node:fs'
-import { join, dirname, resolve } from 'node:path'
+import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-const root = process.argv[2] === undefined ? join(dirname(fileURLToPath(import.meta.url)), '..') : resolve(process.argv[2])
+const root = join(dirname(fileURLToPath(import.meta.url)), '..')
 const pkg = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'))
 const id = pkg.name
 if (typeof id !== 'string' || !/^[a-z0-9][a-z0-9._-]*$/i.test(id)) {

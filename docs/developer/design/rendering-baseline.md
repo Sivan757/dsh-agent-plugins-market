@@ -8,11 +8,7 @@ It does not claim to measure browser paint, React commit time, network latency, 
 
 ## Reproduction
 
-```sh
-pnpm exec vitest run tests/client-view-models.test.ts --reporter verbose
-```
-
-The benchmark test creates 5,000 suite cards and performs 20 searches against the same overview object.
+The benchmark that produced these numbers lived in the repository's former Vitest suite, which the Web UI suite replaced; the harness is gone, and the figures below are historical. Rebuilding it means creating 5,000 suite cards and performing 20 searches against the same overview object.
 
 The observed run recorded `4.48ms` for 20 searches and `22,220` visible-card results in the Node/Vitest process.
 
