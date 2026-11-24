@@ -123,6 +123,12 @@ async function resetPluginState() {
   const directory = join(HOME, 'agent-plugins')
   await rm(directory, { recursive: true, force: true })
   await mkdir(directory, { recursive: true })
+  // The user-level Agent layout root (`$DSH_AGENTS_HOME`, default `~/.agents`)
+  // holds hand-authored skills, commands and MCP servers. Empty it so a
+  // developer's personal resources never appear on the suite's tabs.
+  const agentsHome = join(HOME, 'agents-home')
+  await rm(agentsHome, { recursive: true, force: true })
+  await mkdir(agentsHome, { recursive: true })
   const state = {
     version: 1,
     sources: [{ id: 'e2e-fixture', url: join(ROOT, 'e2e', 'fixtures', 'local-source'), local: true }],
@@ -161,6 +167,7 @@ function boot(entry) {
     env: {
       ...process.env,
       DSH_HOME: HOME,
+      DSH_AGENTS_HOME: join(HOME, 'agents-home'),
       LANG: 'en_US.UTF-8',
       LC_ALL: 'en_US.UTF-8',
       LANGUAGE: 'en',
