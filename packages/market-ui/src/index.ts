@@ -78,9 +78,6 @@ const REQUIRED_PRIMITIVES = ['Button', 'Input', 'Modal', 'Toast', 'Tooltip'] as 
 /** Published composer seat after Permissions; blank and ongoing sessions share one icon entry. */
 const COMPOSER_TOGGLE_SLOT = 'conversation.input.left'
 
-/** Reported once, because a slot that re-renders would otherwise repeat it. */
-let reportedMissingSession = false
-
 /**
  * The slot's payload, behind the preset switch: nothing renders while the
  * setting is off, and a flip shows the entry without a reload.
@@ -91,18 +88,15 @@ let reportedMissingSession = false
  * indistinguishable from a broken plugin, and this one is a gap in the seat.
  */
 function PresetEntrySlot(props: {
-  sessionId?: string
+  /** Session identity every session-scoped seat receives from the slot contract. */
+  sessionId: string
   t: ExtensionTranslate
   observer: ExtensionWindowObserver
   /** The session kit's projection reader; absent outside a session-scoped seat. */
   useProjection?: UseSessionProjection
 }): ReactNode {
   const enabled = useAgentPresetsEnabled()
-  if (enabled && !props.sessionId && !reportedMissingSession) {
-    reportedMissingSession = true
-    console.warn('[dsh-agent-plugins-market] preset entry hidden: ' + COMPOSER_TOGGLE_SLOT + ' is rendered without a session id, so the seat cannot scope a read')
-  }
-  if (!enabled || !props.sessionId) return null
+  if (!enabled) return null
   return h(ExtensionPresetEntry, {
     sessionId: props.sessionId,
     t: props.t,
@@ -188,12 +182,13 @@ export function apply(ctx: SuiteClientContext): void {
       catalog = undefined
     }
   })
-  // No additive top entry exists; this seat supplies the materialized session identity beside Permissions.
-  // The preset switch owns the entry: it renders only while the setting is on, and a flip shows it without a reload.
+  // The seat supplies the materialized session identity beside Permissions: every
+  // session-scoped slot receives `sessionId` from the host's published slot contract,
+  // so the entry renders whenever the setting is on and a flip shows it without a reload.
   ctx.slots.inject(COMPOSER_TOGGLE_SLOT, () => {
     const dispose = ctx.slots.register(
       { name: COMPOSER_TOGGLE_SLOT, id: 'dsh-agent-plugins-market-resources', order: 60, label: () => (ctx.locale.bind(NS) as ExtensionTranslate)('epTitle') },
-      (props: { sessionId?: string; useProjection?: UseSessionProjection }) =>
+      (props: { sessionId: string; useProjection?: UseSessionProjection }) =>
         slotH(PresetEntrySlot, {
           sessionId: props.sessionId,
           t: ctx.locale.bind(NS) as ExtensionTranslate,

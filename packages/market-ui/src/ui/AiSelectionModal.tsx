@@ -18,6 +18,7 @@ import { createElement as h, useState, type ReactNode } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import { requestAiPreset } from '../api.js'
 import { FormDialog } from './DetailModal.js'
+import { CardActions, CardBody, CardIdentity, ResourceCard, ResourceCollection } from './ResourceCard.js'
 import type { AiPresetCandidate, AiPresetSuggestion } from '../../../market-contracts/src/contracts/ai-draft.js'
 import { aiFailureText } from './error-message.js'
 import type { Translate } from '../i18n.js'
@@ -87,6 +88,14 @@ export function AiSelectionModal(props: AiSelectionModalProps): ReactNode {
     setApplying(true)
     void onApply(answer, [...chosen]).finally(() => setApplying(false))
   }
+  const toggleChoice = (id: string): void => {
+    setChosen(current => {
+      const next = new Set(current)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
   return h(
     FormDialog,
     {
@@ -137,30 +146,44 @@ export function AiSelectionModal(props: AiSelectionModalProps): ReactNode {
               (suggestion.usage === undefined ? '' : ' · ' + t('aiDraftCost', { input: String(suggestion.usage.inputTokens), output: String(suggestion.usage.outputTokens) }))
           ),
           suggestion.reason === '' ? null : h('p', { className: css.aiNote }, suggestion.reason),
+          // The rows keep the one card anatomy every list in the plugin uses: a
+          // name, the line that describes it, and one control in the action
+          // cluster. The control is a tick rather than a switch because a
+          // suggestion is a choice, not an enable.
           h(
-            'div',
-            { className: css.aiChoices },
-            suggestion.enabledIds.map(id => {
+            ResourceCollection,
+            { view: 'list', className: css.aiChoiceList },
+            suggestion.enabledIds.map((id, index) => {
               const candidate = candidateOf(id)
+              const label = candidate?.label ?? id
+              const checked = chosen.has(id)
               return h(
-                'label',
-                { className: css.aiChoice, key: id },
-                h('input', {
-                  type: 'checkbox',
-                  checked: chosen.has(id),
-                  'aria-label': candidate?.label ?? id,
-                  onChange: (event: { target: HTMLInputElement }) => {
-                    const next = new Set(chosen)
-                    if (event.target.checked) next.add(id)
-                    else next.delete(id)
-                    setChosen(next)
-                  }
-                }),
+                ResourceCard,
+                {
+                  key: id,
+                  state: checked ? 'active' : 'absent',
+                  'data-resource-id': id,
+                  position: index + 1,
+                  count: suggestion.enabledIds.length,
+                  onClick: () => toggleChoice(id)
+                },
+                h(CardIdentity, { text: label }),
+                candidate?.description === undefined || candidate.description === ''
+                  ? null
+                  : h(CardBody, null, h('span', { className: css.aiChoiceDetail }, candidate.description)),
                 h(
-                  'span',
-                  { className: css.aiChoiceText },
-                  h('span', { className: css.aiChoiceName }, candidate?.label ?? id),
-                  candidate?.description === undefined || candidate.description === '' ? null : h('span', { className: css.aiChoiceDetail }, candidate.description)
+                  CardActions,
+                  null,
+                  h(
+                    'label',
+                    { className: css.aiCheck, onClick: (event: { stopPropagation(): void }) => event.stopPropagation() },
+                    h('input', {
+                      type: 'checkbox',
+                      checked,
+                      'aria-label': label,
+                      onChange: () => toggleChoice(id)
+                    })
+                  )
                 )
               )
             })

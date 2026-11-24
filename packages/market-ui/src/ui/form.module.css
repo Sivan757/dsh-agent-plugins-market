@@ -432,46 +432,35 @@
   }
 }
 
-/* The rows an answer chose: each one a line the reader reads and keeps or drops.
-   The list never scrolls on its own; the dialog body already does, under its
-   floating thumb. */
-.aiChoices {
+/* The rows an answer chose: the same card anatomy every list in the plugin
+   renders, with a tick in the action cluster. A long answer scrolls inside the
+   field so the dialog's own height stays bounded. */
+.aiChoiceList {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-}
-.aiChoice {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  padding: 6px 8px;
-  border: 1px solid var(--dsw-alias-border-l1);
-  border-radius: var(--dsw-radius-md);
-  cursor: pointer;
-}
-.aiChoice:hover {
-  background: var(--dsw-alias-interactive-bg-hover);
-}
-.aiChoice input {
-  margin-top: 2px;
-  flex: none;
-}
-.aiChoiceText {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-  min-width: 0;
-}
-.aiChoiceName {
-  color: var(--dsw-alias-label-primary);
-  font-size: 12px;
-  font-weight: 600;
+  gap: 6px;
+  max-height: 320px;
+  overflow-y: auto;
+  padding-right: 2px;
 }
 .aiChoiceDetail {
+  margin: 0;
   color: var(--dsw-alias-label-tertiary);
   font-size: 11px;
   line-height: 16px;
   overflow-wrap: anywhere;
+}
+.aiCheck {
+  display: flex;
+  align-items: center;
+  cursor: pointer;
+}
+/* The form's text-field rule sets every input to full width; the tick keeps its
+   own box so the name beside it keeps the row. */
+.aiCheck input {
+  width: auto;
+  margin: 0;
+  flex: none;
 }
 
 .aiNote {

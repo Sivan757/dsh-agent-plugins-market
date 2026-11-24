@@ -29,9 +29,10 @@ The icon-only rule for panel headers does not reach this seat. [The header carri
 - The entry's width varies with the name up to 220px and then truncates; the tooltip and the accessible name keep the full text.
 - `docs/user/settings.md` and its Chinese pair describe the chip instead of the icon button.
 - The README's demo recording shows the earlier icon-only entry; the difference is one control's width in the last scenes, and the recording is re-taken when the entry changes shape again.
+- The entry renders whenever the setting is on: the published slot contract supplies the session id every session-scoped seat receives, so [the entry-visibility fix](../bug-fix/2026-11-24-the-preset-entry-shows-and-its-suggestions-are-cards.md) removed the guard that hid the entry without one.
 
 ## Testing
 
-`packages/market-ui/test/preset-entry-label.test.ts` renders the entry against a stubbed window: a selected preset shows its name, no selection shows the global word, and a modified selection shows the preset name with the suffix in the accessible name. The existing `preset-ai-suggestion.test.ts` still drives the entry by its accessible name and passes.
+`e2e/presets.spec.ts` boots a real host, opens a session's composer, reads the entry's accessible name (`Default` in the suite's English locale), opens the preset manager, and drives the suggestion dialog's one stubbed answer. `pnpm run check:quick` and `pnpm run test` pass.
 
-`pnpm run check:quick`, `pnpm run format:check` and the `market-ui` suite pass. The chip was checked in a throwaway profile against the host's own permission and model chips: 28px high, the same 13/20 medium secondary text, the same chevron and hover wash.
+The chip was checked against the host's own permission and model chips: 28px high, the same 13/20 medium secondary text, the same chevron and hover wash.

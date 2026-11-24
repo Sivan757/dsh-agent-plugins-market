@@ -29,9 +29,10 @@ Status: implemented
 - 入口宽度随名称变化，最多 220px，之后截断；完整文本留在 tooltip 与可访问名里。
 - `docs/user/settings.md` 与中文配对描述这枚芯片，不再是图标按钮。
 - README 的演示录屏里是改动前的纯图标入口；差别是最后几幕中一个控件的宽度，等入口再次变形时重录。
+- 只要设置开着，入口就渲染：已发布的 slot 契约会给每个 session 作用域的位置传入会话 id，所以[入口可见性修复](../bug-fix/2026-11-24-the-preset-entry-shows-and-its-suggestions-are-cards.zh.md)删掉了没有 id 时隐藏入口的那道守卫。
 
 ## Testing
 
-`packages/market-ui/test/preset-entry-label.test.ts` 用桩数据渲染入口：选中预设时显示名称，未选中时显示全局词，已改动时显示预设名并把后缀放进可访问名。既有的 `preset-ai-suggestion.test.ts` 仍按可访问名驱动入口并通过。
+`e2e/presets.spec.ts` 启动真实宿主，打开一个会话的输入框，读入口的可访问名（英文 locale 下为 `Default`），打开预设管理器，并驱动建议对话框唯一一次桩住的答案。`pnpm run check:quick` 与 `pnpm run test` 通过。
 
-`pnpm run check:quick`、`pnpm run format:check` 与 `market-ui` 套件通过。芯片已在一次性 profile 中与宿主自己的权限、模型芯片对照：28px 高、同样的 13/20 中等次色文字、同样的箭头与悬停底色。
+芯片已与宿主自己的权限、模型芯片对照：28px 高、同样的 13/20 中等次色文字、同样的箭头与悬停底色。

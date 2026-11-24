@@ -32,4 +32,3 @@ Status: implemented
 - 扫描、路由、挂载、MCP 桥、翻译引擎与 hook 事件表不再有自动化测试。它们改为在宿主里手工验证，推送前的证据表也这样写。
 - 机器上第一次 `pnpm run test` 需要联网安装宿主 CLI 与一个 profile，之后缓存在 `node_modules/.cache/e2e`，后续启动只需数秒。宿主 engines 要求 Node `^24.22.3 || >=26.13.1`。
 - desktop profile 链接本仓库时 app 仍跑 `0.2.2-rc.5`，而本插件现在要求 `0.2.3-alpha.2`。app 升到 alpha 线、或把 desktop profile 换回已发布的稳定包之后，链接的插件才恢复可用。
-- 输入框的预设入口在这条宿主线上不渲染：宿主调用 `conversation.input.left` 这个位置时没有传 session id，于是 `PresetEntrySlot` 自己隐藏并告警一次。市场自己的设置面不受影响；要等宿主传入会话身份，入口才会出现。
