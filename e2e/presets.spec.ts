@@ -57,16 +57,30 @@ test('the composer preset entry suggests a preset from the installed suite', asy
 
     const rows = modal.locator('[data-resource-id]')
     await expect(rows).toHaveCount(1)
-    await expect(rows.first()).toContainText('demo-suite')
-    await expect(rows.first()).toHaveAttribute('data-resource-state', 'active')
-    // The chosen row keeps the shared card height; a field-width input must not
-    // stretch the tick across the row and squeeze the name to zero width.
-    const box = await rows.first().boundingBox()
-    expect(box?.height ?? 0).toBeLessThan(90)
-    await rows.first().locator("input[type='checkbox']").click()
-    await expect(rows.first()).toHaveAttribute('data-resource-state', 'absent')
-    await rows.first().locator("input[type='checkbox']").click()
-    await expect(rows.first()).toHaveAttribute('data-resource-state', 'active')
+    const row = rows.first()
+    // The dialog draws the same card the manager lists: identity, description,
+    // counts and source, not a bare title.
+    await expect(row).toContainText('demo-suite')
+    await expect(row).toContainText('v0.1.0')
+    await expect(row).toContainText('user')
+    await expect(row).toContainText('Fixture suite the Web UI suite lists, opens, installs and uninstalls.')
+    await expect(row).toContainText('skills 1')
+    await expect(row).toContainText('e2e-fixture')
+    await expect(row).toHaveAttribute('data-resource-state', 'active')
+    const box = await row.boundingBox()
+    expect(box?.height ?? 0).toBeGreaterThan(60)
+    expect(box?.height ?? 0).toBeLessThan(240)
+    // The switch is the row's keep/drop control, as on every resource list.
+    await modal.getByRole('switch', { name: 'Disable demo-suite' }).click()
+    await expect(row).toHaveAttribute('data-resource-state', 'disabled')
+    await modal.getByRole('switch', { name: 'Enable demo-suite' }).click()
+    await expect(row).toHaveAttribute('data-resource-state', 'active')
+    // The card opens the manager's own detail dialog over the suggestion.
+    await row.click()
+    const detail = page.getByRole('dialog', { name: 'demo-suite' })
+    await expect(detail).toBeVisible()
+    await detail.getByRole('button', { name: 'Cancel', exact: true }).first().click()
+    await expect(detail).toBeHidden()
     await expect(modal.getByRole('button', { name: 'Create this preset' })).toBeEnabled()
     // The dialog header's close control and the footer's Cancel share one label;
     // the footer action is the one this spec presses.

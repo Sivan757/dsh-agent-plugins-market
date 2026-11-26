@@ -14,7 +14,7 @@ A third fact made the first failure likelier than it needed to be. An install re
 
 - **The recommendation offers the rows the intent touches, never the catalogue.** The route ranks the suites whose name, description or id contain a word from the intent (two-character slices count for CJK text) and then fills up to `AI_PRESET_LIMITS.modelCandidates` (120). A narrow brief sees a short list, a broad one still sees a wide choice, and a thousand-suite catalogue no longer becomes a thousand-line prompt.
 - **Each offered row carries one line of what it is.** The candidate gained an optional description, capped to one line in the prompt, so the model chooses from facts rather than from names alone.
-- **The answer is a list the reader judges.** Every recommended row renders as its name, its description, and a tick in the action cluster, all ticked when the answer arrives. Applying sends only the rows still ticked, and the apply button stays disabled when none is.
+- **The answer is a list the reader judges.** Every recommended row renders as the shared resource card: name, version, owner tag, description, counts and source, kept by the card's switch and opened by its click. Every row the answer names starts kept. Applying sends only the rows still kept, and the apply button stays disabled when none is.
 - **An AI action leads the action row.** The dialog's button order is 生成建议 / 取消 and later 应用 / 取消: the AI action is the row's first button, ahead of the human ones. That is now a standing rule for every dialog that offers one.
 - **A call that outlived its budget is its own failure.** The auxiliary call marks the timeout, the model port throws `ai-timeout`, the route answers 504, and the dialog says 模型这次没能在时限内答完，可以直接重试 in the reader's language through the shared `aiFailureText` helper (which the diagnosis block now uses too).
 - **The guidance text is one line per dialog.** The two long hints became `说明用途，模型从扫到的市场套件里挑选；安装仍需你确认。` and its preset twin; the intent field gained its own label (用途/Purpose) instead of borrowing the dialog title as its aria-label.
@@ -39,5 +39,5 @@ A third fact made the first failure likelier than it needed to be. An install re
 
 ## Verification
 
-- `pnpm run test` green: the Web UI suite boots a real host, and `e2e/presets.spec.ts` answers the suggestion dialog's one request with a fixed payload, asserting one compact card, its state flip when unticked, and the enabled create action.
+- `pnpm run test` green: the Web UI suite boots a real host, and `e2e/presets.spec.ts` answers the suggestion dialog's one request with a fixed payload, asserting one complete card, its switch flipping the card state, and the enabled create action.
 - Live in `market-demo`: the dialog renders 用途 as the intent label, two footer buttons with 生成建议 first, and the trimmed description; submitting it answered with the provider's refusal, shown under the title (the red block) rather than in the footer row. The dialog's own answer path could not be exercised end to end in this profile because the provider refuses the auxiliary call; that is recorded above as an environment fact, not as a passing case.

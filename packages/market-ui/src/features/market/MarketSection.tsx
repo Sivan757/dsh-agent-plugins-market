@@ -450,8 +450,8 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
         ? h(AiSelectionModal, {
             t,
             mode: 'install',
-            // The reader judges a row from the same line the card shows: its name
-            // and its description.
+            // The reader judges a row from the same card the market draws: name,
+            // version, source tag, description and surface counts.
             candidates: overview.suites
               .filter(suite => !suite.enabled)
               .map(suite => ({
@@ -459,6 +459,14 @@ export function MarketSection({ t, mode = 'settings' }: MarketSectionProps): Rea
                 label: suite.name,
                 ...(suite.description === undefined ? {} : { description: suite.description })
               })),
+            candidateFacts: id => {
+              const suite = overview.suites.find(candidate => `${candidate.sourceId}/${candidate.suiteId}` === id)
+              return suite === undefined ? undefined : factsOf(suite)
+            },
+            onOpenCandidate: id => {
+              const suite = overview.suites.find(candidate => `${candidate.sourceId}/${candidate.suiteId}` === id)
+              if (suite !== undefined) setDetail(suite)
+            },
             onApply: async (_suggestion, ids) => {
               setPickedIds([...ids])
               setCategory('all')

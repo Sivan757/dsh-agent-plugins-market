@@ -18,7 +18,8 @@ import { createElement as h, useState, type ReactNode } from 'react'
 import { Button } from '@deepseek-ai/dsh-client-ui-primitives'
 import { requestAiPreset } from '../api.js'
 import { FormDialog } from './DetailModal.js'
-import { CardActions, CardBody, CardIdentity, ResourceCard, ResourceCollection } from './ResourceCard.js'
+import { buildFaceEntry, type FaceRowFacts } from './face-entry.js'
+import { ResourceSurface } from './ResourceSurface.js'
 import type { AiPresetCandidate, AiPresetSuggestion } from '../../../market-contracts/src/contracts/ai-draft.js'
 import { aiFailureText } from './error-message.js'
 import type { Translate } from '../i18n.js'
@@ -44,6 +45,16 @@ export interface AiSelectionModalProps {
    */
   candidates?: readonly AiPresetCandidate[]
   /**
+   * The full card facts for a candidate row, when the caller has the row loaded.
+   *
+   * The suggestion draws the same card as every other resource list: name,
+   * version, owner tag, description, counts and source. A caller that cannot
+   * supply them still gets a named row with the switch that keeps it.
+   */
+  candidateFacts?: (id: string) => FaceRowFacts | undefined
+  /** Opens one candidate's detail in the caller's own dialog. */
+  onOpenCandidate?: (id: string) => void
+  /**
    * Applies the suggestion over the rows the reader kept ticked; the manager
    * creates the preset and closes, the market narrows its list.
    */
@@ -57,7 +68,7 @@ function suggestionLocale(t: Translate): 'zh' | 'en' {
 }
 
 export function AiSelectionModal(props: AiSelectionModalProps): ReactNode {
-  const { t, candidates, onApply, onClose, mode = 'preset' } = props
+  const { t, candidates, candidateFacts, onOpenCandidate, onApply, onClose, mode = 'preset' } = props
   const [intent, setIntent] = useState('')
   const [busy, setBusy] = useState(false)
   const [applying, setApplying] = useState(false)
@@ -88,11 +99,11 @@ export function AiSelectionModal(props: AiSelectionModalProps): ReactNode {
     setApplying(true)
     void onApply(answer, [...chosen]).finally(() => setApplying(false))
   }
-  const toggleChoice = (id: string): void => {
+  const setChoice = (id: string, enabled: boolean): void => {
     setChosen(current => {
       const next = new Set(current)
-      if (next.has(id)) next.delete(id)
-      else next.add(id)
+      if (enabled) next.add(id)
+      else next.delete(id)
       return next
     })
   }
@@ -146,46 +157,39 @@ export function AiSelectionModal(props: AiSelectionModalProps): ReactNode {
               (suggestion.usage === undefined ? '' : ' · ' + t('aiDraftCost', { input: String(suggestion.usage.inputTokens), output: String(suggestion.usage.outputTokens) }))
           ),
           suggestion.reason === '' ? null : h('p', { className: css.aiNote }, suggestion.reason),
-          // The rows keep the one card anatomy every list in the plugin uses: a
-          // name, the line that describes it, and one control in the action
-          // cluster. The control is a tick rather than a switch because a
-          // suggestion is a choice, not an enable.
+          // The suggestion renders the same list the preset manager does: the
+          // shared ResourceSurface, one card per row from the same facts. The
+          // switch is the row's keep/drop control, and the card opens the
+          // caller's detail dialog.
           h(
-            ResourceCollection,
-            { view: 'list', className: css.aiChoiceList },
-            suggestion.enabledIds.map((id, index) => {
-              const candidate = candidateOf(id)
-              const label = candidate?.label ?? id
-              const checked = chosen.has(id)
-              return h(
-                ResourceCard,
-                {
-                  key: id,
-                  state: checked ? 'active' : 'absent',
-                  'data-resource-id': id,
-                  position: index + 1,
-                  count: suggestion.enabledIds.length,
-                  onClick: () => toggleChoice(id)
-                },
-                h(CardIdentity, { text: label }),
-                candidate?.description === undefined || candidate.description === ''
-                  ? null
-                  : h(CardBody, null, h('span', { className: css.aiChoiceDetail }, candidate.description)),
-                h(
-                  CardActions,
-                  null,
-                  h(
-                    'label',
-                    { className: css.aiCheck, onClick: (event: { stopPropagation(): void }) => event.stopPropagation() },
-                    h('input', {
-                      type: 'checkbox',
-                      checked,
-                      'aria-label': label,
-                      onChange: () => toggleChoice(id)
-                    })
-                  )
+            'div',
+            { className: css.aiChoiceList },
+            h(ResourceSurface, {
+              t,
+              entries: suggestion.enabledIds.map(id => {
+                const candidate = candidateOf(id)
+                const facts = candidateFacts?.(id)
+                return buildFaceEntry(
+                  t,
+                  {
+                    surface: 'market',
+                    provider: 'user',
+                    id,
+                    name: candidate?.label ?? id,
+                    ...(facts ?? {}),
+                    on: chosen.has(id),
+                    showSwitch: true,
+                    switchability: 'ready',
+                    absentWord: undefined
+                  },
+                  'resolve'
                 )
-              )
+              }),
+              capabilities: { toggle: true, counts: true },
+              emptyText: '',
+              onOpen: id => onOpenCandidate?.(id),
+              onToggle: setChoice,
+              isOn: id => chosen.has(id)
             })
           )
         )

@@ -28,6 +28,8 @@ import { ResourceList } from './ResourceList.js'
 import type { RenderExtensionDetail } from './details.js'
 import { useExtensionWindow, type ExtensionWindowObserver } from './use-window.js'
 import { canonicalPresetSelection, presetCoverage, presetSuggestionCandidates, resourceSelected, uniquePresetName } from './resource.js'
+import { presetRowFacts } from './row-facts.js'
+import { useTranslationEnabled } from '../../ui/translation-enabled.js'
 import { AiSelectionModal } from '../../ui/AiSelectionModal.js'
 import { DetailModal } from '../../ui/DetailModal.js'
 import css from './presets.module.css'
@@ -80,6 +82,7 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
   // One reading mode for the whole manager: the switch lives in the list's
   // toolbar, so the cards and the detail dialog behind them flip together.
   const [showOriginal, setShowOriginal] = useState(false)
+  const translationEnabled = useTranslationEnabled()
   const [clipboard, setClipboard] = useState<'copy' | 'paste' | null>(null),
     [clipText, setClipText] = useState('')
   const [leave, setLeave] = useState<{ action: () => void }>()
@@ -714,6 +717,17 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
             // has, in the order that keeps the ones that carry a selection when the list
             // is cut at the bound the contract states.
             candidates: presetSuggestionCandidates(data?.resources ?? []),
+            // The suggestion rows are the manager's own cards: the facts come
+            // from the adapter both surfaces share, and a card opens the same
+            // detail dialog the list opens.
+            candidateFacts: id => {
+              const row = data?.resources.find(resource => resource.id === id)
+              return row === undefined ? undefined : presetRowFacts({ t, row, resources: data?.resources ?? [], on: false, showOriginal, translationEnabled })
+            },
+            onOpenCandidate: id => {
+              const row = data?.resources.find(resource => resource.id === id)
+              if (row !== undefined) setDetail(row)
+            },
             onApply: async (suggestion, ids) => {
               // The suggestion names rows the way a person does, so the preset has to carry
               // the same closure the manager's switches build. A row under a suite carries
