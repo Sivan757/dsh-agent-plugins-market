@@ -26,7 +26,7 @@ export function ServerConfigModal({
   return h(FormDialog, {
     title: t(kind === 'mcp' ? (create ? 'mcpAddTitle' : 'mcpEditTitle') : create ? 'lspAddTitle' : 'lspEditTitle'),
     size: 'md',
-    height: 'tall',
+    height: 'regular',
     onClose,
     closeLabel: t('cancel'),
     // What saving does belongs under the title; the footer is the button row.

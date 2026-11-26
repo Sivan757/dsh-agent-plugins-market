@@ -1,10 +1,4 @@
 /* The host owns dialog chrome and viewport insets. This surface owns only its frame and flex allocation. */
-.modal[role='dialog'] {
-  width: 800px;
-  height: 800px;
-  max-width: 100%;
-  max-height: 100%;
-}
 .modalContent {
   min-height: 0;
   flex: 1;

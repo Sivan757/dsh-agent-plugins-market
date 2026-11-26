@@ -36,6 +36,12 @@ test('the composer preset entry suggests a preset from the installed suite', asy
   await test.step('the suggestion renders one card per chosen row', async () => {
     const manager = page.getByRole('dialog', { name: 'Manage extension presets' })
     await expect(manager).toBeVisible()
+    // The manager is the large frame: one width and height tier shared with the
+    // details it opens, not a hand-set 800x800 exception.
+    const managerBox = await manager.boundingBox()
+    expect(managerBox?.width ?? 0).toBeGreaterThan(840)
+    expect(managerBox?.width ?? 0).toBeLessThanOrEqual(900)
+    expect(managerBox?.height ?? 0).toBeGreaterThan(740)
     const ids = await manager.locator('[data-resource-id]').evaluateAll(list => list.map(card => card.getAttribute('data-resource-id')))
     expect(ids.length).toBeGreaterThan(0)
     await page.route('**/api/agent-plugins/ai-preset', route =>
@@ -53,7 +59,20 @@ test('the composer preset entry suggests a preset from the installed suite', asy
     const modal = page.getByRole('dialog', { name: 'Suggest a preset' })
     await expect(modal).toBeVisible()
     await modal.getByLabel('Purpose').fill('ppt')
+    // One fixed frame: the purpose field spans the dialog, not the viewport,
+    // and the reserved list area holds before any answer arrives.
+    const modalBox = await modal.boundingBox()
+    expect(modalBox?.width ?? 0).toBeGreaterThan(600)
+    expect(modalBox?.width ?? 0).toBeLessThanOrEqual(660)
+    expect(modalBox?.height ?? 0).toBeGreaterThan(440)
+    expect(modalBox?.height ?? 0).toBeLessThanOrEqual(500)
+    const purposeBox = await modal.getByLabel('Purpose').boundingBox()
+    expect(purposeBox?.width ?? 0).toBeLessThan((modalBox?.width ?? 0) - 20)
+    await expect(modal.getByText('Rows the model picks land here', { exact: false })).toBeVisible()
     await modal.getByRole('button', { name: 'Suggest', exact: true }).click()
+    await page.waitForTimeout(1200)
+    const answeredBox = await modal.boundingBox()
+    expect(Math.abs((answeredBox?.height ?? 0) - (modalBox?.height ?? 0))).toBeLessThanOrEqual(2)
 
     const rows = modal.locator('[data-resource-id]')
     await expect(rows).toHaveCount(1)

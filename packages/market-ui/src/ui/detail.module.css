@@ -22,12 +22,20 @@
 .dialog[role='dialog'].sizeLg {
   width: min(880px, calc(100vw - 48px));
 }
-/* Only preset-owned details inherit the settings frame; ordinary detail callers retain their sizing. */
-.dialog[role='dialog'].settingsFrame {
-  width: 800px;
-  height: 800px;
-  max-width: 100%;
-  max-height: 100%;
+/* The height tiers. `auto` needs no class; a fixed tier keeps the window the
+   same size while its content arrives, so a suggestion, a loading list or a
+   second view cannot resize it under the reader. `frame` is the settings-sized
+   window the preset manager and its details share. */
+.dialog[role='dialog'].heightShort {
+  height: min(480px, calc(100dvh - 48px));
+}
+
+.dialog[role='dialog'].heightRegular {
+  height: min(640px, calc(100dvh - 48px));
+}
+
+.dialog[role='dialog'].heightFrame {
+  height: min(800px, calc(100dvh - 48px));
 }
 /* The host's body box holds the alert (when a request was refused) and the
    scrolling column. Scrolling belongs to that column, not to this box: its own
@@ -101,23 +109,27 @@
 .compactTop [class*='content'] > [class*='body'] {
   margin-top: 0;
 }
-/* An editor dialog: one document in two views, so its height is the overlay's
-   rather than whichever view is showing — switching views must not resize the
-   window — and the scrolling happens inside it. */
-.tallDialog {
-  height: 80%;
-}
-/* The host's content and body boxes carry a class of theirs; ours ride along on
-   the content, so the market reaches both by attribute. The content's height
-   caps (this stylesheet's and the editor's own) would cut the dialog short. */
-.tallDialog [class*='content'] {
+/* A fixed height dialog owns its allocation: the content fills the frame and
+   the scrolling happens inside it, so a view switch or a growing list never
+   resizes the window. The host's content and body boxes carry a class of
+   theirs; ours ride along on the content, so the market reaches both by
+   attribute. The content's height caps (this stylesheet's and the editor's
+   own) would cut the dialog short. */
+.fixedHeight [class*='content'] {
   flex: 1 1 auto;
   min-height: 0;
   max-height: none;
 }
-.tallDialog [class*='content'] > [class*='body'] {
+
+.fixedHeight [class*='content'] > [class*='body'] {
   flex: 1 1 auto;
   min-height: 0;
+}
+
+/* A form fills the fixed frame, so a reserved region inside it (a suggestion
+   list) can take the space the frame leaves instead of guessing a pixel height. */
+.fixedHeight .contentStack > * {
+  flex: 1 0 auto;
 }
 /* Own the flex allocation without overriding the layout of individual detail blocks. */
 .contentStack {

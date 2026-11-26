@@ -437,8 +437,23 @@
    field so the dialog's own height stays bounded. */
 .aiChoiceList {
   display: flex;
-  min-height: 0;
-  max-height: 320px;
+  flex: 1 1 auto;
+  min-height: 120px;
+}
+/* Before an answer the reserved area says what will land in it, instead of
+   leaving the fixed frame looking like a form that failed to load. */
+.aiChoiceList[data-ai-empty] {
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.aiEmptyNote {
+  max-width: 38ch;
+  margin: 0;
+  color: var(--dsw-alias-label-tertiary);
+  font-size: 12px;
+  line-height: 18px;
+  text-align: center;
 }
 
 .aiNote {

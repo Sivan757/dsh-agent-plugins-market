@@ -416,7 +416,8 @@ function SessionEntry({ sessionId, t, renderDetail, observer, useProjection }: E
           open
           title={t('epManageTitle')}
           closeLabel={t('epClose')}
-          className={css.modal}
+          size="lg"
+          height="frame"
           contentClassName={css.modalContent}
           onClose={dismiss}
           actions={

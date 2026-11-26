@@ -115,6 +115,11 @@ export function AiSelectionModal(props: AiSelectionModalProps): ReactNode {
       description: mode === 'install' ? t('aiSelectInstallHint') : t('aiSelectHint'),
       closeLabel: t('cancel'),
       ...(error === undefined ? {} : { alert: error }),
+      // One fixed frame for the whole flow: the suggestion can arrive, replace
+      // an earlier answer, or be cleared by editing the purpose without moving
+      // the window under the reader.
+      size: 'md',
+      height: 'short',
       // An AI action leads the row, ahead of the human ones: it is the reason
       // the dialog exists, and every later dialog that offers one keeps it there.
       actions: [
@@ -146,7 +151,7 @@ export function AiSelectionModal(props: AiSelectionModalProps): ReactNode {
       })
     ),
     suggestion === undefined
-      ? null
+      ? h('div', { className: css.aiChoiceList, 'data-ai-empty': '' }, h('p', { className: css.aiEmptyNote }, t('aiSelectEmpty')))
       : h(
           'div',
           { className: css.field },

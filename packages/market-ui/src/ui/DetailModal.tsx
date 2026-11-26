@@ -18,22 +18,33 @@ export function DetailFooterAction({ children }: { children: ReactNode }): React
   return target === null ? null : createPortal(children, target)
 }
 
-/** One of the three shipped dialog widths: confirm, small form, or detail. */
+/** The three shipped dialog widths: confirm, form, or detail and editor. */
 export type DetailSize = 'sm' | 'md' | 'lg'
 
 /**
- * How a dialog answers its content's height. `auto` is the host behavior —
- * the dialog is as tall as what it holds; `tall` fixes it to a share of the
- * overlay, which an editor with two views of one document needs: a view
- * switch that resizes the window reads as a flicker, and a long document
- * wants the room.
+ * How a dialog answers its content's height.
+ *
+ * `auto` follows the content. `short`, `regular` and `frame` fix the window
+ * instead, so a state that fills later — a suggestion list, a loading state,
+ * an editor's second view — cannot resize the dialog under the reader. `frame`
+ * is the settings-sized frame the preset manager and the details it opens share.
  */
-export type DetailHeight = 'auto' | 'tall'
+export type DetailHeight = 'auto' | 'short' | 'regular' | 'frame'
+
+const HEIGHT_CLASS: Record<Exclude<DetailHeight, 'auto'>, string> = {
+  short: css.heightShort ?? '',
+  regular: css.heightRegular ?? '',
+  frame: css.heightFrame ?? ''
+}
 
 function sizeClass(size: DetailSize): string {
   if (size === 'sm') return css.sizeSm ?? ''
   if (size === 'md') return css.sizeMd ?? ''
   return css.sizeLg ?? ''
+}
+
+function heightClass(height: DetailHeight): string {
+  return height === 'auto' ? '' : ` ${HEIGHT_CLASS[height]} ${css.fixedHeight ?? ''}`
 }
 
 /**
@@ -111,7 +122,11 @@ export function DetailModal(
 ): ReactNode {
   const [target, setTarget] = useState<HTMLDivElement | null>(null)
   const settingsFrame = useContext(SettingsFrame)
-  const { size = 'lg', height = settingsFrame ? 'tall' : 'auto', actions, alert, ...modal } = props
+  // A detail opened from the preset manager rides the manager's frame: its own
+  // width and height are the frame's, not a second size chosen at random.
+  const { size: sizeProp, height: heightProp, actions, alert, ...modal } = props
+  const size: DetailSize = settingsFrame ? 'lg' : (sizeProp ?? 'lg')
+  const height: DetailHeight = settingsFrame ? 'frame' : (heightProp ?? 'auto')
   // A dialog with no description keeps only the header's own 12px under the
   // title: the host's body margin assumes a sentence sits between the two.
   const compactTop = modal.description === undefined || modal.description === '' ? ` ${css.compactTop}` : ''
@@ -120,7 +135,7 @@ export function DetailModal(
     { value: target },
     h(Modal, {
       ...modal,
-      className: `${modal.className ?? ''} ${css.dialog} ${sizeClass(size)}${compactTop}${height === 'tall' ? ` ${css.tallDialog}` : ''}${settingsFrame ? ` ${css.settingsFrame}` : ''}`,
+      className: `${modal.className ?? ''} ${css.dialog} ${sizeClass(size)}${compactTop}${heightClass(height)}`,
       contentClassName: `${modal.contentClassName ?? ''} ${css.body}`,
       children: [
         alert === undefined || alert === '' ? null : h('p', { key: 'alert', className: css.alert, role: 'alert' }, alert),
